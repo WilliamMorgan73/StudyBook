@@ -1,16 +1,15 @@
-import { ArrowLeft, FileText, Layers, Settings as SettingsIcon, Trash2 } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { ArrowLeft, Code2, FileText, Layers, Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AttachmentList } from '@/components/AttachmentList'
+import { MarkdownEditor } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
 import {
   createFlashcard,
   deleteFlashcard,
@@ -101,15 +100,20 @@ export function SubmodulePage() {
   const { data: submodule, loading, error } = useAsync(() => getSubmodule(id), [id, reloadKey])
   const { data: flashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey])
 
-  const [editingContent, setEditingContent] = useState(false)
   const [content, setContent] = useState('')
+  const [sourceMode, setSourceMode] = useState(false)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
-  const [savingTitle, setSavingTitle] = useState(false)
 
   const [pdfOpen, setPdfOpen] = useState(false)
   const [flashcardsOpen, setFlashcardsOpen] = useState(false)
+
+  useEffect(() => {
+    if (submodule) setContent(submodule.content_markdown)
+  }, [submodule?.id])
 
   if (loading) {
     return (
@@ -132,33 +136,24 @@ export function SubmodulePage() {
     )
   }
 
-  function startEditingContent() {
-    setContent(submodule!.content_markdown)
-    setEditingContent(true)
-  }
-
   async function saveContent() {
-    setEditingContent(false)
     if (content !== submodule!.content_markdown) {
       await updateSubmodule(id, { content_markdown: content })
       refetch()
     }
   }
 
-  function openSettings() {
+  function startEditingTitle() {
     setTitleDraft(submodule!.title)
-    setSettingsOpen(true)
+    setEditingTitle(true)
   }
 
   async function saveTitle() {
-    if (!titleDraft.trim()) return
-    setSavingTitle(true)
-    try {
-      await updateSubmodule(id, { title: titleDraft.trim() })
-      setSettingsOpen(false)
+    setEditingTitle(false)
+    const trimmed = titleDraft.trim()
+    if (trimmed && trimmed !== submodule!.title) {
+      await updateSubmodule(id, { title: trimmed })
       refetch()
-    } finally {
-      setSavingTitle(false)
     }
   }
 
@@ -182,37 +177,57 @@ export function SubmodulePage() {
             </Link>
             <span className="truncate text-sm text-muted-foreground">{module?.name}</span>
             <span className="text-muted-foreground">/</span>
-            <span className="truncate text-sm font-medium">{submodule.title}</span>
+            {editingTitle ? (
+              <input
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={saveTitle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  if (e.key === 'Escape') {
+                    setTitleDraft(submodule!.title)
+                    e.currentTarget.blur()
+                  }
+                }}
+                autoFocus
+                className="min-w-0 truncate border-b border-foreground bg-transparent text-sm font-medium outline-none"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={startEditingTitle}
+                className="truncate text-sm font-medium hover:underline"
+              >
+                {submodule.title}
+              </button>
+            )}
           </>
         }
         right={
-          <Button variant="ghost" size="sm" onClick={openSettings}>
-            <SettingsIcon /> Settings
-          </Button>
+          <>
+            <Button
+              variant={sourceMode ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setSourceMode((s) => !s)}
+            >
+              <Code2 /> Source
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+              <SettingsIcon /> Settings
+            </Button>
+          </>
         }
       />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-8 py-10">
-        {editingContent ? (
-          <Textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onBlur={saveContent}
-            placeholder="Start writing…"
-            autoFocus
-            className="min-h-[70vh] w-full resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
-          />
-        ) : (
-          <div onClick={startEditingContent} className="min-h-[70vh] cursor-text">
-            {submodule.content_markdown.trim() ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{submodule.content_markdown}</ReactMarkdown>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Click to start writing…</p>
-            )}
-          </div>
-        )}
+        <MarkdownEditor
+          value={content}
+          onChange={setContent}
+          onBlur={saveContent}
+          sourceMode={sourceMode}
+          placeholder="Start writing…"
+          minHeight="70vh"
+        />
       </main>
 
       <div className="fixed right-6 bottom-6 flex flex-col gap-3">
@@ -241,18 +256,12 @@ export function SubmodulePage() {
             <DialogTitle>Submodule settings</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="submodule-title">Title</Label>
-              <Input id="submodule-title" value={titleDraft} onChange={(e) => setTitleDraft(e.target.value)} />
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <Button size="sm" onClick={saveTitle} disabled={savingTitle}>
-                {savingTitle ? 'Saving…' : 'Save'}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={handleDeleteSubmodule}>
-                Delete submodule
-              </Button>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Deleting a submodule removes its notes, attachments, and any linked flashcards.
+            </p>
+            <Button size="sm" variant="ghost" onClick={handleDeleteSubmodule}>
+              Delete submodule
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
