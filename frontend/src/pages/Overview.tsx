@@ -5,6 +5,7 @@ import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
+import { PageHeader } from '@/components/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
@@ -46,128 +47,132 @@ export function Overview() {
   }, [modules.data])
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Overview</h1>
-          <p className="text-sm text-muted-foreground">
-            {modules.data?.length ?? 0} modules
-            {averageGrade !== null && `, ${averageGrade.toFixed(1)}% average grade`}
-          </p>
+    <div className="min-h-full">
+      <PageHeader
+        left={
+          <div>
+            <h1 className="text-2xl font-semibold">Overview</h1>
+            <p className="text-sm text-muted-foreground">
+              {modules.data?.length ?? 0} modules
+              {averageGrade !== null && `, ${averageGrade.toFixed(1)}% average grade`}
+            </p>
+          </div>
+        }
+        right={<AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} />}
+      />
+
+      <div className="mx-auto max-w-7xl space-y-8 px-8 py-8">
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Calendar</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {calendar.loading && <Skeleton className="h-80 w-full" />}
+              {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
+              {calendar.data && (
+                <>
+                  <MonthCalendar
+                    month={month}
+                    onMonthChange={setMonth}
+                    events={events}
+                    selected={selected}
+                    onSelect={setSelected}
+                    eventColor={(event) => moduleColor(event.module_id)}
+                  />
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                      Lecture
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="size-1.5 rotate-45 rounded-[1px] bg-current" aria-hidden />
+                      Assignment due
+                    </span>
+                  </div>
+                  <div className="border-t pt-3">
+                    <p className="mb-2 text-sm font-medium">
+                      {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+                    {selectedDayEvents.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {selectedDayEvents.map((event) => (
+                          <li key={`${event.kind}-${event.id}`}>
+                            <Link
+                              to={event.url}
+                              className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                            >
+                              <span
+                                className={`size-1.5 shrink-0 ${
+                                  event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
+                                }`}
+                                style={{ backgroundColor: moduleColor(event.module_id) }}
+                                aria-hidden
+                              />
+                              <span className="truncate">{event.title}</span>
+                              <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                              <span className="ml-auto shrink-0 text-muted-foreground">
+                                {event.kind === 'assignment_due'
+                                  ? 'Due'
+                                  : new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                      hour: 'numeric',
+                                      minute: '2-digit',
+                                    })}
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Upcoming assignments</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {assignments.loading && <Skeleton className="h-40 w-full" />}
+              {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
+              {assignments.data?.length === 0 && (
+                <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
+              )}
+              {assignments.data?.map((a) => (
+                <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
+              ))}
+            </CardContent>
+          </Card>
         </div>
-        <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} />
-      </header>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Calendar</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {calendar.loading && <Skeleton className="h-80 w-full" />}
-            {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
-            {calendar.data && (
-              <>
-                <MonthCalendar
-                  month={month}
-                  onMonthChange={setMonth}
-                  events={events}
-                  selected={selected}
-                  onSelect={setSelected}
-                  eventColor={(event) => moduleColor(event.module_id)}
-                />
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-1.5 rounded-full bg-current" aria-hidden />
-                    Lecture
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="size-1.5 rotate-45 rounded-[1px] bg-current" aria-hidden />
-                    Assignment due
-                  </span>
-                </div>
-                <div className="border-t pt-3">
-                  <p className="mb-2 text-sm font-medium">
-                    {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                  </p>
-                  {selectedDayEvents.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {selectedDayEvents.map((event) => (
-                        <li key={`${event.kind}-${event.id}`}>
-                          <Link
-                            to={event.url}
-                            className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-                          >
-                            <span
-                              className={`size-1.5 shrink-0 ${
-                                event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
-                              }`}
-                              style={{ backgroundColor: moduleColor(event.module_id) }}
-                              aria-hidden
-                            />
-                            <span className="truncate">{event.title}</span>
-                            <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
-                            <span className="ml-auto shrink-0 text-muted-foreground">
-                              {event.kind === 'assignment_due'
-                                ? 'Due'
-                                : new Date(event.starts_at).toLocaleTimeString(undefined, {
-                                    hour: 'numeric',
-                                    minute: '2-digit',
-                                  })}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upcoming assignments</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {assignments.loading && <Skeleton className="h-40 w-full" />}
-            {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
-            {assignments.data?.length === 0 && (
-              <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
-            )}
-            {assignments.data?.map((a) => (
-              <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
-            ))}
-          </CardContent>
-        </Card>
+        <section>
+          <h2 className="mb-3 text-lg font-medium">Modules</h2>
+          {modules.loading && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 w-full" />
+              ))}
+            </div>
+          )}
+          {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
+          {modules.data?.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Add your first module to start tracking lectures, assignments, and grades.
+            </p>
+          )}
+          {modules.data && modules.data.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {modules.data.map((m) => (
+                <ModuleCard key={m.id} module={m} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-
-      <section>
-        <h2 className="mb-3 text-lg font-medium">Modules</h2>
-        {modules.loading && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full" />
-            ))}
-          </div>
-        )}
-        {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
-        {modules.data?.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Add your first module to start tracking lectures, assignments, and grades.
-          </p>
-        )}
-        {modules.data && modules.data.length > 0 && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {modules.data.map((m) => (
-              <ModuleCard key={m.id} module={m} />
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   )
 }

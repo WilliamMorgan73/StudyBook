@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AttachmentList } from '@/components/AttachmentList'
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -114,7 +115,7 @@ export function AssignmentPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full" />
@@ -124,7 +125,7 @@ export function AssignmentPage() {
 
   if (error || !assignment) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Module
         </Link>
@@ -198,16 +199,21 @@ export function AssignmentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-6 py-8">
-      <div className="flex items-center justify-between">
-        <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Module
-        </Link>
-        <Button variant="ghost" size="sm" onClick={handleDelete}>
-          Delete assignment
-        </Button>
-      </div>
+    <div className="min-h-full">
+      <PageHeader
+        left={
+          <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
+            &larr; Module
+          </Link>
+        }
+        right={
+          <Button variant="ghost" size="sm" onClick={handleDelete}>
+            Delete assignment
+          </Button>
+        }
+      />
 
+      <div className="mx-auto max-w-3xl space-y-8 px-8 py-8">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">{assignment.title}</h1>
@@ -381,6 +387,7 @@ export function AssignmentPage() {
           </ul>
         )}
       </section>
+      </div>
     </div>
   )
 }

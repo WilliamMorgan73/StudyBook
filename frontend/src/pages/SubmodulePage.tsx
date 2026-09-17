@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AttachmentList } from '@/components/AttachmentList'
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -112,7 +113,7 @@ export function SubmodulePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full" />
@@ -122,7 +123,7 @@ export function SubmodulePage() {
 
   if (error || !submodule) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Module
         </Link>
@@ -168,26 +169,30 @@ export function SubmodulePage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <Link
-            to={`/modules/${moduleId}`}
-            aria-label="Back to module"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" />
-          </Link>
-          <span className="truncate text-sm text-muted-foreground">{module?.name}</span>
-          <span className="text-muted-foreground">/</span>
-          <span className="truncate text-sm font-medium">{submodule.title}</span>
-        </div>
-        <Button variant="ghost" size="sm" onClick={openSettings}>
-          <SettingsIcon /> Settings
-        </Button>
-      </header>
+    <div className="flex min-h-full flex-col">
+      <PageHeader
+        left={
+          <>
+            <Link
+              to={`/modules/${moduleId}`}
+              aria-label="Back to module"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+            </Link>
+            <span className="truncate text-sm text-muted-foreground">{module?.name}</span>
+            <span className="text-muted-foreground">/</span>
+            <span className="truncate text-sm font-medium">{submodule.title}</span>
+          </>
+        }
+        right={
+          <Button variant="ghost" size="sm" onClick={openSettings}>
+            <SettingsIcon /> Settings
+          </Button>
+        }
+      />
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-8 py-10">
         {editingContent ? (
           <Textarea
             value={content}

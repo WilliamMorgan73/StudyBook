@@ -5,6 +5,7 @@ import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { CalendarAgenda } from '@/components/CalendarAgenda'
 import { NextLectureCountdown } from '@/components/NextLectureCountdown'
+import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -116,7 +117,7 @@ export function ModulePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-6xl space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-48 w-full" />
@@ -126,7 +127,7 @@ export function ModulePage() {
 
   if (error || !module) {
     return (
-      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
+      <div className="mx-auto max-w-6xl space-y-4 px-8 py-8">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Overview
         </Link>
@@ -144,137 +145,153 @@ export function ModulePage() {
   })
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-      <div className="flex items-center justify-between">
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Overview
-        </Link>
-        <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
-          Settings
-        </Link>
+    <div className="min-h-full">
+      <PageHeader
+        left={
+          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+            &larr; Overview
+          </Link>
+        }
+        right={
+          <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
+            Settings
+          </Link>
+        }
+      />
+
+      <div className="border-b" style={{ backgroundColor: `${module.color}0d` }}>
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-8 py-8">
+          <span
+            aria-hidden
+            className="size-3 shrink-0 rounded-full"
+            style={{ backgroundColor: module.color }}
+          />
+          <div className="flex-1">
+            <h1 className="text-3xl font-semibold">{module.name}</h1>
+            {(module.code || module.term || module.credits !== null) && (
+              <p className="text-sm text-muted-foreground">
+                {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
+                  .filter(Boolean)
+                  .join(', ')}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-6 text-right">
+            <div>
+              <p className="text-2xl font-semibold tabular-nums">
+                {module.current_grade !== null ? `${module.current_grade.toFixed(1)}%` : '—'}
+              </p>
+              <p className="text-xs text-muted-foreground">Current grade</p>
+            </div>
+            <div>
+              <NextLectureCountdown target={module.next_lecture_at} />
+              <p className="text-xs text-muted-foreground">
+                Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div className="flex gap-4 border-l-4 pl-4" style={{ borderColor: module.color }}>
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold">{module.name}</h1>
-          {(module.code || module.term || module.credits !== null) && (
-            <p className="text-sm text-muted-foreground">
-              {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
-                .filter(Boolean)
-                .join(', ')}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-6 text-right">
-          <div>
-            <p className="text-2xl font-semibold tabular-nums">
-              {module.current_grade !== null ? `${module.current_grade.toFixed(1)}%` : '—'}
-            </p>
-            <p className="text-xs text-muted-foreground">Current grade</p>
-          </div>
-          <div>
-            <NextLectureCountdown target={module.next_lecture_at} />
-            <p className="text-xs text-muted-foreground">
-              Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-medium">Schedule</h2>
-          <Tabs value={String(scheduleDays)} onValueChange={(v) => setScheduleDays(Number(v))}>
-            <TabsList>
-              <TabsTrigger value="7">Week</TabsTrigger>
-              <TabsTrigger value="14">Fortnight</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        {schedule.loading && <Skeleton className="h-32 w-full" />}
-        {schedule.data && <CalendarAgenda events={moduleSchedule} />}
-      </section>
-
-      <div className="grid gap-8 sm:grid-cols-2">
+      <div className="mx-auto max-w-6xl space-y-8 px-8 py-8">
         <section>
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-medium">Assignments</h2>
-            <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-medium">Schedule</h2>
+            <Tabs value={String(scheduleDays)} onValueChange={(v) => setScheduleDays(Number(v))}>
+              <TabsList>
+                <TabsTrigger value="7">Week</TabsTrigger>
+                <TabsTrigger value="14">Fortnight</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-          {sortedAssignments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No assignments yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {sortedAssignments.map((a) => (
-                <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
-              ))}
-            </ul>
-          )}
+          {schedule.loading && <Skeleton className="h-32 w-full" />}
+          {schedule.data && <CalendarAgenda events={moduleSchedule} />}
         </section>
 
-        <section>
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-medium">Lectures</h2>
-            <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
-              Manage
-            </Link>
-          </div>
-          {lectureGroups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
-          ) : (
-            <ul className="divide-y">
-              {lectureGroups.map((group) =>
-                group.type === 'series' ? (
-                  <LectureSeriesRow key={`${group.series.title}-${group.series.firstDate}`} series={group.series} />
-                ) : (
-                  <LectureRow key={group.lecture.id} lecture={group.lecture} />
-                ),
-              )}
-            </ul>
-          )}
-        </section>
+        <div className="grid gap-8 sm:grid-cols-2">
+          <section>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-lg font-medium">Assignments</h2>
+              <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+            </div>
+            {sortedAssignments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No assignments yet.</p>
+            ) : (
+              <ul className="divide-y">
+                {sortedAssignments.map((a) => (
+                  <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
+                ))}
+              </ul>
+            )}
+          </section>
 
-        <section>
-          <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-medium">Submodules</h2>
-            <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
-          </div>
-          {module.submodules.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No submodules yet.</p>
-          ) : (
-            <ul className="divide-y">
-              {module.submodules.map((s) => (
-                <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
-              ))}
-            </ul>
-          )}
-        </section>
-
-        <section>
-          <h2 className="mb-1 text-lg font-medium">Flashcards</h2>
-          {module.flashcards.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No flashcards yet.</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
-              {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
-            </p>
-          )}
-        </section>
-      </div>
-
-      {module.related_modules.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-lg font-medium">Related modules</h2>
-          <div className="flex flex-wrap gap-2">
-            {module.related_modules.map((related) => (
-              <Link key={related.id} to={`/modules/${related.id}`}>
-                <Badge variant="outline">{related.name}</Badge>
+          <section>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-lg font-medium">Lectures</h2>
+              <Link
+                to={`/modules/${module.id}/settings`}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Manage
               </Link>
-            ))}
-          </div>
-        </section>
-      )}
+            </div>
+            {lectureGroups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
+            ) : (
+              <ul className="divide-y">
+                {lectureGroups.map((group) =>
+                  group.type === 'series' ? (
+                    <LectureSeriesRow key={`${group.series.title}-${group.series.firstDate}`} series={group.series} />
+                  ) : (
+                    <LectureRow key={group.lecture.id} lecture={group.lecture} />
+                  ),
+                )}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className="text-lg font-medium">Submodules</h2>
+              <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
+            </div>
+            {module.submodules.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No submodules yet.</p>
+            ) : (
+              <ul className="divide-y">
+                {module.submodules.map((s) => (
+                  <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-1 text-lg font-medium">Flashcards</h2>
+            {module.flashcards.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No flashcards yet.</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
+                {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
+              </p>
+            )}
+          </section>
+        </div>
+
+        {module.related_modules.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-lg font-medium">Related modules</h2>
+            <div className="flex flex-wrap gap-2">
+              {module.related_modules.map((related) => (
+                <Link key={related.id} to={`/modules/${related.id}`}>
+                  <Badge variant="outline">{related.name}</Badge>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   )
 }

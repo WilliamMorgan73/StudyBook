@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -414,11 +415,16 @@ export function ModuleSettingsPage() {
   const groups = groupLectures(lectures ?? [])
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-6 py-8">
-      <Link to={`/modules/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-        &larr; {module?.name ?? 'Module'}
-      </Link>
+    <div className="min-h-full">
+      <PageHeader
+        left={
+          <Link to={`/modules/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
+            &larr; {module?.name ?? 'Module'}
+          </Link>
+        }
+      />
 
+      <div className="mx-auto max-w-2xl space-y-6 px-8 py-8">
       <div>
         <h1 className="text-2xl font-semibold">Settings</h1>
         <p className="text-sm text-muted-foreground">Manage when this module's lectures occur.</p>
@@ -457,6 +463,7 @@ export function ModuleSettingsPage() {
           </ul>
         )}
       </section>
+      </div>
     </div>
   )
 }
