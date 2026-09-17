@@ -21,10 +21,17 @@ function toLocalInput(iso: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+type Repeat = 'none' | 'weekly' | 'fortnightly'
+
+const SELECT_CLASS =
+  'h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+
 function NewLectureForm({ moduleId, onCreated }: { moduleId: number; onCreated: () => void }) {
   const [title, setTitle] = useState('')
   const [scheduledAt, setScheduledAt] = useState('')
   const [location, setLocation] = useState('')
+  const [repeat, setRepeat] = useState<Repeat>('none')
+  const [occurrences, setOccurrences] = useState('10')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,18 +41,28 @@ function NewLectureForm({ moduleId, onCreated }: { moduleId: number; onCreated: 
       setError('A title and date/time are required.')
       return
     }
+    const intervalDays = repeat === 'weekly' ? 7 : repeat === 'fortnightly' ? 14 : 0
+    const count = repeat === 'none' ? 1 : Math.min(52, Math.max(1, Number(occurrences) || 1))
+
     setSubmitting(true)
     setError(null)
     try {
-      await createLecture({
-        module_id: moduleId,
-        title: title.trim(),
-        scheduled_at: new Date(scheduledAt).toISOString(),
-        location: location.trim() || null,
-      })
+      const base = new Date(scheduledAt)
+      for (let i = 0; i < count; i++) {
+        const occurrence = new Date(base)
+        occurrence.setDate(occurrence.getDate() + i * intervalDays)
+        await createLecture({
+          module_id: moduleId,
+          title: title.trim(),
+          scheduled_at: occurrence.toISOString(),
+          location: location.trim() || null,
+          week_number: repeat === 'none' ? null : i + 1,
+        })
+      }
       setTitle('')
       setScheduledAt('')
       setLocation('')
+      setRepeat('none')
       onCreated()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add the lecture.')
@@ -73,6 +90,32 @@ function NewLectureForm({ moduleId, onCreated }: { moduleId: number; onCreated: 
         <Label htmlFor="new-lecture-location">Location</Label>
         <Input id="new-lecture-location" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Room 204" />
       </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="new-lecture-repeat">Repeats</Label>
+        <select
+          id="new-lecture-repeat"
+          className={SELECT_CLASS}
+          value={repeat}
+          onChange={(e) => setRepeat(e.target.value as Repeat)}
+        >
+          <option value="none">Does not repeat</option>
+          <option value="weekly">Weekly</option>
+          <option value="fortnightly">Fortnightly</option>
+        </select>
+      </div>
+      {repeat !== 'none' && (
+        <div className="w-28 space-y-1.5">
+          <Label htmlFor="new-lecture-occurrences">Occurrences</Label>
+          <Input
+            id="new-lecture-occurrences"
+            type="number"
+            min={1}
+            max={52}
+            value={occurrences}
+            onChange={(e) => setOccurrences(e.target.value)}
+          />
+        </div>
+      )}
       <Button type="submit" disabled={submitting}>
         {submitting ? 'Adding…' : 'Add lecture'}
       </Button>
