@@ -237,51 +237,55 @@ export function Overview() {
               <CardHeader>
                 <CardTitle>Progress</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {modules.loading && <Skeleton className="mx-auto size-24 rounded-full" />}
+              <CardContent className="flex flex-1 items-center justify-center">
+                {modules.loading && <Skeleton className="size-32 rounded-full" />}
                 {modules.data && (
-                  <>
-                    <div className="flex items-center justify-center gap-5">
-                      <div className="relative shrink-0" style={{ width: 96, height: 96 }}>
-                        <RadialProgress segments={progressSegments} size={96} strokeWidth={10} />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <p className="text-2xl font-semibold tabular-nums">
-                            {overallProgress.total === 0
-                              ? '—'
-                              : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
-                          </p>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">
-                          {overallProgress.graded} of {overallProgress.total} graded
-                        </p>
-                        <p className="text-xs text-muted-foreground">{overallProgress.in_progress} in progress</p>
-                        <p className="text-xs text-muted-foreground">{overallProgress.not_started} not started</p>
-                      </div>
+                  <div className="relative flex items-center justify-center">
+                    <RadialProgress segments={progressSegments} size={136} strokeWidth={13} />
+
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity group-hover/card:opacity-0">
+                      <p className="text-3xl font-semibold tabular-nums">
+                        {overallProgress.total === 0
+                          ? '—'
+                          : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">complete</p>
                     </div>
-                    {overallProgress.total === 0 ? (
-                      <p className="text-center text-sm text-muted-foreground">No assignments yet.</p>
-                    ) : (
-                      <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        {modules.data
-                          .filter((m) => m.assignment_progress.total > 0)
-                          .map((m) => (
-                            <li key={m.id} className="flex items-center gap-1.5">
-                              <span
-                                className="size-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: m.color }}
-                                aria-hidden
-                              />
-                              <span className="text-foreground">{m.name}</span>
-                              <span>
-                                {m.assignment_progress.graded}/{m.assignment_progress.total}
-                              </span>
-                            </li>
-                          ))}
-                      </ul>
-                    )}
-                  </>
+
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-card/95 p-4 text-center opacity-0 transition-opacity group-hover/card:opacity-100">
+                      {overallProgress.total === 0 ? (
+                        <p className="text-xs text-muted-foreground">No assignments yet.</p>
+                      ) : (
+                        <>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {overallProgress.graded} of {overallProgress.total} graded
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {overallProgress.in_progress} in progress · {overallProgress.not_started} not started
+                            </p>
+                          </div>
+                          <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                            {modules.data
+                              .filter((m) => m.assignment_progress.total > 0)
+                              .map((m) => (
+                                <li key={m.id} className="flex items-center gap-1">
+                                  <span
+                                    className="size-1.5 shrink-0 rounded-full"
+                                    style={{ backgroundColor: m.color }}
+                                    aria-hidden
+                                  />
+                                  <span className="text-foreground">{m.name}</span>
+                                  <span>
+                                    {m.assignment_progress.graded}/{m.assignment_progress.total}
+                                  </span>
+                                </li>
+                              ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
