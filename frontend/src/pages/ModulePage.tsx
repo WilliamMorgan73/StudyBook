@@ -121,7 +121,7 @@ export function ModulePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 px-8 py-8">
+      <div className="space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-48 w-full" />
@@ -131,7 +131,7 @@ export function ModulePage() {
 
   if (error || !module) {
     return (
-      <div className="mx-auto max-w-6xl space-y-4 px-8 py-8">
+      <div className="space-y-4 px-8 py-8">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
           &larr; Overview
         </Link>
@@ -164,7 +164,7 @@ export function ModulePage() {
       />
 
       <div className="border-b" style={{ backgroundColor: `${module.color}0d` }}>
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-8 py-8">
+        <div className="flex items-center gap-4 px-8 py-8">
           <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={48} strokeWidth={5} />
           <div className="flex-1">
             <h1 className="text-3xl font-semibold">{module.name}</h1>
@@ -193,7 +193,7 @@ export function ModulePage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-6xl space-y-8 px-8 py-8">
+      <div className="space-y-8 px-8 py-8">
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-medium">Schedule</h2>
