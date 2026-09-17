@@ -13,10 +13,11 @@ function formatNextLecture(iso: string | null) {
 
 function creditsLabel(credits: number | null, maxCredits: number | null | undefined) {
   if (credits === null) return null
+  const unit = credits === 1 ? 'credit' : 'credits'
   if (maxCredits) {
-    return `${credits} cr · ${Math.round((credits / maxCredits) * 100)}%`
+    return `${credits} ${unit} · ${Math.round((credits / maxCredits) * 100)}%`
   }
-  return `${credits} cr`
+  return `${credits} ${unit}`
 }
 
 export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxCredits?: number | null }) {
@@ -26,22 +27,20 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
     <Link to={`/modules/${module.id}`}>
       <Card className="h-full transition-colors hover:ring-foreground/20">
         <CardHeader>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <CardTitle>{module.name}</CardTitle>
-              <CardDescription>{module.code ?? module.term ?? ' '}</CardDescription>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-baseline gap-1.5">
+                <CardTitle className="truncate">{module.name}</CardTitle>
+                {module.code && <span className="shrink-0 text-sm font-normal text-muted-foreground">{module.code}</span>}
+              </div>
+              <CardDescription>{credits ?? module.term ?? ' '}</CardDescription>
             </div>
-            <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={28} strokeWidth={3} />
+            <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={52} strokeWidth={6} />
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
           <span>{formatNextLecture(module.next_lecture_at)}</span>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {credits && <Badge variant="outline">{credits}</Badge>}
-            {module.current_grade !== null && (
-              <Badge variant="secondary">{module.current_grade.toFixed(1)}%</Badge>
-            )}
-          </div>
+          {module.current_grade !== null && <Badge variant="secondary">{module.current_grade.toFixed(1)}%</Badge>}
         </CardContent>
       </Card>
     </Link>
