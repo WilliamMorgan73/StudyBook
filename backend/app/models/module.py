@@ -17,10 +17,10 @@ class Module(Base):
     credits: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(server_default="now()")
 
-    lectures: Mapped[list["Lecture"]] = relationship(back_populates="module", cascade="all, delete-orphan")
-    assignments: Mapped[list["Assignment"]] = relationship(back_populates="module", cascade="all, delete-orphan")
-    notes: Mapped[list["Note"]] = relationship(back_populates="module", cascade="all, delete-orphan")
-    flashcards: Mapped[list["Flashcard"]] = relationship(back_populates="module", cascade="all, delete-orphan")
+    lectures: Mapped[list["Lecture"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
+    assignments: Mapped[list["Assignment"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
+    notes: Mapped[list["Note"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
+    flashcards: Mapped[list["Flashcard"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
 
 
 class ModuleLink(Base):

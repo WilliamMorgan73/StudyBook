@@ -25,3 +25,8 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.8",
 ]
+
+[tool.ruff.lint]
+ignore = [
+    "B008",  # FastAPI's Depends(...) default-arg pattern is idiomatic, not a real bug
+]
