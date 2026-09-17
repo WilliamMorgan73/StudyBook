@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import type { ModuleSummary } from '@/lib/api'
@@ -20,11 +21,7 @@ export function ModuleCard({ module }: { module: ModuleSummary }) {
               <CardTitle>{module.name}</CardTitle>
               <CardDescription>{module.code ?? module.term ?? ' '}</CardDescription>
             </div>
-            <span
-              aria-hidden
-              className="mt-1 size-3 shrink-0 rounded-full"
-              style={{ backgroundColor: module.color }}
-            />
+            <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={28} strokeWidth={3} />
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">

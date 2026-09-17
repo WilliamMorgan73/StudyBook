@@ -1,12 +1,21 @@
-import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 
-import { PageHeader } from '@/components/PageHeader'
+import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import { createLecture, deleteLecture, getModule, listLectures, toNaiveDateTime } from '@/lib/api'
+import {
+  createLecture,
+  deleteLecture,
+  deleteModule,
+  listLectures,
+  toNaiveDateTime,
+  updateModule,
+  type ModuleDetail,
+} from '@/lib/api'
 import { groupLectures, type LectureGroup } from '@/lib/lectureSchedule'
 import { useAsync } from '@/lib/useAsync'
 
@@ -402,68 +411,126 @@ function LectureSeriesCard({
   )
 }
 
-export function ModuleSettingsPage() {
-  const { moduleId } = useParams()
-  const id = Number(moduleId)
+export function ModuleSettingsDialog({
+  module,
+  open,
+  onOpenChange,
+  onChanged,
+}: {
+  module: ModuleDetail
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onChanged: () => void
+}) {
+  const navigate = useNavigate()
   const [reloadKey, setReloadKey] = useState(0)
   const [addingNew, setAddingNew] = useState(false)
-  const refetch = () => setReloadKey((k) => k + 1)
+  const refetchLectures = () => setReloadKey((k) => k + 1)
 
-  const { data: module } = useAsync(() => getModule(id), [id])
-  const { data: lectures, loading } = useAsync(() => listLectures(id), [id, reloadKey])
-
+  const { data: lectures, loading } = useAsync(() => listLectures(module.id), [module.id, reloadKey])
   const groups = groupLectures(lectures ?? [])
 
+  const [name, setName] = useState(module.name)
+  const [color, setColor] = useState(module.color)
+  const [savingIdentity, setSavingIdentity] = useState(false)
+  const [identityError, setIdentityError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      setName(module.name)
+      setColor(module.color)
+      setIdentityError(null)
+      setAddingNew(false)
+    }
+  }, [open, module.name, module.color])
+
+  async function saveIdentity() {
+    if (!name.trim()) {
+      setIdentityError('Give the module a name.')
+      return
+    }
+    setSavingIdentity(true)
+    setIdentityError(null)
+    try {
+      await updateModule(module.id, { name: name.trim(), color })
+      onChanged()
+    } catch (err) {
+      setIdentityError(err instanceof Error ? err.message : 'Could not save changes.')
+    } finally {
+      setSavingIdentity(false)
+    }
+  }
+
+  async function handleDeleteModule() {
+    if (!confirm(`Delete "${module.name}"? This removes all its lectures, assignments, submodules, and flashcards.`))
+      return
+    await deleteModule(module.id)
+    navigate('/')
+  }
+
   return (
-    <div className="min-h-full">
-      <PageHeader
-        left={
-          <Link to={`/modules/${id}`} className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; {module?.name ?? 'Module'}
-          </Link>
-        }
-      />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Module settings</DialogTitle>
+        </DialogHeader>
 
-      <div className="mx-auto max-w-2xl space-y-6 px-8 py-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted-foreground">Manage when this module's lectures occur.</p>
-      </div>
-
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Lectures</h2>
-          {!addingNew && (
-            <Button size="sm" variant="outline" onClick={() => setAddingNew(true)}>
-              Add a lecture time
+        <section className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="module-name">Name</Label>
+            <Input id="module-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Color</Label>
+            <ColorSwatchPicker value={color} onChange={setColor} />
+          </div>
+          {identityError && <p className="text-sm text-destructive">{identityError}</p>}
+          <div className="flex items-center justify-between pt-1">
+            <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
+              {savingIdentity ? 'Saving…' : 'Save'}
             </Button>
+            <Button size="sm" variant="ghost" onClick={handleDeleteModule}>
+              Delete module
+            </Button>
+          </div>
+        </section>
+
+        <hr />
+
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Lectures</h3>
+            {!addingNew && (
+              <Button size="sm" variant="outline" onClick={() => setAddingNew(true)}>
+                Add a lecture time
+              </Button>
+            )}
+          </div>
+
+          {addingNew && (
+            <LectureSeriesForm
+              moduleId={module.id}
+              onSaved={() => {
+                setAddingNew(false)
+                refetchLectures()
+              }}
+              onCancel={() => setAddingNew(false)}
+            />
           )}
-        </div>
 
-        {addingNew && (
-          <LectureSeriesForm
-            moduleId={id}
-            onSaved={() => {
-              setAddingNew(false)
-              refetch()
-            }}
-            onCancel={() => setAddingNew(false)}
-          />
-        )}
-
-        {loading && <Skeleton className="h-24 w-full" />}
-        {groups.length === 0 && !loading && !addingNew && (
-          <p className="text-sm text-muted-foreground">No lectures scheduled yet.</p>
-        )}
-        {groups.length > 0 && (
-          <ul className="divide-y">
-            {groups.map((group) => (
-              <LectureSeriesCard key={seriesKey(group)} moduleId={id} group={group} onChanged={refetch} />
-            ))}
-          </ul>
-        )}
-      </section>
-      </div>
-    </div>
+          {loading && <Skeleton className="h-24 w-full" />}
+          {groups.length === 0 && !loading && !addingNew && (
+            <p className="text-sm text-muted-foreground">No lectures scheduled yet.</p>
+          )}
+          {groups.length > 0 && (
+            <ul className="divide-y">
+              {groups.map((group) => (
+                <LectureSeriesCard key={seriesKey(group)} moduleId={module.id} group={group} onChanged={refetchLectures} />
+              ))}
+            </ul>
+          )}
+        </section>
+      </DialogContent>
+    </Dialog>
   )
 }

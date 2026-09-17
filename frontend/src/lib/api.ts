@@ -9,6 +9,22 @@ export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
   graded: 'Graded',
 }
 
+export interface ModuleRead {
+  id: number
+  name: string
+  code: string | null
+  color: string
+  term: string | null
+  credits: number | null
+}
+
+export interface AssignmentProgress {
+  graded: number
+  in_progress: number
+  not_started: number
+  total: number
+}
+
 export interface ModuleSummary {
   id: number
   name: string
@@ -18,6 +34,7 @@ export interface ModuleSummary {
   credits: number | null
   current_grade: number | null
   next_lecture_at: string | null
+  assignment_progress: AssignmentProgress
 }
 
 export type AttachmentKind = 'pdf' | 'pptx' | 'video' | 'audio' | 'image' | 'other'
@@ -113,6 +130,8 @@ export interface ModuleCreateInput {
   term?: string | null
   credits?: number | null
 }
+
+export type ModuleUpdateInput = Partial<ModuleCreateInput>
 
 export interface AssignmentCreateInput {
   module_id: number
@@ -211,6 +230,14 @@ export function getModule(id: number) {
 
 export function createModule(input: ModuleCreateInput) {
   return postJson<ModuleSummary>('/modules', input)
+}
+
+export function updateModule(id: number, input: ModuleUpdateInput) {
+  return patchJson<ModuleRead>(`/modules/${id}`, input)
+}
+
+export function deleteModule(id: number) {
+  return request<void>(`/modules/${id}`, { method: 'DELETE' })
 }
 
 export function listUpcomingAssignments(limit = 5) {

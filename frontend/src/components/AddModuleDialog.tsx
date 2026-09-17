@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,17 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createModule, type ModuleSummary } from '@/lib/api'
-
-const SWATCHES = [
-  '#6366f1', // indigo
-  '#0ea5e9', // sky
-  '#14b8a6', // teal
-  '#22c55e', // green
-  '#f59e0b', // amber
-  '#f97316', // orange
-  '#f43f5e', // rose
-  '#a855f7', // violet
-]
+import { MODULE_COLOR_SWATCHES } from '@/lib/colors'
 
 export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSummary) => void }) {
   const [open, setOpen] = useState(false)
@@ -30,7 +21,7 @@ export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSumma
   const [code, setCode] = useState('')
   const [term, setTerm] = useState('')
   const [credits, setCredits] = useState('')
-  const [color, setColor] = useState(SWATCHES[0])
+  const [color, setColor] = useState(MODULE_COLOR_SWATCHES[0])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,7 +30,7 @@ export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSumma
     setCode('')
     setTerm('')
     setCredits('')
-    setColor(SWATCHES[0])
+    setColor(MODULE_COLOR_SWATCHES[0])
     setError(null)
   }
 
@@ -133,21 +124,7 @@ export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSumma
 
             <div className="space-y-1.5">
               <Label>Color</Label>
-              <div className="flex flex-wrap gap-2">
-                {SWATCHES.map((swatch) => (
-                  <button
-                    key={swatch}
-                    type="button"
-                    aria-label={`Use color ${swatch}`}
-                    aria-pressed={color === swatch}
-                    onClick={() => setColor(swatch)}
-                    className={`size-6 rounded-full ring-offset-2 ring-offset-background transition-shadow ${
-                      color === swatch ? 'ring-2 ring-foreground' : 'hover:ring-2 hover:ring-foreground/30'
-                    }`}
-                    style={{ backgroundColor: swatch }}
-                  />
-                ))}
-              </div>
+              <ColorSwatchPicker value={color} onChange={setColor} />
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}

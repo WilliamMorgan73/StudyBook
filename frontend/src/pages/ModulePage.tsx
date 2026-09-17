@@ -4,9 +4,12 @@ import { Link, useParams } from 'react-router-dom'
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { CalendarAgenda } from '@/components/CalendarAgenda'
+import { ModuleProgressRing } from '@/components/ModuleProgressRing'
+import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { NextLectureCountdown } from '@/components/NextLectureCountdown'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -103,6 +106,7 @@ export function ModulePage() {
   const id = Number(moduleId)
   const [reloadKey, setReloadKey] = useState(0)
   const [scheduleDays, setScheduleDays] = useState(7)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
   const refetch = () => setReloadKey((k) => k + 1)
 
@@ -153,19 +157,15 @@ export function ModulePage() {
           </Link>
         }
         right={
-          <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
             Settings
-          </Link>
+          </Button>
         }
       />
 
       <div className="border-b" style={{ backgroundColor: `${module.color}0d` }}>
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-8 py-8">
-          <span
-            aria-hidden
-            className="size-3 shrink-0 rounded-full"
-            style={{ backgroundColor: module.color }}
-          />
+          <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={48} strokeWidth={5} />
           <div className="flex-1">
             <h1 className="text-3xl font-semibold">{module.name}</h1>
             {(module.code || module.term || module.credits !== null) && (
@@ -228,12 +228,9 @@ export function ModulePage() {
           <section>
             <div className="mb-1 flex items-center justify-between">
               <h2 className="text-lg font-medium">Lectures</h2>
-              <Link
-                to={`/modules/${module.id}/settings`}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
+              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
                 Manage
-              </Link>
+              </Button>
             </div>
             {lectureGroups.length === 0 ? (
               <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
@@ -292,6 +289,16 @@ export function ModulePage() {
           </section>
         )}
       </div>
+
+      <ModuleSettingsDialog
+        module={module}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onChanged={() => {
+          setSettingsOpen(false)
+          refetch()
+        }}
+      />
     </div>
   )
 }
