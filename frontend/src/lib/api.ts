@@ -338,3 +338,15 @@ export function getCalendar(start: Date, end: Date) {
   })
   return request<CalendarEvent[]>(`/calendar?${params}`)
 }
+
+export interface AppSettings {
+  max_credits: number | null
+}
+
+export function getAppSettings() {
+  return request<AppSettings>('/settings')
+}
+
+export function updateAppSettings(input: Partial<AppSettings>) {
+  return patchJson<AppSettings>('/settings', input)
+}

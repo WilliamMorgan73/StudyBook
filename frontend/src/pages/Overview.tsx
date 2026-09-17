@@ -1,14 +1,19 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { Settings } from 'lucide-react'
+
 import { AddModuleDialog } from '@/components/AddModuleDialog'
+import { AddModuleTile } from '@/components/AddModuleTile'
+import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
 import { PageHeader } from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
+import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 function isSameDay(a: Date, b: Date) {
@@ -17,6 +22,7 @@ function isSameDay(a: Date, b: Date) {
 
 export function Overview() {
   const [reloadKey, setReloadKey] = useState(0)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [month, setMonth] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -28,6 +34,11 @@ export function Overview() {
   const modules = useAsync(() => listModules(), [reloadKey])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
   const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange])
+  const appSettings = useAsync(() => getAppSettings(), [reloadKey])
+
+  const maxCredits = appSettings.data?.max_credits ?? null
+  const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
+  const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
 
   const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
   const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
@@ -58,7 +69,11 @@ export function Overview() {
             </p>
           </div>
         }
-        right={<AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} />}
+        right={
+          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Settings /> Settings
+          </Button>
+        }
       />
 
       <div className="mx-auto max-w-7xl space-y-8 px-8 py-8">
@@ -159,20 +174,30 @@ export function Overview() {
             </div>
           )}
           {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
-          {modules.data?.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              Add your first module to start tracking lectures, assignments, and grades.
-            </p>
-          )}
-          {modules.data && modules.data.length > 0 && (
+          {modules.data && (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {modules.data.map((m) => (
-                <ModuleCard key={m.id} module={m} />
+                <ModuleCard key={m.id} module={m} maxCredits={maxCredits} />
               ))}
+              {hasCreditRoom && (
+                <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
+              )}
             </div>
           )}
         </section>
       </div>
+
+      {appSettings.data && (
+        <AppSettingsDialog
+          settings={appSettings.data}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onChanged={() => {
+            setSettingsOpen(false)
+            setReloadKey((k) => k + 1)
+          }}
+        />
+      )}
     </div>
   )
 }

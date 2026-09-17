@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,13 @@ import { Label } from '@/components/ui/label'
 import { createModule, type ModuleSummary } from '@/lib/api'
 import { MODULE_COLOR_SWATCHES } from '@/lib/colors'
 
-export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSummary) => void }) {
+export function AddModuleDialog({
+  onCreated,
+  trigger,
+}: {
+  onCreated: (module: ModuleSummary) => void
+  trigger?: ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
@@ -68,9 +74,7 @@ export function AddModuleDialog({ onCreated }: { onCreated: (module: ModuleSumma
         if (!next) reset()
       }}
     >
-      <DialogTrigger asChild>
-        <Button>Add module</Button>
-      </DialogTrigger>
+      <DialogTrigger asChild>{trigger ?? <Button>Add module</Button>}</DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit} className="contents">
           <DialogHeader>
