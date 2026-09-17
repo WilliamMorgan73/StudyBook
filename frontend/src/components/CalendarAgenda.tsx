@@ -15,7 +15,7 @@ function groupByDay(events: CalendarEvent[]) {
 
 export function CalendarAgenda({ events }: { events: CalendarEvent[] }) {
   if (events.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing on the calendar for the next two weeks.</p>
+    return <p className="text-sm text-muted-foreground">Nothing scheduled in this window.</p>
   }
 
   const groups = groupByDay(events)

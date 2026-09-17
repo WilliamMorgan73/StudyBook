@@ -1,31 +1,41 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
-import { CalendarAgenda } from '@/components/CalendarAgenda'
+import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
-const CALENDAR_WINDOW_DAYS = 14
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
 
 export function Overview() {
   const [reloadKey, setReloadKey] = useState(0)
+  const [month, setMonth] = useState(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1)
+  })
+  const [selected, setSelected] = useState(() => new Date())
 
-  const range = useMemo(() => {
-    const start = new Date()
-    const end = new Date(start)
-    end.setDate(end.getDate() + CALENDAR_WINDOW_DAYS)
-    return { start, end }
-  }, [])
+  const gridRange = useMemo(() => calendarGridRange(month), [month])
 
   const modules = useAsync(() => listModules(), [reloadKey])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
-  const calendar = useAsync(() => getCalendar(range.start, range.end), [range])
+  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange])
 
   const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
+  const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
+
+  const lectures = useMemo(() => (calendar.data ?? []).filter((e) => e.kind === 'lecture'), [calendar.data])
+  const selectedDayLectures = useMemo(
+    () => lectures.filter((e) => isSameDay(new Date(e.starts_at), selected)),
+    [lectures, selected],
+  )
 
   const averageGrade = useMemo(() => {
     const grades = (modules.data ?? [])
@@ -53,10 +63,54 @@ export function Overview() {
           <CardHeader>
             <CardTitle>Calendar</CardTitle>
           </CardHeader>
-          <CardContent>
-            {calendar.loading && <Skeleton className="h-40 w-full" />}
+          <CardContent className="space-y-4">
+            {calendar.loading && <Skeleton className="h-80 w-full" />}
             {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
-            {calendar.data && <CalendarAgenda events={calendar.data} />}
+            {calendar.data && (
+              <>
+                <MonthCalendar
+                  month={month}
+                  onMonthChange={setMonth}
+                  events={lectures}
+                  selected={selected}
+                  onSelect={setSelected}
+                  eventColor={(event) => moduleColor(event.module_id)}
+                />
+                <div className="border-t pt-3">
+                  <p className="mb-2 text-sm font-medium">
+                    {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </p>
+                  {selectedDayLectures.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No lectures this day.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {selectedDayLectures.map((event) => (
+                        <li key={event.id}>
+                          <Link
+                            to={event.url}
+                            className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
+                          >
+                            <span
+                              className="size-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: moduleColor(event.module_id) }}
+                              aria-hidden
+                            />
+                            <span className="truncate">{event.title}</span>
+                            <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                            <span className="ml-auto shrink-0 text-muted-foreground">
+                              {new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 

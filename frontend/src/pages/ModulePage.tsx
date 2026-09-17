@@ -1,11 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddNoteDialog } from '@/components/AddNoteDialog'
+import { CalendarAgenda } from '@/components/CalendarAgenda'
+import { NextLectureCountdown } from '@/components/NextLectureCountdown'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getModule, type Assignment, type AssignmentStatus, type Lecture, type Note } from '@/lib/api'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { getCalendar, getModule, type Assignment, type AssignmentStatus, type Lecture, type Note } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
@@ -73,8 +76,18 @@ export function ModulePage() {
   const { moduleId } = useParams()
   const id = Number(moduleId)
   const [reloadKey, setReloadKey] = useState(0)
+  const [scheduleDays, setScheduleDays] = useState(7)
   const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
   const refetch = () => setReloadKey((k) => k + 1)
+
+  const scheduleRange = useMemo(() => {
+    const start = new Date()
+    const end = new Date(start)
+    end.setDate(end.getDate() + scheduleDays)
+    return { start, end }
+  }, [scheduleDays])
+  const schedule = useAsync(() => getCalendar(scheduleRange.start, scheduleRange.end), [scheduleRange])
+  const moduleSchedule = (schedule.data ?? []).filter((e) => e.module_id === id)
 
   if (loading) {
     return (
@@ -137,13 +150,27 @@ export function ModulePage() {
             <p className="text-xs text-muted-foreground">Current grade</p>
           </div>
           <div>
-            <p className="text-sm font-medium">
-              {module.next_lecture_at ? formatDate(module.next_lecture_at) : 'None scheduled'}
+            <NextLectureCountdown target={module.next_lecture_at} />
+            <p className="text-xs text-muted-foreground">
+              Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
             </p>
-            <p className="text-xs text-muted-foreground">Next lecture</p>
           </div>
         </div>
       </div>
+
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-medium">Schedule</h2>
+          <Tabs value={String(scheduleDays)} onValueChange={(v) => setScheduleDays(Number(v))}>
+            <TabsList>
+              <TabsTrigger value="7">Week</TabsTrigger>
+              <TabsTrigger value="14">Fortnight</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+        {schedule.loading && <Skeleton className="h-32 w-full" />}
+        {schedule.data && <CalendarAgenda events={moduleSchedule} />}
+      </section>
 
       <div className="grid gap-8 sm:grid-cols-2">
         <section>
