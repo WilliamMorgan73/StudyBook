@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
+    app_settings,
     assignments,
     attachments,
     calendar,
@@ -25,6 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(app_settings.router)
 app.include_router(modules.router)
 app.include_router(assignments.router)
 app.include_router(submodules.router)

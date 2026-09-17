@@ -1,3 +1,4 @@
+from app.models.app_settings import AppSettings
 from app.models.assignment import Assignment
 from app.models.attachment import Attachment
 from app.models.flashcard import Flashcard
@@ -7,6 +8,7 @@ from app.models.submodule import Submodule
 from app.models.todo import AssignmentTodo
 
 __all__ = [
+    "AppSettings",
     "Assignment",
     "AssignmentTodo",
     "Attachment",
