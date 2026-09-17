@@ -152,25 +152,6 @@ export function ModulePage() {
         </Card>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Assignments</CardTitle>
-                <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              {sortedAssignments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No assignments yet.</p>
-              ) : (
-                <ul className="divide-y">
-                  {sortedAssignments.map((a) => (
-                    <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
 
           <Card>
             <CardHeader>
@@ -186,6 +167,26 @@ export function ModulePage() {
                 <ul className="divide-y">
                   {module.submodules.map((s) => (
                     <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Assignments</CardTitle>
+                <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {sortedAssignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No assignments yet.</p>
+              ) : (
+                <ul className="divide-y">
+                  {sortedAssignments.map((a) => (
+                    <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
                   ))}
                 </ul>
               )}
