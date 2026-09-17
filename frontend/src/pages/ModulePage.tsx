@@ -1,38 +1,20 @@
-import { useMemo, useState } from 'react'
+import { Settings } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
-import { CalendarAgenda } from '@/components/CalendarAgenda'
+import { Countdown } from '@/components/Countdown'
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
-import { Countdown } from '@/components/Countdown'
+import { ModuleWeekCalendar } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  ASSIGNMENT_STATUS_LABEL,
-  getCalendar,
-  getModule,
-  type Assignment,
-  type Lecture,
-  type Submodule,
-} from '@/lib/api'
-import { groupLectures, type LectureSeries } from '@/lib/lectureSchedule'
+import { ASSIGNMENT_STATUS_LABEL, getModule, type Assignment, type Submodule } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
-import { Settings } from 'lucide-react'
-
-function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -43,7 +25,7 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
     assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
 
   return (
-    <li className="py-2.5">
+    <li className="py-2">
       <Link
         to={`/modules/${moduleId}/assignments/${assignment.id}`}
         className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
@@ -51,7 +33,8 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
         <div className="min-w-0">
           <p className="truncate font-medium">{assignment.title}</p>
           <p className="text-sm text-muted-foreground">
-            {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot; {assignment.weight_percent}% of grade
+            {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot;{' '}
+            {assignment.weight_percent}% of grade
           </p>
         </div>
         <Badge variant={overdue ? 'destructive' : assignment.status === 'graded' ? 'secondary' : 'outline'}>
@@ -62,40 +45,15 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
   )
 }
 
-function LectureRow({ lecture }: { lecture: Lecture }) {
-  return (
-    <li className="py-2.5">
-      <p className="font-medium">{lecture.title}</p>
-      <p className="text-sm text-muted-foreground">
-        {formatDateTime(lecture.scheduled_at)}
-        {lecture.location && ` — ${lecture.location}`}
-      </p>
-    </li>
-  )
-}
-
-function LectureSeriesRow({ series }: { series: LectureSeries }) {
-  const cadence = series.intervalDays === 7 ? `Every ${series.weekday}` : `Every other ${series.weekday}`
-
-  return (
-    <li className="py-2.5">
-      <p className="font-medium">{series.title}</p>
-      <p className="text-sm text-muted-foreground">
-        {cadence} at {series.time}, until {formatDate(series.lastDate)}
-        {series.location && ` — ${series.location}`} &middot; {series.lectures.length} lectures
-      </p>
-    </li>
-  )
-}
-
 function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Submodule }) {
   return (
-    <li className="py-2.5">
+    <li className="py-2">
       <Link to={`/modules/${moduleId}/submodules/${submodule.id}`} className="block hover:underline">
         <p className="font-medium">{submodule.title}</p>
       </Link>
       <p className="text-sm text-muted-foreground">
-        {submodule.attachments.length > 0 && `${submodule.attachments.length} file${submodule.attachments.length === 1 ? '' : 's'} · `}
+        {submodule.attachments.length > 0 &&
+          `${submodule.attachments.length} file${submodule.attachments.length === 1 ? '' : 's'} · `}
         Updated {formatDate(submodule.updated_at)}
       </p>
     </li>
@@ -106,19 +64,9 @@ export function ModulePage() {
   const { moduleId } = useParams()
   const id = Number(moduleId)
   const [reloadKey, setReloadKey] = useState(0)
-  const [scheduleDays, setScheduleDays] = useState(7)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
   const refetch = () => setReloadKey((k) => k + 1)
-
-  const scheduleRange = useMemo(() => {
-    const start = new Date()
-    const end = new Date(start)
-    end.setDate(end.getDate() + scheduleDays)
-    return { start, end }
-  }, [scheduleDays])
-  const schedule = useAsync(() => getCalendar(scheduleRange.start, scheduleRange.end), [scheduleRange])
-  const moduleSchedule = (schedule.data ?? []).filter((e) => e.module_id === id)
 
   if (loading) {
     return (
@@ -142,7 +90,6 @@ export function ModulePage() {
   }
 
   const dueFlashcards = module.flashcards.filter((f) => new Date(f.due_at) <= new Date()).length
-  const lectureGroups = groupLectures(module.lectures)
   const sortedAssignments = [...module.assignments].sort((a, b) => {
     if (!a.due_at) return 1
     if (!b.due_at) return -1
@@ -159,7 +106,7 @@ export function ModulePage() {
         }
         right={
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-            <Settings/>Settings
+            <Settings /> Settings
           </Button>
         }
       />
@@ -194,100 +141,89 @@ export function ModulePage() {
         </div>
       </div>
 
-      <div className="space-y-10 px-8 py-10">
-        <section>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-medium">Schedule</h2>
-            <Tabs value={String(scheduleDays)} onValueChange={(v) => setScheduleDays(Number(v))}>
-              <TabsList>
-                <TabsTrigger value="7">Week</TabsTrigger>
-                <TabsTrigger value="14">Fortnight</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          {schedule.loading && <Skeleton className="h-32 w-full" />}
-          {schedule.data && <CalendarAgenda events={moduleSchedule} />}
-        </section>
+      <div className="space-y-8 px-8 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Schedule</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ModuleWeekCalendar lectures={module.lectures} color={module.color} />
+          </CardContent>
+        </Card>
 
-        <div className="grid gap-10 sm:grid-cols-2">
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xl font-medium">Assignments</h2>
-              <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
-            </div>
-            {sortedAssignments.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No assignments yet.</p>
-            ) : (
-              <ul className="divide-y">
-                {sortedAssignments.map((a) => (
-                  <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
-                ))}
-              </ul>
-            )}
-          </section>
+        <div className="grid gap-6 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Assignments</CardTitle>
+                <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {sortedAssignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No assignments yet.</p>
+              ) : (
+                <ul className="divide-y">
+                  {sortedAssignments.map((a) => (
+                    <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xl font-medium">Lectures</h2>
-              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-                Manage
-              </Button>
-            </div>
-            {lectureGroups.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
-            ) : (
-              <ul className="divide-y">
-                {lectureGroups.map((group) =>
-                  group.type === 'series' ? (
-                    <LectureSeriesRow key={`${group.series.title}-${group.series.firstDate}`} series={group.series} />
-                  ) : (
-                    <LectureRow key={group.lecture.id} lecture={group.lecture} />
-                  ),
-                )}
-              </ul>
-            )}
-          </section>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Submodules</CardTitle>
+                <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {module.submodules.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No submodules yet.</p>
+              ) : (
+                <ul className="divide-y">
+                  {module.submodules.map((s) => (
+                    <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
-          <section>
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-xl font-medium">Submodules</h2>
-              <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
-            </div>
-            {module.submodules.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No submodules yet.</p>
-            ) : (
-              <ul className="divide-y">
-                {module.submodules.map((s) => (
-                  <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-2 text-xl font-medium">Flashcards</h2>
-            {module.flashcards.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No flashcards yet.</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
-                {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
-              </p>
-            )}
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Flashcards</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {module.flashcards.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No flashcards yet.</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
+                  {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {module.related_modules.length > 0 && (
-          <section>
-            <h2 className="mb-3 text-xl font-medium">Related modules</h2>
-            <div className="flex flex-wrap gap-2">
-              {module.related_modules.map((related) => (
-                <Link key={related.id} to={`/modules/${related.id}`}>
-                  <Badge variant="outline">{related.name}</Badge>
-                </Link>
-              ))}
-            </div>
-          </section>
+          <Card>
+            <CardHeader>
+              <CardTitle>Related modules</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {module.related_modules.map((related) => (
+                  <Link key={related.id} to={`/modules/${related.id}`}>
+                    <Badge variant="outline">{related.name}</Badge>
+                  </Link>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
 
