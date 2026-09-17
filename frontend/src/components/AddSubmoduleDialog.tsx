@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -12,44 +11,40 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { createNote, type Note } from '@/lib/api'
+import { createSubmodule, type Submodule } from '@/lib/api'
 
-export function AddNoteDialog({ moduleId, onCreated }: { moduleId: number; onCreated: (note: Note) => void }) {
+export function AddSubmoduleDialog({
+  moduleId,
+  onCreated,
+}: {
+  moduleId: number
+  onCreated: (submodule: Submodule) => void
+}) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [isQuickNote, setIsQuickNote] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function reset() {
     setTitle('')
-    setContent('')
-    setIsQuickNote(false)
     setError(null)
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) {
-      setError('Give the note a title.')
+      setError('Give the submodule a title.')
       return
     }
     setSubmitting(true)
     setError(null)
     try {
-      const created = await createNote({
-        module_id: moduleId,
-        title: title.trim(),
-        content_markdown: content,
-        is_quick_note: isQuickNote,
-      })
+      const created = await createSubmodule({ module_id: moduleId, title: title.trim() })
       onCreated(created)
       setOpen(false)
       reset()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the note.')
+      setError(err instanceof Error ? err.message : 'Could not create the submodule.')
     } finally {
       setSubmitting(false)
     }
@@ -65,49 +60,32 @@ export function AddNoteDialog({ moduleId, onCreated }: { moduleId: number; onCre
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          Add note
+          Add submodule
         </Button>
       </DialogTrigger>
       <DialogContent>
         <form onSubmit={handleSubmit} className="contents">
           <DialogHeader>
-            <DialogTitle>Add a note</DialogTitle>
+            <DialogTitle>Add a submodule</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="note-title">Title</Label>
+              <Label htmlFor="submodule-title">Title</Label>
               <Input
-                id="note-title"
+                id="submodule-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Week 3 recap"
+                placeholder="Graph Traversal"
                 autoFocus
               />
             </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="note-content">Content</Label>
-              <Textarea
-                id="note-content"
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write in Markdown…"
-                rows={6}
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={isQuickNote} onCheckedChange={(checked) => setIsQuickNote(checked === true)} />
-              Quick note
-            </label>
-
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
 
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Adding…' : 'Add note'}
+              {submitting ? 'Adding…' : 'Add submodule'}
             </Button>
           </DialogFooter>
         </form>

@@ -2,13 +2,20 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
-import { AddNoteDialog } from '@/components/AddNoteDialog'
+import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { CalendarAgenda } from '@/components/CalendarAgenda'
 import { NextLectureCountdown } from '@/components/NextLectureCountdown'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getCalendar, getModule, type Assignment, type AssignmentStatus, type Lecture, type Note } from '@/lib/api'
+import {
+  getCalendar,
+  getModule,
+  type Assignment,
+  type AssignmentStatus,
+  type Lecture,
+  type Submodule,
+} from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
@@ -63,11 +70,16 @@ function LectureRow({ lecture }: { lecture: Lecture }) {
   )
 }
 
-function NoteRow({ note }: { note: Note }) {
+function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Submodule }) {
   return (
     <li className="py-2">
-      <p className="font-medium">{note.title || 'Untitled note'}</p>
-      <p className="text-sm text-muted-foreground">Updated {formatDate(note.updated_at)}</p>
+      <Link to={`/modules/${moduleId}/submodules/${submodule.id}`} className="block hover:underline">
+        <p className="font-medium">{submodule.title}</p>
+      </Link>
+      <p className="text-sm text-muted-foreground">
+        {submodule.attachments.length > 0 && `${submodule.attachments.length} file${submodule.attachments.length === 1 ? '' : 's'} · `}
+        Updated {formatDate(submodule.updated_at)}
+      </p>
     </li>
   )
 }
@@ -209,15 +221,15 @@ export function ModulePage() {
 
         <section>
           <div className="mb-1 flex items-center justify-between">
-            <h2 className="text-lg font-medium">Notes</h2>
-            <AddNoteDialog moduleId={module.id} onCreated={refetch} />
+            <h2 className="text-lg font-medium">Submodules</h2>
+            <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
           </div>
-          {module.notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No notes yet.</p>
+          {module.submodules.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No submodules yet.</p>
           ) : (
             <ul className="divide-y">
-              {module.notes.map((n) => (
-                <NoteRow key={n.id} note={n} />
+              {module.submodules.map((s) => (
+                <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
               ))}
             </ul>
           )}

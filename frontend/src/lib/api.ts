@@ -43,30 +43,45 @@ export interface Lecture {
   week_number: number | null
 }
 
-export interface Note {
+export type AttachmentKind = 'pdf' | 'pptx' | 'video' | 'audio' | 'image' | 'other'
+
+export interface Attachment {
+  id: number
+  submodule_id: number
+  kind: AttachmentKind
+  filename: string
+  file_path: string
+  url: string
+  uploaded_at: string
+}
+
+export interface Submodule {
   id: number
   module_id: number
-  lecture_id: number | null
   title: string
   content_markdown: string
-  is_quick_note: boolean
   created_at: string
   updated_at: string
+  attachments: Attachment[]
 }
 
 export interface Flashcard {
   id: number
   module_id: number
-  note_id: number | null
+  submodule_id: number | null
   front: string
   back: string
+  ease_factor: number
+  interval_days: number
+  repetitions: number
   due_at: string
+  last_reviewed_at: string | null
 }
 
 export interface ModuleDetail extends ModuleSummary {
   lectures: Lecture[]
   assignments: Assignment[]
-  notes: Note[]
+  submodules: Submodule[]
   flashcards: Flashcard[]
   related_modules: { id: number; name: string }[]
 }
@@ -87,12 +102,19 @@ export interface AssignmentCreateInput {
   weight_percent: number
 }
 
-export interface NoteCreateInput {
+export interface SubmoduleCreateInput {
   module_id: number
   title: string
   content_markdown?: string
-  is_quick_note?: boolean
-  lecture_id?: number | null
+}
+
+export type SubmoduleUpdateInput = Partial<Omit<SubmoduleCreateInput, 'module_id'>>
+
+export interface FlashcardCreateInput {
+  module_id: number
+  submodule_id?: number | null
+  front: string
+  back: string
 }
 
 export interface LectureCreateInput {
@@ -152,8 +174,44 @@ export function createAssignment(input: AssignmentCreateInput) {
   return postJson<Assignment>('/assignments', input)
 }
 
-export function createNote(input: NoteCreateInput) {
-  return postJson<Note>('/notes', input)
+export function getSubmodule(id: number) {
+  return request<Submodule>(`/submodules/${id}`)
+}
+
+export function createSubmodule(input: SubmoduleCreateInput) {
+  return postJson<Submodule>('/submodules', input)
+}
+
+export function updateSubmodule(id: number, input: SubmoduleUpdateInput) {
+  return patchJson<Submodule>(`/submodules/${id}`, input)
+}
+
+export function deleteSubmodule(id: number) {
+  return request<void>(`/submodules/${id}`, { method: 'DELETE' })
+}
+
+export function uploadAttachment(submoduleId: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<Attachment>(`/submodules/${submoduleId}/attachments`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export function listFlashcards(filter: { moduleId?: number; submoduleId?: number }) {
+  const params = new URLSearchParams()
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  if (filter.submoduleId !== undefined) params.set('submodule_id', String(filter.submoduleId))
+  return request<Flashcard[]>(`/flashcards?${params}`)
+}
+
+export function createFlashcard(input: FlashcardCreateInput) {
+  return postJson<Flashcard>('/flashcards', input)
+}
+
+export function deleteFlashcard(id: number) {
+  return request<void>(`/flashcards/${id}`, { method: 'DELETE' })
 }
 
 export function listLectures(moduleId: number) {
