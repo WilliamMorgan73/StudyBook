@@ -1,0 +1,26 @@
+from datetime import datetime
+
+from sqlalchemy import ForeignKey, Numeric
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+
+
+class Flashcard(Base):
+    """SM-2 style spaced repetition state (ease_factor/interval_days/repetitions)."""
+
+    __tablename__ = "flashcards"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"))
+    note_id: Mapped[int | None] = mapped_column(ForeignKey("notes.id", ondelete="SET NULL"))
+    front: Mapped[str]
+    back: Mapped[str]
+    ease_factor: Mapped[float] = mapped_column(Numeric(4, 2), default=2.5)
+    interval_days: Mapped[int] = mapped_column(default=0)
+    repetitions: Mapped[int] = mapped_column(default=0)
+    due_at: Mapped[datetime] = mapped_column(server_default="now()")
+    last_reviewed_at: Mapped[datetime | None]
+
+    module: Mapped["Module"] = relationship(back_populates="flashcards")  # noqa: F821
+    note: Mapped["Note | None"] = relationship(back_populates="flashcards")  # noqa: F821
