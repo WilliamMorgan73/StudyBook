@@ -74,9 +74,10 @@ pnpm lint    # oxlint
 
 - `lib/api.ts` — typed fetch client for the backend (paths are relative, e.g. `/modules`; the Vite dev server proxies `/api/*` to `localhost:8000`, stripping the `/api` prefix — see `vite.config.ts`).
 - `lib/useAsync.ts` — small hook wrapping a promise-returning fetcher into `{ data, loading, error }`, re-running when its deps array changes.
-- `pages/` — one component per route: `Overview` (`/`), `ModulePage` (`/modules/:moduleId`), `ModuleSettingsPage` (`/modules/:moduleId/settings`, manages that module's lecture schedule).
-- `components/` — page-level building blocks (dialogs, `MonthCalendar`, `CalendarAgenda`, `NextLectureCountdown`) plus `components/ui/` for shadcn/ui primitives (generated via `pnpm dlx shadcn@latest add <name>`).
-- Recurring lectures are a frontend-only convenience: the settings page's add-lecture form generates one `Lecture` row per occurrence via repeated `POST /lectures` calls (spaced 7 or 14 days apart) rather than the backend storing a recurrence rule — each occurrence stays independently editable/deletable afterward.
+- `pages/` — one component per route: `Overview` (`/`), `ModulePage` (`/modules/:moduleId`), `AssignmentPage`, `SubmodulePage`. There is no module-settings route — `ModuleSettingsDialog` (in `components/`) is a modal opened from `ModulePage`, not a page.
+- `components/` — page-level building blocks (dialogs, `MonthCalendar`, `CalendarAgenda`, `NextLectureCountdown`, `ModuleSettingsDialog`, `RadialProgress`/`ModuleProgressRing`) plus `components/ui/` for shadcn/ui primitives (generated via `pnpm dlx shadcn@latest add <name>`).
+- Recurring lectures are a frontend-only convenience: `ModuleSettingsDialog`'s add-lecture form generates one `Lecture` row per occurrence via repeated `POST /lectures` calls (spaced 7 or 14 days apart) rather than the backend storing a recurrence rule — each occurrence stays independently editable/deletable afterward.
+- Module cards and the module page's hero both show `ModuleProgressRing`: a donut built from `assignment_progress` (graded/in_progress/not_started counts, computed server-side in `api/routes/modules.py`) rendered in three opacity shades of the module's own accent color, not a new color.
 
 ### Known quirk: shadcn CLI path alias resolution
 
