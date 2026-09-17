@@ -80,7 +80,7 @@ export function Overview() {
       />
 
       <div className="mx-auto max-w-7xl space-y-8 px-8 py-8">
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-6 lg:grid-cols-4">
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle>Calendar</CardTitle>
@@ -200,26 +200,26 @@ export function Overview() {
               ))}
             </CardContent>
           </Card>
-        </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>To-do</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <QuickTodoList />
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-6">
+            <Card className="flex-1">
+              <CardHeader>
+                <CardTitle>To-do</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <QuickTodoList />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Notepad</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <QuickNotepad />
-            </CardContent>
-          </Card>
+            <Card className="flex-1">
+              <CardHeader>
+                <CardTitle>Notepad</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <QuickNotepad />
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <section>
