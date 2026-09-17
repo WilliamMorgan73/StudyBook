@@ -42,7 +42,7 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
     assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
 
   return (
-    <li className="py-2">
+    <li className="py-2.5">
       <Link
         to={`/modules/${moduleId}/assignments/${assignment.id}`}
         className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
@@ -63,7 +63,7 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
 
 function LectureRow({ lecture }: { lecture: Lecture }) {
   return (
-    <li className="py-2">
+    <li className="py-2.5">
       <p className="font-medium">{lecture.title}</p>
       <p className="text-sm text-muted-foreground">
         {formatDateTime(lecture.scheduled_at)}
@@ -77,7 +77,7 @@ function LectureSeriesRow({ series }: { series: LectureSeries }) {
   const cadence = series.intervalDays === 7 ? `Every ${series.weekday}` : `Every other ${series.weekday}`
 
   return (
-    <li className="py-2">
+    <li className="py-2.5">
       <p className="font-medium">{series.title}</p>
       <p className="text-sm text-muted-foreground">
         {cadence} at {series.time}, until {formatDate(series.lastDate)}
@@ -89,7 +89,7 @@ function LectureSeriesRow({ series }: { series: LectureSeries }) {
 
 function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Submodule }) {
   return (
-    <li className="py-2">
+    <li className="py-2.5">
       <Link to={`/modules/${moduleId}/submodules/${submodule.id}`} className="block hover:underline">
         <p className="font-medium">{submodule.title}</p>
       </Link>
@@ -163,29 +163,29 @@ export function ModulePage() {
         }
       />
 
-      <div className="border-b" style={{ backgroundColor: `${module.color}0d` }}>
-        <div className="flex items-center gap-4 px-8 py-8">
-          <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={48} strokeWidth={5} />
-          <div className="flex-1">
-            <h1 className="text-3xl font-semibold">{module.name}</h1>
+      <div className="border-b" style={{ backgroundColor: `${module.color}1f` }}>
+        <div className="flex items-center gap-6 px-8 py-12">
+          <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={100} strokeWidth={10} />
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-4xl font-semibold">{module.name}</h1>
             {(module.code || module.term || module.credits !== null) && (
-              <p className="text-sm text-muted-foreground">
+              <p className="mt-1 text-base text-muted-foreground">
                 {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
                   .filter(Boolean)
                   .join(', ')}
               </p>
             )}
           </div>
-          <div className="flex gap-6 text-right">
+          <div className="flex shrink-0 gap-8 text-right">
             <div>
-              <p className="text-2xl font-semibold tabular-nums">
+              <p className="text-4xl font-semibold tabular-nums">
                 {module.current_grade !== null ? `${module.current_grade.toFixed(1)}%` : '—'}
               </p>
-              <p className="text-xs text-muted-foreground">Current grade</p>
+              <p className="text-sm text-muted-foreground">Current grade</p>
             </div>
             <div>
               <NextLectureCountdown target={module.next_lecture_at} />
-              <p className="text-xs text-muted-foreground">
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
               </p>
             </div>
@@ -193,10 +193,10 @@ export function ModulePage() {
         </div>
       </div>
 
-      <div className="space-y-8 px-8 py-8">
+      <div className="space-y-10 px-8 py-10">
         <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-medium">Schedule</h2>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-medium">Schedule</h2>
             <Tabs value={String(scheduleDays)} onValueChange={(v) => setScheduleDays(Number(v))}>
               <TabsList>
                 <TabsTrigger value="7">Week</TabsTrigger>
@@ -208,10 +208,10 @@ export function ModulePage() {
           {schedule.data && <CalendarAgenda events={moduleSchedule} />}
         </section>
 
-        <div className="grid gap-8 sm:grid-cols-2">
+        <div className="grid gap-10 sm:grid-cols-2">
           <section>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-lg font-medium">Assignments</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-xl font-medium">Assignments</h2>
               <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
             </div>
             {sortedAssignments.length === 0 ? (
@@ -226,8 +226,8 @@ export function ModulePage() {
           </section>
 
           <section>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-lg font-medium">Lectures</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-xl font-medium">Lectures</h2>
               <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
                 Manage
               </Button>
@@ -248,8 +248,8 @@ export function ModulePage() {
           </section>
 
           <section>
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-lg font-medium">Submodules</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-xl font-medium">Submodules</h2>
               <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
             </div>
             {module.submodules.length === 0 ? (
@@ -264,7 +264,7 @@ export function ModulePage() {
           </section>
 
           <section>
-            <h2 className="mb-1 text-lg font-medium">Flashcards</h2>
+            <h2 className="mb-2 text-xl font-medium">Flashcards</h2>
             {module.flashcards.length === 0 ? (
               <p className="text-sm text-muted-foreground">No flashcards yet.</p>
             ) : (
@@ -278,7 +278,7 @@ export function ModulePage() {
 
         {module.related_modules.length > 0 && (
           <section>
-            <h2 className="mb-2 text-lg font-medium">Related modules</h2>
+            <h2 className="mb-3 text-xl font-medium">Related modules</h2>
             <div className="flex flex-wrap gap-2">
               {module.related_modules.map((related) => (
                 <Link key={related.id} to={`/modules/${related.id}`}>

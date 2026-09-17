@@ -18,36 +18,36 @@ export function NextLectureCountdown({ target }: { target: string | null }) {
   }, [])
 
   if (!target) {
-    return <p className="text-sm text-muted-foreground">None scheduled</p>
+    return <p className="text-base text-muted-foreground">None scheduled</p>
   }
 
   const diff = new Date(target).getTime() - now
   if (diff <= 0) {
-    return <p className="text-lg font-semibold">Starting now</p>
+    return <p className="text-xl font-semibold">Starting now</p>
   }
 
   const { days, hours, minutes, seconds } = diffParts(diff)
 
   return (
-    <div className="flex items-baseline gap-2.5 tabular-nums">
+    <div className="flex items-baseline gap-3 tabular-nums">
       {days > 0 && (
         <span>
-          <span className="text-2xl font-semibold">{days}</span>
-          <span className="ml-1 text-xs text-muted-foreground">{days === 1 ? 'day' : 'days'}</span>
+          <span className="text-3xl font-semibold">{days}</span>
+          <span className="ml-1 text-sm text-muted-foreground">{days === 1 ? 'day' : 'days'}</span>
         </span>
       )}
       <span>
-        <span className="text-2xl font-semibold">{String(hours).padStart(2, '0')}</span>
-        <span className="ml-1 text-xs text-muted-foreground">hr</span>
+        <span className="text-3xl font-semibold">{String(hours).padStart(2, '0')}</span>
+        <span className="ml-1 text-sm text-muted-foreground">hr</span>
       </span>
       <span>
-        <span className="text-2xl font-semibold">{String(minutes).padStart(2, '0')}</span>
-        <span className="ml-1 text-xs text-muted-foreground">min</span>
+        <span className="text-3xl font-semibold">{String(minutes).padStart(2, '0')}</span>
+        <span className="ml-1 text-sm text-muted-foreground">min</span>
       </span>
       {days === 0 && (
         <span>
-          <span className="text-2xl font-semibold">{String(seconds).padStart(2, '0')}</span>
-          <span className="ml-1 text-xs text-muted-foreground">sec</span>
+          <span className="text-3xl font-semibold">{String(seconds).padStart(2, '0')}</span>
+          <span className="ml-1 text-sm text-muted-foreground">sec</span>
         </span>
       )}
     </div>
