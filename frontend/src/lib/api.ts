@@ -25,6 +25,11 @@ export interface AssignmentProgress {
   total: number
 }
 
+export interface CompletionProgress {
+  completed_fraction: number
+  achieved_fraction: number
+}
+
 export interface ModuleSummary {
   id: number
   name: string
@@ -35,6 +40,7 @@ export interface ModuleSummary {
   current_grade: number | null
   next_lecture_at: string | null
   assignment_progress: AssignmentProgress
+  completion_progress: CompletionProgress
 }
 
 export type AttachmentKind = 'pdf' | 'pptx' | 'video' | 'audio' | 'image' | 'other'

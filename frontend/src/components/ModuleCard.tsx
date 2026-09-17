@@ -35,7 +35,7 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
               </div>
               <CardDescription>{credits ?? module.term ?? ' '}</CardDescription>
             </div>
-            <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={52} strokeWidth={6} />
+            <ModuleProgressRing progress={module.completion_progress} color={module.color} size={52} strokeWidth={6} />
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">

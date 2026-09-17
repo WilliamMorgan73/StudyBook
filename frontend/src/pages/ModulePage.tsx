@@ -166,7 +166,7 @@ export function ModulePage() {
 
       <div className="border-b" style={{ backgroundColor: `${module.color}1f` }}>
         <div className="flex items-center gap-6 px-8 py-12">
-          <ModuleProgressRing progress={module.assignment_progress} color={module.color} size={100} strokeWidth={10} />
+          <ModuleProgressRing progress={module.completion_progress} color={module.color} size={100} strokeWidth={10} />
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-4xl font-semibold">{module.name}</h1>
             {(module.code || module.term || module.credits !== null) && (

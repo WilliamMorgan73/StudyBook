@@ -53,33 +53,38 @@ export function Overview() {
     [events, selected],
   )
 
-  const overallProgress = useMemo(
-    () =>
-      (modules.data ?? []).reduce(
-        (acc, m) => ({
-          graded: acc.graded + m.assignment_progress.graded,
-          in_progress: acc.in_progress + m.assignment_progress.in_progress,
-          not_started: acc.not_started + m.assignment_progress.not_started,
-          total: acc.total + m.assignment_progress.total,
-        }),
-        { graded: 0, in_progress: 0, not_started: 0, total: 0 },
-      ),
-    [modules.data],
-  )
+  // Credit-weighted (falling back to equal weight when credits aren't set) so the aggregate ring
+  // matches each module's own ring: achieved% of grade in the module's own color, the rest of
+  // what's been submitted/graded but fell short of full marks in a faded shade of it.
+  const totalWeight = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 1), 0)
 
   const progressSegments = useMemo(() => {
-    const grandTotal = overallProgress.total
-    if (grandTotal === 0) return []
+    if (totalWeight === 0) return []
     return (modules.data ?? []).flatMap((m) => {
-      const { graded, in_progress, not_started, total } = m.assignment_progress
-      if (total === 0) return []
+      const share = (m.credits ?? 1) / totalWeight
+      const achieved = Math.max(0, Math.min(1, m.completion_progress.achieved_fraction))
+      const shortfall = Math.max(0, Math.min(1 - achieved, m.completion_progress.completed_fraction - achieved))
       return [
-        { fraction: graded / grandTotal, color: m.color },
-        { fraction: in_progress / grandTotal, color: `${m.color}b3` },
-        { fraction: not_started / grandTotal, color: `${m.color}4d` },
+        { fraction: share * achieved, color: m.color },
+        { fraction: share * shortfall, color: `${m.color}4d` },
       ]
     })
-  }, [modules.data, overallProgress.total])
+  }, [modules.data, totalWeight])
+
+  const overallCompletion = useMemo(() => {
+    if (totalWeight === 0) return { achieved: 0, completed: 0 }
+    const totals = (modules.data ?? []).reduce(
+      (acc, m) => {
+        const weight = m.credits ?? 1
+        return {
+          achieved: acc.achieved + weight * m.completion_progress.achieved_fraction,
+          completed: acc.completed + weight * m.completion_progress.completed_fraction,
+        }
+      },
+      { achieved: 0, completed: 0 },
+    )
+    return { achieved: totals.achieved / totalWeight, completed: totals.completed / totalWeight }
+  }, [modules.data, totalWeight])
 
   return (
     <div className="min-h-full">
@@ -245,24 +250,20 @@ export function Overview() {
 
                     <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity group-hover/card:opacity-0">
                       <p className="text-3xl font-semibold tabular-nums">
-                        {overallProgress.total === 0
-                          ? '—'
-                          : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
+                        {totalWeight === 0 ? '—' : `${Math.round(overallCompletion.achieved * 100)}%`}
                       </p>
-                      <p className="text-xs text-muted-foreground">complete</p>
+                      <p className="text-xs text-muted-foreground">achieved</p>
                     </div>
 
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-card/95 p-4 text-center opacity-0 transition-opacity group-hover/card:opacity-100">
-                      {overallProgress.total === 0 ? (
-                        <p className="text-xs text-muted-foreground">No assignments yet.</p>
+                      {totalWeight === 0 ? (
+                        <p className="text-xs text-muted-foreground">No modules yet.</p>
                       ) : (
                         <>
                           <div>
-                            <p className="text-sm font-medium">
-                              {overallProgress.graded} of {overallProgress.total} graded
-                            </p>
+                            <p className="text-sm font-medium">{Math.round(overallCompletion.achieved * 100)}% achieved</p>
                             <p className="text-xs text-muted-foreground">
-                              {overallProgress.in_progress} in progress · {overallProgress.not_started} not started
+                              {Math.round(overallCompletion.completed * 100)}% of grade submitted
                             </p>
                           </div>
                           <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -276,9 +277,7 @@ export function Overview() {
                                     aria-hidden
                                   />
                                   <span className="text-foreground">{m.name}</span>
-                                  <span>
-                                    {m.assignment_progress.graded}/{m.assignment_progress.total}
-                                  </span>
+                                  <span>{Math.round(m.completion_progress.achieved_fraction * 100)}%</span>
                                 </li>
                               ))}
                           </ul>
