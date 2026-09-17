@@ -21,5 +21,10 @@ class Assignment(Base):
     weight_percent: Mapped[float] = mapped_column(Numeric(5, 2))
     grade_earned: Mapped[float | None] = mapped_column(Numeric(6, 2))
     grade_max: Mapped[float | None] = mapped_column(Numeric(6, 2))
+    notes_markdown: Mapped[str] = mapped_column(default="")
 
     module: Mapped["Module"] = relationship(back_populates="assignments")  # noqa: F821
+    attachments: Mapped[list["Attachment"]] = relationship(back_populates="assignment", cascade="all, delete-orphan")  # noqa: F821
+    todos: Mapped[list["AssignmentTodo"]] = relationship(  # noqa: F821
+        back_populates="assignment", cascade="all, delete-orphan", order_by="AssignmentTodo.id"
+    )

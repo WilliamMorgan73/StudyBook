@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import (
     assignments,
+    attachments,
     calendar,
     flashcards,
     lectures,
@@ -27,6 +28,7 @@ app.add_middleware(
 app.include_router(modules.router)
 app.include_router(assignments.router)
 app.include_router(submodules.router)
+app.include_router(attachments.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)

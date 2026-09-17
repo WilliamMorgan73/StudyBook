@@ -2,19 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import AttachmentKind
-
-
-class AttachmentRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    submodule_id: int
-    kind: AttachmentKind
-    filename: str
-    file_path: str
-    url: str
-    uploaded_at: datetime
+from app.schemas.attachment import AttachmentRead
 
 
 class SubmoduleBase(BaseModel):

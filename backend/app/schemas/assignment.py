@@ -3,6 +3,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import AssignmentStatus
+from app.schemas.attachment import AttachmentRead
+from app.schemas.todo import TodoRead
 
 
 class AssignmentBase(BaseModel):
@@ -13,6 +15,7 @@ class AssignmentBase(BaseModel):
     weight_percent: float = Field(gt=0, le=100)
     grade_earned: float | None = None
     grade_max: float | None = None
+    notes_markdown: str = ""
 
 
 class AssignmentCreate(AssignmentBase):
@@ -27,6 +30,7 @@ class AssignmentUpdate(BaseModel):
     weight_percent: float | None = Field(default=None, gt=0, le=100)
     grade_earned: float | None = None
     grade_max: float | None = None
+    notes_markdown: str | None = None
 
 
 class AssignmentRead(AssignmentBase):
@@ -34,3 +38,5 @@ class AssignmentRead(AssignmentBase):
 
     id: int
     module_id: int
+    attachments: list[AttachmentRead] = []
+    todos: list[TodoRead] = []

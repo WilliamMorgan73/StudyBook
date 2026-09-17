@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.crud.attachments import store_upload
 from app.models.assignment import Assignment
+from app.models.attachment import Attachment
+from app.models.todo import AssignmentTodo
 from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentUpdate
+from app.schemas.attachment import AttachmentRead
+from app.schemas.todo import TodoCreate, TodoRead, TodoUpdate
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
@@ -22,6 +27,13 @@ def _check_total_weight(
             f"Total weighting for this module would be {other_total + new_weight:.2f}%, "
             f"which exceeds 100% (other assignments already total {other_total:.2f}%)",
         )
+
+
+def _get_assignment_or_404(db: Session, assignment_id: int) -> Assignment:
+    assignment = db.get(Assignment, assignment_id)
+    if assignment is None:
+        raise HTTPException(404, "Assignment not found")
+    return assignment
 
 
 @router.get("", response_model=list[AssignmentRead])
@@ -50,17 +62,12 @@ def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db)) 
 
 @router.get("/{assignment_id}", response_model=AssignmentRead)
 def get_assignment(assignment_id: int, db: Session = Depends(get_db)) -> Assignment:
-    assignment = db.get(Assignment, assignment_id)
-    if assignment is None:
-        raise HTTPException(404, "Assignment not found")
-    return assignment
+    return _get_assignment_or_404(db, assignment_id)
 
 
 @router.patch("/{assignment_id}", response_model=AssignmentRead)
 def update_assignment(assignment_id: int, payload: AssignmentUpdate, db: Session = Depends(get_db)) -> Assignment:
-    assignment = db.get(Assignment, assignment_id)
-    if assignment is None:
-        raise HTTPException(404, "Assignment not found")
+    assignment = _get_assignment_or_404(db, assignment_id)
     updates = payload.model_dump(exclude_unset=True)
     if "weight_percent" in updates:
         _check_total_weight(db, assignment.module_id, updates["weight_percent"], exclude_assignment_id=assignment_id)
@@ -73,8 +80,48 @@ def update_assignment(assignment_id: int, payload: AssignmentUpdate, db: Session
 
 @router.delete("/{assignment_id}", status_code=204)
 def delete_assignment(assignment_id: int, db: Session = Depends(get_db)) -> None:
-    assignment = db.get(Assignment, assignment_id)
-    if assignment is None:
-        raise HTTPException(404, "Assignment not found")
+    assignment = _get_assignment_or_404(db, assignment_id)
     db.delete(assignment)
+    db.commit()
+
+
+@router.post("/{assignment_id}/attachments", response_model=AttachmentRead, status_code=201)
+def upload_attachment(assignment_id: int, file: UploadFile, db: Session = Depends(get_db)) -> Attachment:
+    _get_assignment_or_404(db, assignment_id)
+    kind, filename, file_path = store_upload(file, f"assignments/{assignment_id}")
+    attachment = Attachment(assignment_id=assignment_id, kind=kind, filename=filename, file_path=file_path)
+    db.add(attachment)
+    db.commit()
+    db.refresh(attachment)
+    return attachment
+
+
+@router.post("/{assignment_id}/todos", response_model=TodoRead, status_code=201)
+def create_todo(assignment_id: int, payload: TodoCreate, db: Session = Depends(get_db)) -> AssignmentTodo:
+    _get_assignment_or_404(db, assignment_id)
+    todo = AssignmentTodo(assignment_id=assignment_id, text=payload.text)
+    db.add(todo)
+    db.commit()
+    db.refresh(todo)
+    return todo
+
+
+@router.patch("/{assignment_id}/todos/{todo_id}", response_model=TodoRead)
+def update_todo(assignment_id: int, todo_id: int, payload: TodoUpdate, db: Session = Depends(get_db)) -> AssignmentTodo:
+    todo = db.get(AssignmentTodo, todo_id)
+    if todo is None or todo.assignment_id != assignment_id:
+        raise HTTPException(404, "Todo not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(todo, field, value)
+    db.commit()
+    db.refresh(todo)
+    return todo
+
+
+@router.delete("/{assignment_id}/todos/{todo_id}", status_code=204)
+def delete_todo(assignment_id: int, todo_id: int, db: Session = Depends(get_db)) -> None:
+    todo = db.get(AssignmentTodo, todo_id)
+    if todo is None or todo.assignment_id != assignment_id:
+        raise HTTPException(404, "Todo not found")
+    db.delete(todo)
     db.commit()
