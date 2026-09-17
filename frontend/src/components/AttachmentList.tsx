@@ -8,7 +8,7 @@ export function AttachmentList({
   attachments,
   upload,
   onChanged,
-  title = 'Files',
+  title,
 }: {
   attachments: Attachment[]
   upload: (file: File) => Promise<Attachment>
@@ -41,8 +41,8 @@ export function AttachmentList({
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium">{title}</h2>
-        <div>
+        {title && <h2 className="text-lg font-medium">{title}</h2>}
+        <div className={title ? undefined : 'ml-auto'}>
           <input
             ref={fileInput}
             type="file"
