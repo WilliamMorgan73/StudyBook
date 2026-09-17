@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
+import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { CalendarAgenda } from '@/components/CalendarAgenda'
 import { ModuleCard } from '@/components/ModuleCard'
@@ -11,6 +12,8 @@ import { useAsync } from '@/lib/useAsync'
 const CALENDAR_WINDOW_DAYS = 14
 
 export function Overview() {
+  const [reloadKey, setReloadKey] = useState(0)
+
   const range = useMemo(() => {
     const start = new Date()
     const end = new Date(start)
@@ -18,7 +21,7 @@ export function Overview() {
     return { start, end }
   }, [])
 
-  const modules = useAsync(() => listModules(), [])
+  const modules = useAsync(() => listModules(), [reloadKey])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
   const calendar = useAsync(() => getCalendar(range.start, range.end), [range])
 
@@ -34,12 +37,15 @@ export function Overview() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
-      <header>
-        <h1 className="text-2xl font-semibold">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          {modules.data?.length ?? 0} modules
-          {averageGrade !== null && ` · ${averageGrade.toFixed(1)}% average grade`}
-        </p>
+      <header className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Overview</h1>
+          <p className="text-sm text-muted-foreground">
+            {modules.data?.length ?? 0} modules
+            {averageGrade !== null && `, ${averageGrade.toFixed(1)}% average grade`}
+          </p>
+        </div>
+        <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -81,7 +87,11 @@ export function Overview() {
           </div>
         )}
         {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
-        {modules.data?.length === 0 && <p className="text-sm text-muted-foreground">No modules yet.</p>}
+        {modules.data?.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Add your first module to start tracking lectures, assignments, and grades.
+          </p>
+        )}
         {modules.data && modules.data.length > 0 && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {modules.data.map((m) => (

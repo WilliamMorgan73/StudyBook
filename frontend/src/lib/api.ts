@@ -34,16 +34,76 @@ export interface CalendarEvent {
   url: string
 }
 
-async function request<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
+export interface Lecture {
+  id: number
+  module_id: number
+  title: string
+  scheduled_at: string
+  location: string | null
+  week_number: number | null
+}
+
+export interface Note {
+  id: number
+  module_id: number
+  lecture_id: number | null
+  title: string
+  content_markdown: string
+  is_quick_note: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Flashcard {
+  id: number
+  module_id: number
+  note_id: number | null
+  front: string
+  back: string
+  due_at: string
+}
+
+export interface ModuleDetail extends ModuleSummary {
+  lectures: Lecture[]
+  assignments: Assignment[]
+  notes: Note[]
+  flashcards: Flashcard[]
+  related_modules: { id: number; name: string }[]
+}
+
+export interface ModuleCreateInput {
+  name: string
+  code?: string | null
+  color?: string
+  term?: string | null
+  credits?: number | null
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
-    throw new Error(`${res.status} ${res.statusText} for ${path}`)
+    const body = await res.json().catch(() => null)
+    const detail = typeof body?.detail === 'string' ? body.detail : null
+    throw new Error(detail ?? `${res.status} ${res.statusText}`)
   }
+  if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
 }
 
 export function listModules() {
   return request<ModuleSummary[]>('/modules')
+}
+
+export function getModule(id: number) {
+  return request<ModuleDetail>(`/modules/${id}`)
+}
+
+export function createModule(input: ModuleCreateInput) {
+  return request<ModuleSummary>('/modules', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }
 
 export function listUpcomingAssignments(limit = 5) {
