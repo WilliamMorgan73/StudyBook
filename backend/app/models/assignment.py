@@ -18,7 +18,7 @@ class Assignment(Base):
     status: Mapped[AssignmentStatus] = mapped_column(
         Enum(AssignmentStatus, native_enum=False), default=AssignmentStatus.not_started
     )
-    weight_percent: Mapped[float | None] = mapped_column(Numeric(5, 2))
+    weight_percent: Mapped[float] = mapped_column(Numeric(5, 2))
     grade_earned: Mapped[float | None] = mapped_column(Numeric(6, 2))
     grade_max: Mapped[float | None] = mapped_column(Numeric(6, 2))
 

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.enums import AssignmentStatus
 
@@ -10,7 +10,7 @@ class AssignmentBase(BaseModel):
     description: str | None = None
     due_at: datetime | None = None
     status: AssignmentStatus = AssignmentStatus.not_started
-    weight_percent: float | None = None
+    weight_percent: float = Field(gt=0, le=100)
     grade_earned: float | None = None
     grade_max: float | None = None
 
@@ -24,7 +24,7 @@ class AssignmentUpdate(BaseModel):
     description: str | None = None
     due_at: datetime | None = None
     status: AssignmentStatus | None = None
-    weight_percent: float | None = None
+    weight_percent: float | None = Field(default=None, gt=0, le=100)
     grade_earned: float | None = None
     grade_max: float | None = None
 

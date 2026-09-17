@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -7,6 +7,21 @@ from app.models.assignment import Assignment
 from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentUpdate
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
+
+
+def _check_total_weight(
+    db: Session, module_id: int, new_weight: float, exclude_assignment_id: int | None = None
+) -> None:
+    stmt = select(func.coalesce(func.sum(Assignment.weight_percent), 0)).where(Assignment.module_id == module_id)
+    if exclude_assignment_id is not None:
+        stmt = stmt.where(Assignment.id != exclude_assignment_id)
+    other_total = float(db.scalar(stmt) or 0)
+    if other_total + new_weight > 100:
+        raise HTTPException(
+            400,
+            f"Total weighting for this module would be {other_total + new_weight:.2f}%, "
+            f"which exceeds 100% (other assignments already total {other_total:.2f}%)",
+        )
 
 
 @router.get("", response_model=list[AssignmentRead])
@@ -25,6 +40,7 @@ def list_assignments(
 
 @router.post("", response_model=AssignmentRead, status_code=201)
 def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db)) -> Assignment:
+    _check_total_weight(db, payload.module_id, payload.weight_percent)
     assignment = Assignment(**payload.model_dump())
     db.add(assignment)
     db.commit()
@@ -45,7 +61,10 @@ def update_assignment(assignment_id: int, payload: AssignmentUpdate, db: Session
     assignment = db.get(Assignment, assignment_id)
     if assignment is None:
         raise HTTPException(404, "Assignment not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+    if "weight_percent" in updates:
+        _check_total_weight(db, assignment.module_id, updates["weight_percent"], exclude_assignment_id=assignment_id)
+    for field, value in updates.items():
         setattr(assignment, field, value)
     db.commit()
     db.refresh(assignment)
