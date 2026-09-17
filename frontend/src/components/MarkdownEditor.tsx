@@ -5,6 +5,7 @@ import CodeMirror, {
   StateEffect,
   StateField,
   type DecorationSet,
+  type EditorState,
   type Range,
 } from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
@@ -24,6 +25,13 @@ const HEADING_LEVEL: Record<string, number> = {
 }
 
 const MARK_NODES = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'StrikethroughMark', 'QuoteMark'])
+// These marks are followed by a single space before the real content (e.g. "# " or "> ") —
+// hide that space too, or a gap is left behind once the "#"/">" itself disappears.
+const MARK_NODES_CONSUME_TRAILING_SPACE = new Set(['HeaderMark', 'QuoteMark'])
+
+function skipTrailingSpace(state: EditorState, pos: number): number {
+  return state.doc.sliceString(pos, pos + 1) === ' ' ? pos + 1 : pos
+}
 
 // CodeMirror's own `.cm-focused` class toggling proved unreliable inside this React tree,
 // so focus is tracked explicitly via React's onFocus/onBlur instead of `view.hasFocus`.
@@ -88,7 +96,10 @@ function buildDecorations(view: EditorView): DecorationSet {
 
         if (MARK_NODES.has(name)) {
           const line = state.doc.lineAt(node.from).number
-          if (line !== cursorLine) ranges.push(HIDE.range(node.from, node.to))
+          if (line !== cursorLine) {
+            const to = MARK_NODES_CONSUME_TRAILING_SPACE.has(name) ? skipTrailingSpace(state, node.to) : node.to
+            ranges.push(HIDE.range(node.from, to))
+          }
         }
       },
     })
@@ -123,7 +134,7 @@ const editorTheme = EditorView.theme({
   '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)' },
   '.cm-line': { padding: 0 },
   '&.cm-editor.cm-focused': { outline: 'none' },
-  '.cm-live-focused .cm-cursor, .cm-live-focused .cm-dropCursor': {
+  '&.cm-live-focused .cm-cursor, &.cm-live-focused .cm-dropCursor': {
     display: 'block',
     borderLeftColor: 'var(--foreground)',
     borderLeftWidth: '1.5px',
@@ -171,9 +182,19 @@ export function MarkdownEditor({
   minHeight?: string
 }) {
   const viewRef = useRef<EditorView | null>(null)
+  // Clicking (especially on an empty line) can fire several synchronous focus/blur events
+  // in a row before settling. Debounce so only the final state reaches the view — dispatching
+  // on every intermediate event was itself feeding the thrashing (each dispatch recomputes
+  // decorations, which can retrigger a blur).
+  const settleTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  function markFocused(focused: boolean) {
-    viewRef.current?.dispatch({ effects: setFocused.of(focused) })
+  function scheduleFocusUpdate(focused: boolean) {
+    if (settleTimeout.current) clearTimeout(settleTimeout.current)
+    settleTimeout.current = setTimeout(() => {
+      settleTimeout.current = null
+      viewRef.current?.dispatch({ effects: setFocused.of(focused) })
+      if (!focused) onBlur?.()
+    }, 0)
   }
 
   return (
@@ -183,11 +204,8 @@ export function MarkdownEditor({
       onCreateEditor={(view) => {
         viewRef.current = view
       }}
-      onFocus={() => markFocused(true)}
-      onBlur={() => {
-        markFocused(false)
-        onBlur?.()
-      }}
+      onFocus={() => scheduleFocusUpdate(true)}
+      onBlur={() => scheduleFocusUpdate(false)}
       autoFocus={autoFocus}
       placeholder={placeholder}
       minHeight={minHeight}
