@@ -35,3 +35,7 @@ class Attachment(Base):
     uploaded_at: Mapped[datetime] = mapped_column(server_default="now()")
 
     submodule: Mapped["Submodule"] = relationship(back_populates="attachments")
+
+    @property
+    def url(self) -> str:
+        return f"/{self.file_path}"

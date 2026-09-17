@@ -13,6 +13,7 @@ class AttachmentRead(BaseModel):
     kind: AttachmentKind
     filename: str
     file_path: str
+    url: str
     uploaded_at: datetime
 
 

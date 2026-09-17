@@ -12,6 +12,18 @@ from app.schemas.flashcard import FlashcardCreate, FlashcardRead, FlashcardRevie
 router = APIRouter(prefix="/flashcards", tags=["flashcards"])
 
 
+@router.get("", response_model=list[FlashcardRead])
+def list_flashcards(
+    module_id: int | None = None, submodule_id: int | None = None, db: Session = Depends(get_db)
+) -> list[Flashcard]:
+    stmt = select(Flashcard)
+    if module_id is not None:
+        stmt = stmt.where(Flashcard.module_id == module_id)
+    if submodule_id is not None:
+        stmt = stmt.where(Flashcard.submodule_id == submodule_id)
+    return list(db.scalars(stmt).all())
+
+
 @router.get("/due", response_model=list[FlashcardRead])
 def list_due(module_id: int | None = None, db: Session = Depends(get_db)) -> list[Flashcard]:
     stmt = select(Flashcard).where(Flashcard.due_at <= datetime.now(UTC).replace(tzinfo=None))
