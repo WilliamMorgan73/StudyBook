@@ -9,8 +9,8 @@ import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
-import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { PageHeader } from '@/components/PageHeader'
+import { RadialProgress } from '@/components/RadialProgress'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
@@ -75,6 +75,20 @@ export function Overview() {
     [modules.data],
   )
 
+  const progressSegments = useMemo(() => {
+    const grandTotal = overallProgress.total
+    if (grandTotal === 0) return []
+    return (modules.data ?? []).flatMap((m) => {
+      const { graded, in_progress, not_started, total } = m.assignment_progress
+      if (total === 0) return []
+      return [
+        { fraction: graded / grandTotal, color: m.color },
+        { fraction: in_progress / grandTotal, color: `${m.color}b3` },
+        { fraction: not_started / grandTotal, color: `${m.color}4d` },
+      ]
+    })
+  }, [modules.data, overallProgress.total])
+
   return (
     <div className="min-h-full">
       <PageHeader
@@ -100,7 +114,7 @@ export function Overview() {
             <CardHeader>
               <CardTitle>Calendar</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               {calendar.loading && <Skeleton className="h-80 w-full" />}
               {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
               {calendar.data && (
@@ -126,11 +140,11 @@ export function Overview() {
                       Assignment due
                     </span>
                   </div>
-                  <div className="border-t pt-3">
-                    <p className="mb-2 text-sm font-medium">
+                  <div className="border-t pt-2">
+                    <p className="mb-1.5 text-sm font-medium">
                       {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                     </p>
-                    <div className="h-40 overflow-y-auto pr-1">
+                    <div className="h-24 overflow-y-auto pr-1">
                     {selectedDayEvents.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
                     ) : (
@@ -234,21 +248,50 @@ export function Overview() {
               <CardHeader>
                 <CardTitle>Progress</CardTitle>
               </CardHeader>
-              <CardContent className="flex items-center justify-center gap-4">
-                {modules.loading && <Skeleton className="size-14 rounded-full" />}
+              <CardContent className="flex flex-col gap-3">
+                {modules.loading && <Skeleton className="mx-auto size-24 rounded-full" />}
                 {modules.data && (
                   <>
-                    <ModuleProgressRing progress={overallProgress} color="var(--foreground)" size={56} strokeWidth={6} />
-                    <div>
-                      <p className="text-xl font-semibold tabular-nums">
-                        {overallProgress.total === 0
-                          ? '—'
-                          : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {overallProgress.graded} of {overallProgress.total} graded
-                      </p>
+                    <div className="flex items-center justify-center gap-5">
+                      <div className="relative shrink-0" style={{ width: 96, height: 96 }}>
+                        <RadialProgress segments={progressSegments} size={96} strokeWidth={10} />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <p className="text-2xl font-semibold tabular-nums">
+                            {overallProgress.total === 0
+                              ? '—'
+                              : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {overallProgress.graded} of {overallProgress.total} graded
+                        </p>
+                        <p className="text-xs text-muted-foreground">{overallProgress.in_progress} in progress</p>
+                        <p className="text-xs text-muted-foreground">{overallProgress.not_started} not started</p>
+                      </div>
                     </div>
+                    {overallProgress.total === 0 ? (
+                      <p className="text-center text-sm text-muted-foreground">No assignments yet.</p>
+                    ) : (
+                      <ul className="flex flex-wrap justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                        {modules.data
+                          .filter((m) => m.assignment_progress.total > 0)
+                          .map((m) => (
+                            <li key={m.id} className="flex items-center gap-1.5">
+                              <span
+                                className="size-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: m.color }}
+                                aria-hidden
+                              />
+                              <span className="text-foreground">{m.name}</span>
+                              <span>
+                                {m.assignment_progress.graded}/{m.assignment_progress.total}
+                              </span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                   </>
                 )}
               </CardContent>

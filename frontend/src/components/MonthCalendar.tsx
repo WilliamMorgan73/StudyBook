@@ -113,7 +113,7 @@ export function MonthCalendar({
               key={day.toISOString()}
               type="button"
               onClick={() => onSelect(day)}
-              className={`flex min-h-16 flex-col items-start gap-1 bg-card p-1.5 text-left transition-colors hover:bg-muted ${
+              className={`flex min-h-11 flex-col items-start gap-1 bg-card p-1.5 text-left transition-colors hover:bg-muted ${
                 inMonth ? '' : 'opacity-40'
               } ${isSelected ? 'ring-2 ring-inset ring-foreground' : ''}`}
             >
