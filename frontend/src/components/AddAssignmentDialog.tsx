@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { createAssignment, type Assignment } from '@/lib/api'
+import { createAssignment, toNaiveDateTime, type Assignment } from '@/lib/api'
 
 export function AddAssignmentDialog({
   moduleId,
@@ -51,7 +51,7 @@ export function AddAssignmentDialog({
       const created = await createAssignment({
         module_id: moduleId,
         title: title.trim(),
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        due_at: dueAt ? toNaiveDateTime(new Date(dueAt)) : null,
         weight_percent: weightValue,
       })
       onCreated(created)

@@ -70,6 +70,7 @@ export interface Lecture {
   module_id: number
   title: string
   scheduled_at: string
+  duration_minutes: number | null
   location: string | null
   week_number: number | null
 }
@@ -147,11 +148,25 @@ export interface LectureCreateInput {
   module_id: number
   title: string
   scheduled_at: string
+  duration_minutes?: number | null
   location?: string | null
   week_number?: number | null
 }
 
 export type LectureUpdateInput = Partial<Omit<LectureCreateInput, 'module_id'>>
+
+/**
+ * Formats a Date's local wall-clock components as a naive datetime string
+ * ("YYYY-MM-DDTHH:MM:SS", no timezone). The backend stores/returns naive timestamps and
+ * the app reads them back with `new Date(iso)`, which treats a string with no timezone
+ * suffix as local time - so writes must never go through `.toISOString()` (UTC). Doing so
+ * shifts the stored value by the browser's UTC offset, and since that offset moves with
+ * DST, the shift isn't even constant across a series of dates.
+ */
+export function toNaiveDateTime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
@@ -291,8 +306,8 @@ export function deleteLecture(id: number) {
 
 export function getCalendar(start: Date, end: Date) {
   const params = new URLSearchParams({
-    start: start.toISOString(),
-    end: end.toISOString(),
+    start: toNaiveDateTime(start),
+    end: toNaiveDateTime(end),
   })
   return request<CalendarEvent[]>(`/calendar?${params}`)
 }

@@ -17,6 +17,7 @@ import {
   deleteAssignment,
   deleteTodo,
   getAssignment,
+  toNaiveDateTime,
   updateAssignment,
   updateTodo,
   uploadAssignmentAttachment,
@@ -158,7 +159,7 @@ export function AssignmentPage() {
     try {
       await updateAssignment(id, {
         title: title.trim(),
-        due_at: dueAt ? new Date(dueAt).toISOString() : null,
+        due_at: dueAt ? toNaiveDateTime(new Date(dueAt)) : null,
         weight_percent: weightValue,
         status,
         grade_earned: gradeEarned ? Number(gradeEarned) : null,
