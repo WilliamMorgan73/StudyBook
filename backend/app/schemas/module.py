@@ -39,12 +39,20 @@ class AssignmentProgress(BaseModel):
     total: int
 
 
+class CompletionProgress(BaseModel):
+    """Weight-based (not count-based) progress, for the module progress ring."""
+
+    completed_fraction: float
+    achieved_fraction: float
+
+
 class ModuleSummary(ModuleRead):
     """Module plus derived fields for the home/dashboard views."""
 
     current_grade: float | None = None
     next_lecture_at: str | None = None
     assignment_progress: AssignmentProgress
+    completion_progress: CompletionProgress
 
 
 class ModuleDetail(ModuleSummary):

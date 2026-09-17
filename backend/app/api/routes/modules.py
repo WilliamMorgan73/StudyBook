@@ -5,7 +5,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.crud.grades import compute_assignment_progress, compute_current_grade
+from app.crud.grades import (
+    compute_assignment_progress,
+    compute_completion_progress,
+    compute_current_grade,
+)
 from app.models.module import Module, ModuleLink
 from app.schemas.module import (
     ModuleCreate,
@@ -35,6 +39,7 @@ def list_modules(db: Session = Depends(get_db)) -> list[ModuleSummary]:
                 "current_grade": compute_current_grade(m.assignments),
                 "next_lecture_at": _next_lecture_at(m),
                 "assignment_progress": compute_assignment_progress(m.assignments),
+                "completion_progress": compute_completion_progress(m.assignments),
             }
         )
         for m in modules
@@ -67,6 +72,7 @@ def get_module(module_id: int, db: Session = Depends(get_db)) -> ModuleDetail:
             "current_grade": compute_current_grade(module.assignments),
             "next_lecture_at": _next_lecture_at(module),
             "assignment_progress": compute_assignment_progress(module.assignments),
+            "completion_progress": compute_completion_progress(module.assignments),
             "lectures": module.lectures,
             "assignments": module.assignments,
             "submodules": module.submodules,
