@@ -6,7 +6,7 @@ import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { CalendarAgenda } from '@/components/CalendarAgenda'
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
-import { NextLectureCountdown } from '@/components/NextLectureCountdown'
+import { Countdown } from '@/components/Countdown'
 import { PageHeader } from '@/components/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -185,7 +185,7 @@ export function ModulePage() {
               <p className="text-sm text-muted-foreground">Current grade</p>
             </div>
             <div>
-              <NextLectureCountdown target={module.next_lecture_at} />
+              <Countdown target={module.next_lecture_at} />
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
               </p>

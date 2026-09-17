@@ -9,7 +9,15 @@ function diffParts(ms: number) {
   return { days, hours, minutes, seconds }
 }
 
-export function NextLectureCountdown({ target }: { target: string | null }) {
+export function Countdown({
+  target,
+  noneLabel = 'None scheduled',
+  arrivedLabel = 'Starting now',
+}: {
+  target: string | null
+  noneLabel?: string
+  arrivedLabel?: string
+}) {
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -18,12 +26,12 @@ export function NextLectureCountdown({ target }: { target: string | null }) {
   }, [])
 
   if (!target) {
-    return <p className="text-base text-muted-foreground">None scheduled</p>
+    return <p className="text-base text-muted-foreground">{noneLabel}</p>
   }
 
   const diff = new Date(target).getTime() - now
   if (diff <= 0) {
-    return <p className="text-xl font-semibold">Starting now</p>
+    return <p className="text-xl font-semibold">{arrivedLabel}</p>
   }
 
   const { days, hours, minutes, seconds } = diffParts(diff)
