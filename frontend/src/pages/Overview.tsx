@@ -325,10 +325,7 @@ export function Overview() {
           settings={appSettings.data}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
-          onChanged={() => {
-            setSettingsOpen(false)
-            setReloadKey((k) => k + 1)
-          }}
+          onChanged={() => setReloadKey((k) => k + 1)}
         />
       )}
     </div>

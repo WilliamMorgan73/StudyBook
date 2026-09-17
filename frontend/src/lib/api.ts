@@ -352,8 +352,13 @@ export function getCalendar(start: Date, end: Date) {
   return request<CalendarEvent[]>(`/calendar?${params}`)
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system'
+export type Skin = 'default' | 'slate' | 'sepia'
+
 export interface AppSettings {
   max_credits: number | null
+  theme_mode: ThemeMode
+  skin: Skin
 }
 
 export function getAppSettings() {

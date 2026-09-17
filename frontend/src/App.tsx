@@ -4,8 +4,11 @@ import { AssignmentPage } from '@/pages/AssignmentPage'
 import { ModulePage } from '@/pages/ModulePage'
 import { Overview } from '@/pages/Overview'
 import { SubmodulePage } from '@/pages/SubmodulePage'
+import { useApplyTheme } from '@/lib/theme'
 
 function App() {
+  useApplyTheme()
+
   return (
     <Routes>
       <Route path="/" element={<Overview />} />
