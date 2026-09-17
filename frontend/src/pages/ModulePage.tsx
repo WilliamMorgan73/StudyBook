@@ -9,21 +9,14 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
+  ASSIGNMENT_STATUS_LABEL,
   getCalendar,
   getModule,
   type Assignment,
-  type AssignmentStatus,
   type Lecture,
   type Submodule,
 } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
-
-const STATUS_LABEL: Record<AssignmentStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  submitted: 'Submitted',
-  graded: 'Graded',
-}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -39,21 +32,26 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function AssignmentRow({ assignment }: { assignment: Assignment }) {
+function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment: Assignment }) {
   const overdue =
     assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
 
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate font-medium">{assignment.title}</p>
-        <p className="text-sm text-muted-foreground">
-          {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot; {assignment.weight_percent}% of grade
-        </p>
-      </div>
-      <Badge variant={overdue ? 'destructive' : assignment.status === 'graded' ? 'secondary' : 'outline'}>
-        {overdue ? 'Overdue' : STATUS_LABEL[assignment.status]}
-      </Badge>
+    <li className="py-2">
+      <Link
+        to={`/modules/${moduleId}/assignments/${assignment.id}`}
+        className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
+      >
+        <div className="min-w-0">
+          <p className="truncate font-medium">{assignment.title}</p>
+          <p className="text-sm text-muted-foreground">
+            {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot; {assignment.weight_percent}% of grade
+          </p>
+        </div>
+        <Badge variant={overdue ? 'destructive' : assignment.status === 'graded' ? 'secondary' : 'outline'}>
+          {overdue ? 'Overdue' : ASSIGNMENT_STATUS_LABEL[assignment.status]}
+        </Badge>
+      </Link>
     </li>
   )
 }
@@ -195,7 +193,7 @@ export function ModulePage() {
           ) : (
             <ul className="divide-y">
               {sortedAssignments.map((a) => (
-                <AssignmentRow key={a.id} assignment={a} />
+                <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
               ))}
             </ul>
           )}

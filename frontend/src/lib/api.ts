@@ -2,6 +2,13 @@ const API_BASE = '/api'
 
 export type AssignmentStatus = 'not_started' | 'in_progress' | 'submitted' | 'graded'
 
+export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  submitted: 'Submitted',
+  graded: 'Graded',
+}
+
 export interface ModuleSummary {
   id: number
   name: string
@@ -11,6 +18,27 @@ export interface ModuleSummary {
   credits: number | null
   current_grade: number | null
   next_lecture_at: string | null
+}
+
+export type AttachmentKind = 'pdf' | 'pptx' | 'video' | 'audio' | 'image' | 'other'
+
+export interface Attachment {
+  id: number
+  submodule_id: number | null
+  assignment_id: number | null
+  kind: AttachmentKind
+  filename: string
+  file_path: string
+  url: string
+  uploaded_at: string
+}
+
+export interface Todo {
+  id: number
+  assignment_id: number
+  text: string
+  done: boolean
+  created_at: string
 }
 
 export interface Assignment {
@@ -23,6 +51,9 @@ export interface Assignment {
   weight_percent: number
   grade_earned: number | null
   grade_max: number | null
+  notes_markdown: string
+  attachments: Attachment[]
+  todos: Todo[]
 }
 
 export interface CalendarEvent {
@@ -41,18 +72,6 @@ export interface Lecture {
   scheduled_at: string
   location: string | null
   week_number: number | null
-}
-
-export type AttachmentKind = 'pdf' | 'pptx' | 'video' | 'audio' | 'image' | 'other'
-
-export interface Attachment {
-  id: number
-  submodule_id: number
-  kind: AttachmentKind
-  filename: string
-  file_path: string
-  url: string
-  uploaded_at: string
 }
 
 export interface Submodule {
@@ -100,6 +119,13 @@ export interface AssignmentCreateInput {
   description?: string | null
   due_at?: string | null
   weight_percent: number
+}
+
+export type AssignmentUpdateInput = Partial<Omit<AssignmentCreateInput, 'module_id'>> & {
+  status?: AssignmentStatus
+  grade_earned?: number | null
+  grade_max?: number | null
+  notes_markdown?: string
 }
 
 export interface SubmoduleCreateInput {
@@ -154,6 +180,12 @@ function patchJson<T>(path: string, body: unknown): Promise<T> {
   })
 }
 
+function uploadFile<T>(path: string, file: File): Promise<T> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<T>(path, { method: 'POST', body: formData })
+}
+
 export function listModules() {
   return request<ModuleSummary[]>('/modules')
 }
@@ -170,8 +202,40 @@ export function listUpcomingAssignments(limit = 5) {
   return request<Assignment[]>(`/assignments?upcoming=true&limit=${limit}`)
 }
 
+export function getAssignment(id: number) {
+  return request<Assignment>(`/assignments/${id}`)
+}
+
 export function createAssignment(input: AssignmentCreateInput) {
   return postJson<Assignment>('/assignments', input)
+}
+
+export function updateAssignment(id: number, input: AssignmentUpdateInput) {
+  return patchJson<Assignment>(`/assignments/${id}`, input)
+}
+
+export function deleteAssignment(id: number) {
+  return request<void>(`/assignments/${id}`, { method: 'DELETE' })
+}
+
+export function uploadAssignmentAttachment(assignmentId: number, file: File) {
+  return uploadFile<Attachment>(`/assignments/${assignmentId}/attachments`, file)
+}
+
+export function createTodo(assignmentId: number, text: string) {
+  return postJson<Todo>(`/assignments/${assignmentId}/todos`, { text })
+}
+
+export function updateTodo(assignmentId: number, todoId: number, input: { text?: string; done?: boolean }) {
+  return patchJson<Todo>(`/assignments/${assignmentId}/todos/${todoId}`, input)
+}
+
+export function deleteTodo(assignmentId: number, todoId: number) {
+  return request<void>(`/assignments/${assignmentId}/todos/${todoId}`, { method: 'DELETE' })
+}
+
+export function deleteAttachment(id: number) {
+  return request<void>(`/attachments/${id}`, { method: 'DELETE' })
 }
 
 export function getSubmodule(id: number) {
@@ -190,13 +254,8 @@ export function deleteSubmodule(id: number) {
   return request<void>(`/submodules/${id}`, { method: 'DELETE' })
 }
 
-export function uploadAttachment(submoduleId: number, file: File) {
-  const formData = new FormData()
-  formData.append('file', file)
-  return request<Attachment>(`/submodules/${submoduleId}/attachments`, {
-    method: 'POST',
-    body: formData,
-  })
+export function uploadSubmoduleAttachment(submoduleId: number, file: File) {
+  return uploadFile<Attachment>(`/submodules/${submoduleId}/attachments`, file)
 }
 
 export function listFlashcards(filter: { moduleId?: number; submoduleId?: number }) {

@@ -1,8 +1,9 @@
-import { Paperclip, Trash2 } from 'lucide-react'
-import { useRef, useState, type FormEvent } from 'react'
+import { Trash2 } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { AttachmentList } from '@/components/AttachmentList'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +16,7 @@ import {
   getSubmodule,
   listFlashcards,
   updateSubmodule,
-  uploadAttachment,
+  uploadSubmoduleAttachment,
   type Flashcard,
 } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
@@ -99,9 +100,6 @@ export function SubmodulePage() {
   const [editing, setEditing] = useState(false)
   const [content, setContent] = useState('')
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
 
   if (loading) {
     return (
@@ -137,20 +135,6 @@ export function SubmodulePage() {
       refetch()
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleUpload(file: File) {
-    setUploading(true)
-    setUploadError(null)
-    try {
-      await uploadAttachment(id, file)
-      refetch()
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Could not upload the file.')
-    } finally {
-      setUploading(false)
-      if (fileInput.current) fileInput.current.value = ''
     }
   }
 
@@ -210,41 +194,12 @@ export function SubmodulePage() {
         )}
       </section>
 
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Lecture notes</h2>
-          <div>
-            <input
-              ref={fileInput}
-              type="file"
-              accept=".pdf,.ppt,.pptx"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (file) void handleUpload(file)
-              }}
-            />
-            <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()} disabled={uploading}>
-              {uploading ? 'Uploading…' : 'Upload PDF/PPTX'}
-            </Button>
-          </div>
-        </div>
-        {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
-        {submodule.attachments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No files attached yet.</p>
-        ) : (
-          <ul className="divide-y">
-            {submodule.attachments.map((a) => (
-              <li key={a.id} className="flex items-center gap-2 py-2">
-                <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-                <a href={a.url} target="_blank" rel="noreferrer" className="truncate text-sm hover:underline">
-                  {a.filename}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <AttachmentList
+        title="Lecture notes"
+        attachments={submodule.attachments}
+        upload={(file) => uploadSubmoduleAttachment(id, file)}
+        onChanged={refetch}
+      />
 
       <section className="space-y-2">
         <h2 className="text-lg font-medium">Flashcards</h2>

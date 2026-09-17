@@ -18,7 +18,7 @@ export function AssignmentItem({ assignment, moduleName }: { assignment: Assignm
 
   return (
     <Link
-      to={`/modules/${assignment.module_id}`}
+      to={`/modules/${assignment.module_id}/assignments/${assignment.id}`}
       className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted"
     >
       <div className="min-w-0">
