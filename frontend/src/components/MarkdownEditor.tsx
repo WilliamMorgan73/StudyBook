@@ -11,7 +11,7 @@ import CodeMirror, {
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
 import { useRef } from 'react'
-import { ViewPlugin, type ViewUpdate } from '@codemirror/view'
+import { drawSelection, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 
 const HIDE = Decoration.replace({})
 
@@ -222,6 +222,9 @@ export function MarkdownEditor({
         markdown({ extensions: GFM }),
         EditorView.lineWrapping,
         editorTheme,
+        // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
+        // "gone" far more often there than on a line with text next to it — just keep it solid.
+        drawSelection({ cursorBlinkRate: 0 }),
         ...(sourceMode ? [] : [focusedField, liveMarkdown, focusAttributes]),
       ]}
       className={className}
