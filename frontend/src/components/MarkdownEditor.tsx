@@ -1,7 +1,15 @@
 import { GFM } from '@lezer/markdown'
-import CodeMirror, { Decoration, EditorView, type DecorationSet, type Range } from '@uiw/react-codemirror'
+import CodeMirror, {
+  Decoration,
+  EditorView,
+  StateEffect,
+  StateField,
+  type DecorationSet,
+  type Range,
+} from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
+import { useRef } from 'react'
 import { ViewPlugin, type ViewUpdate } from '@codemirror/view'
 
 const HIDE = Decoration.replace({})
@@ -17,9 +25,25 @@ const HEADING_LEVEL: Record<string, number> = {
 
 const MARK_NODES = new Set(['HeaderMark', 'EmphasisMark', 'CodeMark', 'StrikethroughMark', 'QuoteMark'])
 
+// CodeMirror's own `.cm-focused` class toggling proved unreliable inside this React tree,
+// so focus is tracked explicitly via React's onFocus/onBlur instead of `view.hasFocus`.
+const setFocused = StateEffect.define<boolean>()
+const focusedField = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(setFocused)) return effect.value
+    }
+    return value
+  },
+})
+
 function buildDecorations(view: EditorView): DecorationSet {
   const { state } = view
-  const cursorLine = state.doc.lineAt(state.selection.main.head).number
+  // Only treat a line as "active" (raw markdown shown) when the editor is focused —
+  // otherwise the default cursor position (offset 0) falsely keeps line 1's marks visible.
+  const focused = state.field(focusedField, false)
+  const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
   const ranges: Range<Decoration>[] = []
 
   for (const { from, to } of view.visibleRanges) {
@@ -80,19 +104,30 @@ const liveMarkdown = ViewPlugin.fromClass(
       this.decorations = buildDecorations(view)
     }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.viewportChanged) {
-        this.decorations = buildDecorations(update.view)
-      }
+      // Recompute unconditionally: a focusedField effect changes which line is "active"
+      // without necessarily touching the doc, selection, or viewport.
+      this.decorations = buildDecorations(update.view)
     }
   },
   { decorations: (v) => v.decorations },
 )
 
+// Drives a class on the editor root from focusedField, so cursor visibility doesn't depend
+// on CodeMirror's own (unreliable here) `.cm-focused` class.
+const focusAttributes = EditorView.editorAttributes.of((view) => ({
+  class: view.state.field(focusedField, false) ? 'cm-live-focused' : '',
+}))
+
 const editorTheme = EditorView.theme({
   '&': { fontSize: '0.9375rem', backgroundColor: 'transparent' },
-  '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)', caretColor: 'var(--foreground)' },
+  '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)' },
   '.cm-line': { padding: 0 },
   '&.cm-editor.cm-focused': { outline: 'none' },
+  '.cm-live-focused .cm-cursor, .cm-live-focused .cm-dropCursor': {
+    display: 'block',
+    borderLeftColor: 'var(--foreground)',
+    borderLeftWidth: '1.5px',
+  },
   '.cm-heading': { fontWeight: '600' },
   '.cm-h1': { fontSize: '1.6em' },
   '.cm-h2': { fontSize: '1.35em' },
@@ -135,11 +170,24 @@ export function MarkdownEditor({
   className?: string
   minHeight?: string
 }) {
+  const viewRef = useRef<EditorView | null>(null)
+
+  function markFocused(focused: boolean) {
+    viewRef.current?.dispatch({ effects: setFocused.of(focused) })
+  }
+
   return (
     <CodeMirror
       value={value}
       onChange={onChange}
-      onBlur={onBlur}
+      onCreateEditor={(view) => {
+        viewRef.current = view
+      }}
+      onFocus={() => markFocused(true)}
+      onBlur={() => {
+        markFocused(false)
+        onBlur?.()
+      }}
       autoFocus={autoFocus}
       placeholder={placeholder}
       minHeight={minHeight}
@@ -156,7 +204,7 @@ export function MarkdownEditor({
         markdown({ extensions: GFM }),
         EditorView.lineWrapping,
         editorTheme,
-        ...(sourceMode ? [] : [liveMarkdown]),
+        ...(sourceMode ? [] : [focusedField, liveMarkdown, focusAttributes]),
       ]}
       className={className}
     />
