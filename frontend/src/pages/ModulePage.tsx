@@ -16,6 +16,7 @@ import {
   type Lecture,
   type Submodule,
 } from '@/lib/api'
+import { groupLectures, type LectureSeries } from '@/lib/lectureSchedule'
 import { useAsync } from '@/lib/useAsync'
 
 function formatDateTime(iso: string) {
@@ -63,6 +64,20 @@ function LectureRow({ lecture }: { lecture: Lecture }) {
       <p className="text-sm text-muted-foreground">
         {formatDateTime(lecture.scheduled_at)}
         {lecture.location && ` — ${lecture.location}`}
+      </p>
+    </li>
+  )
+}
+
+function LectureSeriesRow({ series }: { series: LectureSeries }) {
+  const cadence = series.intervalDays === 7 ? `Every ${series.weekday}` : `Every other ${series.weekday}`
+
+  return (
+    <li className="py-2">
+      <p className="font-medium">{series.title}</p>
+      <p className="text-sm text-muted-foreground">
+        {cadence} at {series.time}, until {formatDate(series.lastDate)}
+        {series.location && ` — ${series.location}`} &middot; {series.lectures.length} lectures
       </p>
     </li>
   )
@@ -121,9 +136,7 @@ export function ModulePage() {
   }
 
   const dueFlashcards = module.flashcards.filter((f) => new Date(f.due_at) <= new Date()).length
-  const sortedLectures = [...module.lectures].sort(
-    (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
-  )
+  const lectureGroups = groupLectures(module.lectures)
   const sortedAssignments = [...module.assignments].sort((a, b) => {
     if (!a.due_at) return 1
     if (!b.due_at) return -1
@@ -206,13 +219,17 @@ export function ModulePage() {
               Manage
             </Link>
           </div>
-          {sortedLectures.length === 0 ? (
+          {lectureGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
           ) : (
             <ul className="divide-y">
-              {sortedLectures.map((l) => (
-                <LectureRow key={l.id} lecture={l} />
-              ))}
+              {lectureGroups.map((group) =>
+                group.type === 'series' ? (
+                  <LectureSeriesRow key={`${group.series.title}-${group.series.firstDate}`} series={group.series} />
+                ) : (
+                  <LectureRow key={group.lecture.id} lecture={group.lecture} />
+                ),
+              )}
             </ul>
           )}
         </section>
