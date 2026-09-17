@@ -1,15 +1,205 @@
 import { Link, useParams } from 'react-router-dom'
 
-export function ModulePage() {
-  const { moduleId } = useParams()
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getModule, type Assignment, type AssignmentStatus, type Lecture, type Note } from '@/lib/api'
+import { useAsync } from '@/lib/useAsync'
+
+const STATUS_LABEL: Record<AssignmentStatus, string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  submitted: 'Submitted',
+  graded: 'Graded',
+}
+
+function formatDateTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function AssignmentRow({ assignment }: { assignment: Assignment }) {
+  const overdue =
+    assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 px-6 py-8">
-      <Link to="/" className="text-sm text-muted-foreground hover:underline">
-        &larr; Back to overview
+    <li className="flex items-center justify-between gap-3 py-2">
+      <div className="min-w-0">
+        <p className="truncate font-medium">{assignment.title}</p>
+        <p className="text-sm text-muted-foreground">
+          {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot; {assignment.weight_percent}% of grade
+        </p>
+      </div>
+      <Badge variant={overdue ? 'destructive' : assignment.status === 'graded' ? 'secondary' : 'outline'}>
+        {overdue ? 'Overdue' : STATUS_LABEL[assignment.status]}
+      </Badge>
+    </li>
+  )
+}
+
+function LectureRow({ lecture }: { lecture: Lecture }) {
+  return (
+    <li className="py-2">
+      <p className="font-medium">{lecture.title}</p>
+      <p className="text-sm text-muted-foreground">
+        {formatDateTime(lecture.scheduled_at)}
+        {lecture.location && ` — ${lecture.location}`}
+      </p>
+    </li>
+  )
+}
+
+function NoteRow({ note }: { note: Note }) {
+  return (
+    <li className="py-2">
+      <p className="font-medium">{note.title || 'Untitled note'}</p>
+      <p className="text-sm text-muted-foreground">Updated {formatDate(note.updated_at)}</p>
+    </li>
+  )
+}
+
+export function ModulePage() {
+  const { moduleId } = useParams()
+  const id = Number(moduleId)
+  const { data: module, loading, error } = useAsync(() => getModule(id), [id])
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    )
+  }
+
+  if (error || !module) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 px-6 py-8">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+          &larr; Overview
+        </Link>
+        <p className="text-sm text-destructive">This module couldn't be found.</p>
+      </div>
+    )
+  }
+
+  const dueFlashcards = module.flashcards.filter((f) => new Date(f.due_at) <= new Date()).length
+  const sortedLectures = [...module.lectures].sort(
+    (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
+  )
+  const sortedAssignments = [...module.assignments].sort((a, b) => {
+    if (!a.due_at) return 1
+    if (!b.due_at) return -1
+    return new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
+  })
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
+      <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+        &larr; Overview
       </Link>
-      <h1 className="text-2xl font-semibold">Module {moduleId}</h1>
-      <p className="text-sm text-muted-foreground">The module page hasn't been built yet.</p>
+
+      <div className="flex gap-4 border-l-4 pl-4" style={{ borderColor: module.color }}>
+        <div className="flex-1">
+          <h1 className="text-2xl font-semibold">{module.name}</h1>
+          {(module.code || module.term || module.credits !== null) && (
+            <p className="text-sm text-muted-foreground">
+              {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
+                .filter(Boolean)
+                .join(', ')}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-6 text-right">
+          <div>
+            <p className="text-2xl font-semibold tabular-nums">
+              {module.current_grade !== null ? `${module.current_grade.toFixed(1)}%` : '—'}
+            </p>
+            <p className="text-xs text-muted-foreground">Current grade</p>
+          </div>
+          <div>
+            <p className="text-sm font-medium">
+              {module.next_lecture_at ? formatDate(module.next_lecture_at) : 'None scheduled'}
+            </p>
+            <p className="text-xs text-muted-foreground">Next lecture</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-8 sm:grid-cols-2">
+        <section>
+          <h2 className="mb-1 text-lg font-medium">Assignments</h2>
+          {sortedAssignments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No assignments yet.</p>
+          ) : (
+            <ul className="divide-y">
+              {sortedAssignments.map((a) => (
+                <AssignmentRow key={a.id} assignment={a} />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-1 text-lg font-medium">Lectures</h2>
+          {sortedLectures.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
+          ) : (
+            <ul className="divide-y">
+              {sortedLectures.map((l) => (
+                <LectureRow key={l.id} lecture={l} />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-1 text-lg font-medium">Notes</h2>
+          {module.notes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No notes yet.</p>
+          ) : (
+            <ul className="divide-y">
+              {module.notes.map((n) => (
+                <NoteRow key={n.id} note={n} />
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section>
+          <h2 className="mb-1 text-lg font-medium">Flashcards</h2>
+          {module.flashcards.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No flashcards yet.</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
+              {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
+            </p>
+          )}
+        </section>
+      </div>
+
+      {module.related_modules.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-lg font-medium">Related modules</h2>
+          <div className="flex flex-wrap gap-2">
+            {module.related_modules.map((related) => (
+              <Link key={related.id} to={`/modules/${related.id}`}>
+                <Badge variant="outline">{related.name}</Badge>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
