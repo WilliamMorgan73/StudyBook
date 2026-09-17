@@ -12,7 +12,7 @@ import { useAsync } from '@/lib/useAsync'
 type Repeat = 'none' | 'weekly' | 'fortnightly'
 
 const SELECT_CLASS =
-  'h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
+  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -64,6 +64,7 @@ function initialStateFromGroup(group: LectureGroup | undefined) {
       startDate: today,
       startTime: '',
       endTime: '',
+      duration: '',
       repeat: 'none' as Repeat,
       endDate: today,
       occurrences: '10',
@@ -78,6 +79,7 @@ function initialStateFromGroup(group: LectureGroup | undefined) {
       startDate: dateValue(l.scheduled_at),
       startTime,
       endTime: l.duration_minutes ? addMinutesToTime(startTime, l.duration_minutes) : '',
+      duration: l.duration_minutes ? String(l.duration_minutes) : '',
       repeat: 'none' as Repeat,
       endDate: dateValue(l.scheduled_at),
       occurrences: '1',
@@ -92,6 +94,7 @@ function initialStateFromGroup(group: LectureGroup | undefined) {
     startDate: dateValue(s.firstDate),
     startTime,
     endTime: firstLecture.duration_minutes ? addMinutesToTime(startTime, firstLecture.duration_minutes) : '',
+    duration: firstLecture.duration_minutes ? String(firstLecture.duration_minutes) : '',
     repeat: (s.intervalDays === 7 ? 'weekly' : 'fortnightly') as Repeat,
     endDate: dateValue(s.lastDate),
     occurrences: String(s.lectures.length),
@@ -115,6 +118,7 @@ function LectureSeriesForm({
   const [startDate, setStartDate] = useState(initial.startDate)
   const [startTime, setStartTime] = useState(initial.startTime)
   const [endTime, setEndTime] = useState(initial.endTime)
+  const [duration, setDuration] = useState(initial.duration)
   const [repeat, setRepeat] = useState<Repeat>(initial.repeat)
   const [endDate, setEndDate] = useState(initial.endDate)
   const [occurrences, setOccurrences] = useState(initial.occurrences)
@@ -156,6 +160,28 @@ function LectureSeriesForm({
     }
   }
 
+  function handleStartTimeChange(value: string) {
+    setStartTime(value)
+    if (duration && value) {
+      setEndTime(addMinutesToTime(value, Number(duration) || 0))
+    }
+  }
+
+  function handleEndTimeChange(value: string) {
+    setEndTime(value)
+    if (startTime && value) {
+      const minutes = minutesBetween(startTime, value)
+      if (minutes !== null) setDuration(String(minutes))
+    }
+  }
+
+  function handleDurationChange(value: string) {
+    setDuration(value)
+    if (startTime && value) {
+      setEndTime(addMinutesToTime(startTime, Number(value) || 0))
+    }
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!title.trim() || !startDate || !startTime) {
@@ -163,7 +189,7 @@ function LectureSeriesForm({
       return
     }
     const count = repeat === 'none' ? 1 : Math.min(52, Math.max(1, Number(occurrences) || 1))
-    const durationMinutes = endTime ? minutesBetween(startTime, endTime) : null
+    const durationMinutes = duration ? Number(duration) || null : null
 
     setSubmitting(true)
     setError(null)
@@ -195,7 +221,7 @@ function LectureSeriesForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-xl bg-muted/50 p-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="series-title">Title</Label>
           <Input id="series-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Lecture" />
@@ -209,9 +235,22 @@ function LectureSeriesForm({
             placeholder="Room 204"
           />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="series-repeat">Repeats</Label>
+          <select
+            id="series-repeat"
+            className={SELECT_CLASS}
+            value={repeat}
+            onChange={(e) => handleRepeatChange(e.target.value as Repeat)}
+          >
+            <option value="none">Does not repeat</option>
+            <option value="weekly">Weekly</option>
+            <option value="fortnightly">Fortnightly</option>
+          </select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="series-start-date">Start date</Label>
           <Input
@@ -222,53 +261,54 @@ function LectureSeriesForm({
           />
         </div>
         <div className="space-y-1.5">
+          <Label htmlFor="series-end-date">End date</Label>
+          <Input
+            id="series-end-date"
+            type="date"
+            value={endDate}
+            disabled={repeat === 'none'}
+            onChange={(e) => handleEndDateChange(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="series-occurrences">Occurrences</Label>
+          <Input
+            id="series-occurrences"
+            type="number"
+            min={1}
+            max={52}
+            value={occurrences}
+            disabled={repeat === 'none'}
+            onChange={(e) => handleOccurrencesChange(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="space-y-1.5">
           <Label htmlFor="series-start-time">Start time</Label>
-          <Input id="series-start-time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+          <Input
+            id="series-start-time"
+            type="time"
+            value={startTime}
+            onChange={(e) => handleStartTimeChange(e.target.value)}
+          />
         </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="series-repeat">Repeats</Label>
-        <select
-          id="series-repeat"
-          className={SELECT_CLASS}
-          value={repeat}
-          onChange={(e) => handleRepeatChange(e.target.value as Repeat)}
-        >
-          <option value="none">Does not repeat</option>
-          <option value="weekly">Weekly</option>
-          <option value="fortnightly">Fortnightly</option>
-        </select>
-      </div>
-
-      {repeat !== 'none' && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="series-end-date">End date</Label>
-            <Input
-              id="series-end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => handleEndDateChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="series-occurrences">Occurrences</Label>
-            <Input
-              id="series-occurrences"
-              type="number"
-              min={1}
-              max={52}
-              value={occurrences}
-              onChange={(e) => handleOccurrencesChange(e.target.value)}
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="series-end-time">End time</Label>
+          <Input id="series-end-time" type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} />
         </div>
-      )}
-
-      <div className="w-1/2 space-y-1.5 pr-1.5">
-        <Label htmlFor="series-end-time">End time</Label>
-        <Input id="series-end-time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+        <div className="space-y-1.5">
+          <Label htmlFor="series-duration">Duration (min)</Label>
+          <Input
+            id="series-duration"
+            type="number"
+            min={0}
+            value={duration}
+            onChange={(e) => handleDurationChange(e.target.value)}
+            placeholder="50"
+          />
+        </div>
       </div>
 
       {error && <p className="text-sm text-destructive">{error}</p>}
