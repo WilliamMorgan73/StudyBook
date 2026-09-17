@@ -18,10 +18,25 @@ class ModuleCreate(ModuleBase):
     pass
 
 
+class ModuleUpdate(BaseModel):
+    name: str | None = None
+    code: str | None = None
+    color: str | None = None
+    term: str | None = None
+    credits: int | None = None
+
+
 class ModuleRead(ModuleBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+
+
+class AssignmentProgress(BaseModel):
+    graded: int
+    in_progress: int
+    not_started: int
+    total: int
 
 
 class ModuleSummary(ModuleRead):
@@ -29,6 +44,7 @@ class ModuleSummary(ModuleRead):
 
     current_grade: float | None = None
     next_lecture_at: str | None = None
+    assignment_progress: AssignmentProgress
 
 
 class ModuleDetail(ModuleSummary):
