@@ -1,3 +1,4 @@
+import { CalendarClock, SlidersHorizontal } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
@@ -11,13 +12,22 @@ import {
   createLecture,
   deleteLecture,
   deleteModule,
+  getAppSettings,
   listLectures,
+  listModules,
   toNaiveDateTime,
   updateModule,
   type ModuleDetail,
 } from '@/lib/api'
 import { groupLectures, type LectureGroup } from '@/lib/lectureSchedule'
 import { useAsync } from '@/lib/useAsync'
+
+type Category = 'general' | 'lectures'
+
+const CATEGORIES: { id: Category; label: string; icon: typeof SlidersHorizontal }[] = [
+  { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'lectures', label: 'Lectures', icon: CalendarClock },
+]
 
 type Repeat = 'none' | 'weekly' | 'fortnightly'
 
@@ -423,6 +433,7 @@ export function ModuleSettingsDialog({
   onChanged: () => void
 }) {
   const navigate = useNavigate()
+  const [category, setCategory] = useState<Category>('general')
   const [reloadKey, setReloadKey] = useState(0)
   const [addingNew, setAddingNew] = useState(false)
   const refetchLectures = () => setReloadKey((k) => k + 1)
@@ -430,29 +441,48 @@ export function ModuleSettingsDialog({
   const { data: lectures, loading } = useAsync(() => listLectures(module.id), [module.id, reloadKey])
   const groups = groupLectures(lectures ?? [])
 
+  const { data: appSettings } = useAsync(() => getAppSettings(), [])
+  const { data: allModules } = useAsync(() => listModules(), [reloadKey])
+  const maxCredits = appSettings?.max_credits ?? null
+  const otherCredits = (allModules ?? [])
+    .filter((m) => m.id !== module.id)
+    .reduce((sum, m) => sum + (m.credits ?? 0), 0)
+
   const [name, setName] = useState(module.name)
+  const [code, setCode] = useState(module.code ?? '')
+  const [credits, setCredits] = useState(module.credits !== null ? String(module.credits) : '')
   const [color, setColor] = useState(module.color)
   const [savingIdentity, setSavingIdentity] = useState(false)
   const [identityError, setIdentityError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
+      setCategory('general')
       setName(module.name)
+      setCode(module.code ?? '')
+      setCredits(module.credits !== null ? String(module.credits) : '')
       setColor(module.color)
       setIdentityError(null)
       setAddingNew(false)
     }
-  }, [open, module.name, module.color])
+  }, [open, module.name, module.code, module.credits, module.color])
 
   async function saveIdentity() {
     if (!name.trim()) {
       setIdentityError('Give the module a name.')
       return
     }
+    const creditsValue = credits ? Number(credits) : null
+    if (creditsValue !== null && maxCredits !== null && otherCredits + creditsValue > maxCredits) {
+      setIdentityError(
+        `That's ${otherCredits + creditsValue} credits total, over your ${maxCredits}-credit max (${maxCredits - otherCredits} left for this module).`,
+      )
+      return
+    }
     setSavingIdentity(true)
     setIdentityError(null)
     try {
-      await updateModule(module.id, { name: name.trim(), color })
+      await updateModule(module.id, { name: name.trim(), code: code.trim() || null, credits: creditsValue, color })
       onChanged()
     } catch (err) {
       setIdentityError(err instanceof Error ? err.message : 'Could not save changes.')
@@ -470,66 +500,121 @@ export function ModuleSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-5 py-4">
           <DialogTitle>Module settings</DialogTitle>
         </DialogHeader>
 
-        <section className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="module-name">Name</Label>
-            <Input id="module-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Color</Label>
-            <ColorSwatchPicker value={color} onChange={setColor} />
-          </div>
-          {identityError && <p className="text-sm text-destructive">{identityError}</p>}
-          <div className="flex items-center justify-between pt-1">
-            <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
-              {savingIdentity ? 'Saving…' : 'Save'}
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleDeleteModule}>
-              Delete module
-            </Button>
-          </div>
-        </section>
+        <div className="flex min-h-[26rem]">
+          <nav className="w-44 shrink-0 space-y-0.5 border-r bg-muted/30 p-2">
+            {CATEGORIES.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setCategory(id)}
+                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                  category === id
+                    ? 'bg-background font-medium shadow-sm'
+                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                }`}
+              >
+                <Icon className="size-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </nav>
 
-        <hr />
+          <div className="max-h-[70vh] flex-1 overflow-y-auto p-5">
+            {category === 'general' && (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="module-name">Name</Label>
+                  <Input id="module-name" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Lectures</h3>
-            {!addingNew && (
-              <Button size="sm" variant="outline" onClick={() => setAddingNew(true)}>
-                Add a lecture time
-              </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="module-code">Course code</Label>
+                    <Input id="module-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="CS201" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="module-credits">Credits</Label>
+                    <Input
+                      id="module-credits"
+                      type="number"
+                      min={0}
+                      value={credits}
+                      onChange={(e) => setCredits(e.target.value)}
+                      placeholder="4"
+                    />
+                  </div>
+                </div>
+                {maxCredits !== null && (
+                  <p className="-mt-2 text-xs text-muted-foreground">
+                    {otherCredits} of {maxCredits} max credits used by your other modules.
+                  </p>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>Color</Label>
+                  <ColorSwatchPicker value={color} onChange={setColor} />
+                </div>
+
+                {identityError && <p className="text-sm text-destructive">{identityError}</p>}
+
+                <div className="flex items-center justify-between pt-1">
+                  <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
+                    {savingIdentity ? 'Saving…' : 'Save'}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={handleDeleteModule}>
+                    Delete module
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {category === 'lectures' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Lectures</h3>
+                  {!addingNew && (
+                    <Button size="sm" variant="outline" onClick={() => setAddingNew(true)}>
+                      Add a lecture time
+                    </Button>
+                  )}
+                </div>
+
+                {addingNew && (
+                  <LectureSeriesForm
+                    moduleId={module.id}
+                    onSaved={() => {
+                      setAddingNew(false)
+                      refetchLectures()
+                    }}
+                    onCancel={() => setAddingNew(false)}
+                  />
+                )}
+
+                {loading && <Skeleton className="h-24 w-full" />}
+                {groups.length === 0 && !loading && !addingNew && (
+                  <p className="text-sm text-muted-foreground">No lectures scheduled yet.</p>
+                )}
+                {groups.length > 0 && (
+                  <ul className="divide-y">
+                    {groups.map((group) => (
+                      <LectureSeriesCard
+                        key={seriesKey(group)}
+                        moduleId={module.id}
+                        group={group}
+                        onChanged={refetchLectures}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
-
-          {addingNew && (
-            <LectureSeriesForm
-              moduleId={module.id}
-              onSaved={() => {
-                setAddingNew(false)
-                refetchLectures()
-              }}
-              onCancel={() => setAddingNew(false)}
-            />
-          )}
-
-          {loading && <Skeleton className="h-24 w-full" />}
-          {groups.length === 0 && !loading && !addingNew && (
-            <p className="text-sm text-muted-foreground">No lectures scheduled yet.</p>
-          )}
-          {groups.length > 0 && (
-            <ul className="divide-y">
-              {groups.map((group) => (
-                <LectureSeriesCard key={seriesKey(group)} moduleId={module.id} group={group} onChanged={refetchLectures} />
-              ))}
-            </ul>
-          )}
-        </section>
+        </div>
       </DialogContent>
     </Dialog>
   )
