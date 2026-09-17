@@ -10,4 +10,6 @@ class CalendarEvent(BaseModel):
     module_id: int
     title: str
     starts_at: datetime
+    ends_at: datetime | None = None
+    location: str | None = None
     url: str

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -28,6 +28,10 @@ def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) 
             module_id=lec.module_id,
             title=lec.title,
             starts_at=lec.scheduled_at,
+            ends_at=lec.scheduled_at + timedelta(minutes=lec.duration_minutes)
+            if lec.duration_minutes
+            else None,
+            location=lec.location,
             url=f"/modules/{lec.module_id}",
         )
         for lec in lectures

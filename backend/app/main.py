@@ -12,6 +12,8 @@ from app.api.routes import (
     flashcards,
     lectures,
     modules,
+    quick_note,
+    quick_todos,
     submodules,
 )
 from app.core.config import settings
@@ -34,6 +36,8 @@ app.include_router(attachments.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)
+app.include_router(quick_todos.router)
+app.include_router(quick_note.router)
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
