@@ -22,6 +22,7 @@ import {
 } from '@/lib/api'
 import { groupLectures, type LectureSeries } from '@/lib/lectureSchedule'
 import { useAsync } from '@/lib/useAsync'
+import { Settings } from 'lucide-react'
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
@@ -158,7 +159,7 @@ export function ModulePage() {
         }
         right={
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-            Settings
+            <Settings/>Settings
           </Button>
         }
       />
