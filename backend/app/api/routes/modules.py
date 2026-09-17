@@ -61,7 +61,7 @@ def get_module(module_id: int, db: Session = Depends(get_db)) -> ModuleDetail:
             "next_lecture_at": _next_lecture_at(module),
             "lectures": module.lectures,
             "assignments": module.assignments,
-            "notes": module.notes,
+            "submodules": module.submodules,
             "flashcards": module.flashcards,
             "related_modules": related,
         }

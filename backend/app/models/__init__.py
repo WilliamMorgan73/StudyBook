@@ -2,7 +2,7 @@ from app.models.assignment import Assignment
 from app.models.flashcard import Flashcard
 from app.models.lecture import Lecture
 from app.models.module import Module, ModuleLink
-from app.models.note import Attachment, Note
+from app.models.submodule import Attachment, Submodule
 
 __all__ = [
     "Assignment",
@@ -11,5 +11,5 @@ __all__ = [
     "Lecture",
     "Module",
     "ModuleLink",
-    "Note",
+    "Submodule",
 ]

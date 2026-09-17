@@ -3,7 +3,7 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.assignment import AssignmentRead
 from app.schemas.flashcard import FlashcardRead
 from app.schemas.lecture import LectureRead
-from app.schemas.note import NoteRead
+from app.schemas.submodule import SubmoduleRead
 
 
 class ModuleBase(BaseModel):
@@ -32,10 +32,10 @@ class ModuleSummary(ModuleRead):
 
 
 class ModuleDetail(ModuleSummary):
-    """Full module page payload: lectures, assignments, notes, flashcards, related modules."""
+    """Full module page payload: lectures, assignments, submodules, flashcards, related modules."""
 
     lectures: list[LectureRead] = []
     assignments: list[AssignmentRead] = []
-    notes: list[NoteRead] = []
+    submodules: list[SubmoduleRead] = []
     flashcards: list[FlashcardRead] = []
     related_modules: list[ModuleRead] = []

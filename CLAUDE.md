@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 StudyBook is a personal study app combining Obsidian-style markdown notes, Notion-style module/assignment/calendar organization, and Anki-style spaced-repetition flashcards. Single-user, no auth. See `README.md`.
 
-Planned tech stack:
-- **Frontend**: React + TypeScript, Tailwind + shadcn/ui (not yet scaffolded — `frontend/` is currently empty)
-- **Backend**: FastAPI (Python), scaffolded under `backend/`
+Tech stack:
+- **Frontend**: React + TypeScript, Vite, Tailwind v4 + shadcn/ui (Nova preset, Radix primitives), React Router, under `frontend/`
+- **Backend**: FastAPI (Python), under `backend/`
 - **Database**: PostgreSQL via `docker-compose.yml` (service `postgres`, db/user/password all `studybook`)
 - **AI integration**: Anthropic API, planned for note summarization, note→flashcard generation, revision scheduling, and semantic note search — not yet implemented
 
@@ -30,7 +30,7 @@ uv run pytest tests/test_file.py::test_name   # single test
 # Lint
 uv run ruff check .
 
-# Database migrations (Alembic — not yet initialized, see Architecture)
+# Database migrations
 uv run alembic revision --autogenerate -m "message"
 uv run alembic upgrade head
 ```
@@ -40,14 +40,20 @@ Postgres:
 docker compose up -d       # from repo root; starts Postgres on localhost:5432
 ```
 
-Frontend commands are not yet defined — `frontend/` has not been scaffolded.
+Frontend commands run from `frontend/` and use `pnpm`:
+```bash
+pnpm install
+pnpm dev     # dev server at http://localhost:5173, proxies /api to localhost:8000
+pnpm build   # tsc -b && vite build
+pnpm lint    # oxlint
+```
 
 ## Architecture
 
 ### Backend layout (`backend/app/`)
 
 - `models/` — SQLAlchemy 2.0 models (`Mapped`/`mapped_column` style). **Import order matters**: individual model modules use bare string forward refs (e.g. `Mapped["Module"]`) for relationships instead of importing each other, to avoid circular imports. `models/__init__.py` is the single place that imports every model module and registers them with SQLAlchemy's mapper registry — always import models via `app.models` (or ensure `app.models` has been imported) before touching `Base.metadata` or querying, or relationship string refs won't resolve.
-- `schemas/` — Pydantic request/response models, separate from SQLAlchemy models. `ModuleDetail` (in `schemas/module.py`) is the aggregate payload for the module page: it composes lectures, assignments, notes, flashcards, and related modules plus computed fields (`current_grade`, `next_lecture_at`) that don't exist as DB columns.
+- `schemas/` — Pydantic request/response models, separate from SQLAlchemy models. `ModuleDetail` (in `schemas/module.py`) is the aggregate payload for the module page: it composes lectures, assignments, submodules, flashcards, and related modules plus computed fields (`current_grade`, `next_lecture_at`) that don't exist as DB columns.
 - `crud/` — plain functions, not a generic repository layer. Notably:
   - `crud/grades.py::compute_current_grade` — computes a module's current grade as a weighted average across graded assignments (weighted by `weight_percent` when set, else unweighted mean). This is computed on read, not stored.
   - `crud/spaced_repetition.py::apply_review` — SM-2 spaced-repetition algorithm implementation; mutates a `Flashcard`'s `ease_factor`/`interval_days`/`repetitions`/`due_at` in place based on a 0–5 quality rating.
@@ -56,12 +62,20 @@ Frontend commands are not yet defined — `frontend/` has not been scaffolded.
 
 ### Data model relationships
 
-`Module` is the root entity (a course). `Lecture`, `Assignment`, `Note`, and `Flashcard` all belong to a `Module`. `Note` optionally belongs to a `Lecture`; `Flashcard` optionally belongs to a `Note` (flashcards can exist standalone within a module). `Note` has many `Attachment`s (uploaded PDFs/PPTX/video/audio files, saved to disk under `backend/uploads/<note_id>/` with a UUID filename — `Attachment.file_path` stores the on-disk path, `Attachment.filename` keeps the original name). `ModuleLink` stores "related modules" as a pair of directed rows (one row is inserted for each direction of a relation).
+`Module` is the root entity (a course). `Lecture`, `Assignment`, `Submodule`, and `Flashcard` all belong to a `Module`. `Submodule` represents a topic within the module (e.g. "Graph Traversal") and holds one markdown body (`content_markdown`) plus any number of `Attachment`s (uploaded PDF/PPTX/video/audio lecture files, saved to disk under `backend/uploads/<submodule_id>/` with a UUID filename — `Attachment.file_path` stores the on-disk path, `Attachment.filename` keeps the original name). `Flashcard` optionally belongs to a `Submodule` (flashcards can exist standalone within a module). `ModuleLink` stores "related modules" as a pair of directed rows (one row is inserted for each direction of a relation). `Assignment.weight_percent` is required and the sum of a module's assignment weights is capped at 100% (enforced in `api/routes/assignments.py`, not at the DB level).
 
 ### Alembic
 
-`alembic/` has not been initialized yet in `backend/`. When setting it up, point `env.py` at `app.core.database.Base.metadata` (after `import app.models` to populate it) and `app.core.config.settings.database_url`, and use `uv run alembic ...` for all migration commands.
+`alembic/` is initialized in `backend/`. `env.py` imports `app.models` (to populate `Base.metadata`) and reads the DB URL from `app.core.config.settings.database_url` rather than `alembic.ini`. Use `uv run alembic ...` for all migration commands, from `backend/`.
 
-### Project status
+### Frontend layout (`frontend/src/`)
 
-As of this writing: backend app structure, models, schemas, and routes are scaffolded but no Alembic migration has been generated/run yet, and the database has not been created. The frontend has not been started. Docker was only just made usable on this machine (daemon enabled, user added to the `docker` group) — a new shell/login may be needed for group membership to take effect without `sudo`.
+- `lib/api.ts` — typed fetch client for the backend (paths are relative, e.g. `/modules`; the Vite dev server proxies `/api/*` to `localhost:8000`, stripping the `/api` prefix — see `vite.config.ts`).
+- `lib/useAsync.ts` — small hook wrapping a promise-returning fetcher into `{ data, loading, error }`, re-running when its deps array changes.
+- `pages/` — one component per route: `Overview` (`/`), `ModulePage` (`/modules/:moduleId`), `ModuleSettingsPage` (`/modules/:moduleId/settings`, manages that module's lecture schedule).
+- `components/` — page-level building blocks (dialogs, `MonthCalendar`, `CalendarAgenda`, `NextLectureCountdown`) plus `components/ui/` for shadcn/ui primitives (generated via `pnpm dlx shadcn@latest add <name>`).
+- Recurring lectures are a frontend-only convenience: the settings page's add-lecture form generates one `Lecture` row per occurrence via repeated `POST /lectures` calls (spaced 7 or 14 days apart) rather than the backend storing a recurrence rule — each occurrence stays independently editable/deletable afterward.
+
+### Known quirk: shadcn CLI path alias resolution
+
+This project's Vite template splits `tsconfig.json` into `tsconfig.app.json`/`tsconfig.node.json` via project references; the root `tsconfig.json` only has `references`, no `compilerOptions`. The `shadcn` CLI resolves the `@/*` import alias by reading the root `tsconfig.json` only, so without `paths` duplicated there too, `shadcn add` writes new component files into a literal `./@/` directory instead of `./src/`. The root `tsconfig.json` in this repo already carries a `paths` block for this reason — if `shadcn add` ever creates a stray `frontend/@/` directory again, move its contents into `src/` and delete it.

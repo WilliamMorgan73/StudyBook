@@ -17,4 +17,3 @@ class Lecture(Base):
     week_number: Mapped[int | None]
 
     module: Mapped["Module"] = relationship(back_populates="lectures")  # noqa: F821
-    notes: Mapped[list["Note"]] = relationship(back_populates="lecture")  # noqa: F821

@@ -13,7 +13,7 @@ class Flashcard(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"))
-    note_id: Mapped[int | None] = mapped_column(ForeignKey("notes.id", ondelete="SET NULL"))
+    submodule_id: Mapped[int | None] = mapped_column(ForeignKey("submodules.id", ondelete="SET NULL"))
     front: Mapped[str]
     back: Mapped[str]
     ease_factor: Mapped[float] = mapped_column(Numeric(4, 2), default=2.5)
@@ -23,4 +23,4 @@ class Flashcard(Base):
     last_reviewed_at: Mapped[datetime | None]
 
     module: Mapped["Module"] = relationship(back_populates="flashcards")  # noqa: F821
-    note: Mapped["Note | None"] = relationship(back_populates="flashcards")  # noqa: F821
+    submodule: Mapped["Submodule | None"] = relationship(back_populates="flashcards")  # noqa: F821

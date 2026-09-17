@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class FlashcardBase(BaseModel):
     front: str
     back: str
-    note_id: int | None = None
+    submodule_id: int | None = None
 
 
 class FlashcardCreate(FlashcardBase):

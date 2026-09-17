@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import assignments, calendar, flashcards, lectures, modules, notes
+from app.api.routes import (
+    assignments,
+    calendar,
+    flashcards,
+    lectures,
+    modules,
+    submodules,
+)
 from app.core.config import settings
 
 app = FastAPI(title="StudyBook API")
@@ -16,7 +23,7 @@ app.add_middleware(
 
 app.include_router(modules.router)
 app.include_router(assignments.router)
-app.include_router(notes.router)
+app.include_router(submodules.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)
