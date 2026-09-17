@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Settings } from 'lucide-react'
+import { BookOpen, Settings } from 'lucide-react'
 
 import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AddModuleTile } from '@/components/AddModuleTile'
@@ -53,14 +53,6 @@ export function Overview() {
     [events, selected],
   )
 
-  const averageGrade = useMemo(() => {
-    const grades = (modules.data ?? [])
-      .map((m) => m.current_grade)
-      .filter((g): g is number => g !== null)
-    if (grades.length === 0) return null
-    return grades.reduce((sum, g) => sum + g, 0) / grades.length
-  }, [modules.data])
-
   const overallProgress = useMemo(
     () =>
       (modules.data ?? []).reduce(
@@ -93,12 +85,9 @@ export function Overview() {
     <div className="min-h-full">
       <PageHeader
         left={
-          <div>
-            <h1 className="text-2xl font-semibold">Overview</h1>
-            <p className="text-sm text-muted-foreground">
-              {modules.data?.length ?? 0} modules
-              {averageGrade !== null && `, ${averageGrade.toFixed(1)}% average grade`}
-            </p>
+          <div className="flex items-center gap-2">
+            <BookOpen className="size-6" />
+            <span className="text-lg font-semibold">StudyBook</span>
           </div>
         }
         right={
