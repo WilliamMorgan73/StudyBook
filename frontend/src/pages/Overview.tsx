@@ -9,6 +9,7 @@ import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
+import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { PageHeader } from '@/components/PageHeader'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import { QuickTodoList } from '@/components/QuickTodoList'
@@ -59,6 +60,20 @@ export function Overview() {
     if (grades.length === 0) return null
     return grades.reduce((sum, g) => sum + g, 0) / grades.length
   }, [modules.data])
+
+  const overallProgress = useMemo(
+    () =>
+      (modules.data ?? []).reduce(
+        (acc, m) => ({
+          graded: acc.graded + m.assignment_progress.graded,
+          in_progress: acc.in_progress + m.assignment_progress.in_progress,
+          not_started: acc.not_started + m.assignment_progress.not_started,
+          total: acc.total + m.assignment_progress.total,
+        }),
+        { graded: 0, in_progress: 0, not_started: 0, total: 0 },
+      ),
+    [modules.data],
+  )
 
   return (
     <div className="min-h-full">
@@ -115,6 +130,7 @@ export function Overview() {
                     <p className="mb-2 text-sm font-medium">
                       {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                     </p>
+                    <div className="h-40 overflow-y-auto pr-1">
                     {selectedDayEvents.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
                     ) : (
@@ -179,35 +195,62 @@ export function Overview() {
                         })}
                       </ul>
                     )}
+                    </div>
                   </div>
                 </>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Upcoming assignments</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {assignments.loading && <Skeleton className="h-40 w-full" />}
-              {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
-              {assignments.data?.length === 0 && (
-                <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
-              )}
-              {assignments.data?.map((a) => (
-                <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
-              ))}
-            </CardContent>
-          </Card>
-
           <div className="flex flex-col gap-6">
+            <Card className="flex-1">
+              <CardHeader>
+                <CardTitle>Upcoming assignments</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {assignments.loading && <Skeleton className="h-40 w-full" />}
+                {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
+                {assignments.data?.length === 0 && (
+                  <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
+                )}
+                {assignments.data?.map((a) => (
+                  <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
+                ))}
+              </CardContent>
+            </Card>
+
             <Card className="flex-1">
               <CardHeader>
                 <CardTitle>To-do</CardTitle>
               </CardHeader>
               <CardContent>
                 <QuickTodoList />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="flex flex-col gap-6">
+            <Card className="flex-1">
+              <CardHeader>
+                <CardTitle>Progress</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center gap-4">
+                {modules.loading && <Skeleton className="size-14 rounded-full" />}
+                {modules.data && (
+                  <>
+                    <ModuleProgressRing progress={overallProgress} color="var(--foreground)" size={56} strokeWidth={6} />
+                    <div>
+                      <p className="text-xl font-semibold tabular-nums">
+                        {overallProgress.total === 0
+                          ? '—'
+                          : `${Math.round((overallProgress.graded / overallProgress.total) * 100)}%`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {overallProgress.graded} of {overallProgress.total} graded
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
