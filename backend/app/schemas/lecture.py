@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class LectureBase(BaseModel):
     title: str
     scheduled_at: datetime
+    duration_minutes: int | None = None
     location: str | None = None
     week_number: int | None = None
 
@@ -17,6 +18,7 @@ class LectureCreate(LectureBase):
 class LectureUpdate(BaseModel):
     title: str | None = None
     scheduled_at: datetime | None = None
+    duration_minutes: int | None = None
     location: str | None = None
     week_number: int | None = None
 

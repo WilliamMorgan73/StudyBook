@@ -13,6 +13,7 @@ class Lecture(Base):
     module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"))
     title: Mapped[str] = mapped_column(String(200))
     scheduled_at: Mapped[datetime]
+    duration_minutes: Mapped[int | None]
     location: Mapped[str | None] = mapped_column(String(200))
     week_number: Mapped[int | None]
 
