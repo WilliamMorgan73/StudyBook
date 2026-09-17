@@ -31,10 +31,10 @@ export function Overview() {
   const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
   const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
 
-  const lectures = useMemo(() => (calendar.data ?? []).filter((e) => e.kind === 'lecture'), [calendar.data])
-  const selectedDayLectures = useMemo(
-    () => lectures.filter((e) => isSameDay(new Date(e.starts_at), selected)),
-    [lectures, selected],
+  const events = useMemo(() => calendar.data ?? [], [calendar.data])
+  const selectedDayEvents = useMemo(
+    () => events.filter((e) => isSameDay(new Date(e.starts_at), selected)),
+    [events, selected],
   )
 
   const averageGrade = useMemo(() => {
@@ -71,37 +71,51 @@ export function Overview() {
                 <MonthCalendar
                   month={month}
                   onMonthChange={setMonth}
-                  events={lectures}
+                  events={events}
                   selected={selected}
                   onSelect={setSelected}
                   eventColor={(event) => moduleColor(event.module_id)}
                 />
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                    Lecture
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="size-1.5 rotate-45 rounded-[1px] bg-current" aria-hidden />
+                    Assignment due
+                  </span>
+                </div>
                 <div className="border-t pt-3">
                   <p className="mb-2 text-sm font-medium">
                     {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
                   </p>
-                  {selectedDayLectures.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No lectures this day.</p>
+                  {selectedDayEvents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
                   ) : (
                     <ul className="space-y-1">
-                      {selectedDayLectures.map((event) => (
-                        <li key={event.id}>
+                      {selectedDayEvents.map((event) => (
+                        <li key={`${event.kind}-${event.id}`}>
                           <Link
                             to={event.url}
                             className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
                           >
                             <span
-                              className="size-1.5 shrink-0 rounded-full"
+                              className={`size-1.5 shrink-0 ${
+                                event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
+                              }`}
                               style={{ backgroundColor: moduleColor(event.module_id) }}
                               aria-hidden
                             />
                             <span className="truncate">{event.title}</span>
                             <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
                             <span className="ml-auto shrink-0 text-muted-foreground">
-                              {new Date(event.starts_at).toLocaleTimeString(undefined, {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })}
+                              {event.kind === 'assignment_due'
+                                ? 'Due'
+                                : new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                  })}
                             </span>
                           </Link>
                         </li>

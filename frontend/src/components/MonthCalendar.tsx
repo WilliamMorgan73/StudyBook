@@ -129,7 +129,7 @@ export function MonthCalendar({
                   {dayEvents.slice(0, 4).map((event) => (
                     <span
                       key={`${event.kind}-${event.id}`}
-                      className="size-1.5 rounded-full"
+                      className={`size-1.5 ${event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'}`}
                       style={{ backgroundColor: eventColor(event) }}
                       aria-hidden
                     />
