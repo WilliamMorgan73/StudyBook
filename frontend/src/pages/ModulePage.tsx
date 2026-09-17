@@ -1,5 +1,8 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
+import { AddNoteDialog } from '@/components/AddNoteDialog'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getModule, type Assignment, type AssignmentStatus, type Lecture, type Note } from '@/lib/api'
@@ -69,7 +72,9 @@ function NoteRow({ note }: { note: Note }) {
 export function ModulePage() {
   const { moduleId } = useParams()
   const id = Number(moduleId)
-  const { data: module, loading, error } = useAsync(() => getModule(id), [id])
+  const [reloadKey, setReloadKey] = useState(0)
+  const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
+  const refetch = () => setReloadKey((k) => k + 1)
 
   if (loading) {
     return (
@@ -104,9 +109,14 @@ export function ModulePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-6 py-8">
-      <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-        &larr; Overview
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+          &larr; Overview
+        </Link>
+        <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
+          Settings
+        </Link>
+      </div>
 
       <div className="flex gap-4 border-l-4 pl-4" style={{ borderColor: module.color }}>
         <div className="flex-1">
@@ -137,7 +147,10 @@ export function ModulePage() {
 
       <div className="grid gap-8 sm:grid-cols-2">
         <section>
-          <h2 className="mb-1 text-lg font-medium">Assignments</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-lg font-medium">Assignments</h2>
+            <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+          </div>
           {sortedAssignments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No assignments yet.</p>
           ) : (
@@ -150,7 +163,12 @@ export function ModulePage() {
         </section>
 
         <section>
-          <h2 className="mb-1 text-lg font-medium">Lectures</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-lg font-medium">Lectures</h2>
+            <Link to={`/modules/${module.id}/settings`} className="text-sm text-muted-foreground hover:text-foreground">
+              Manage
+            </Link>
+          </div>
           {sortedLectures.length === 0 ? (
             <p className="text-sm text-muted-foreground">No lectures scheduled.</p>
           ) : (
@@ -163,7 +181,10 @@ export function ModulePage() {
         </section>
 
         <section>
-          <h2 className="mb-1 text-lg font-medium">Notes</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-lg font-medium">Notes</h2>
+            <AddNoteDialog moduleId={module.id} onCreated={refetch} />
+          </div>
           {module.notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">No notes yet.</p>
           ) : (

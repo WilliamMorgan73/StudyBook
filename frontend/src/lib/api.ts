@@ -79,6 +79,32 @@ export interface ModuleCreateInput {
   credits?: number | null
 }
 
+export interface AssignmentCreateInput {
+  module_id: number
+  title: string
+  description?: string | null
+  due_at?: string | null
+  weight_percent: number
+}
+
+export interface NoteCreateInput {
+  module_id: number
+  title: string
+  content_markdown?: string
+  is_quick_note?: boolean
+  lecture_id?: number | null
+}
+
+export interface LectureCreateInput {
+  module_id: number
+  title: string
+  scheduled_at: string
+  location?: string | null
+  week_number?: number | null
+}
+
+export type LectureUpdateInput = Partial<Omit<LectureCreateInput, 'module_id'>>
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
@@ -90,6 +116,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+function postJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
 export function listModules() {
   return request<ModuleSummary[]>('/modules')
 }
@@ -99,15 +141,35 @@ export function getModule(id: number) {
 }
 
 export function createModule(input: ModuleCreateInput) {
-  return request<ModuleSummary>('/modules', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
+  return postJson<ModuleSummary>('/modules', input)
 }
 
 export function listUpcomingAssignments(limit = 5) {
   return request<Assignment[]>(`/assignments?upcoming=true&limit=${limit}`)
+}
+
+export function createAssignment(input: AssignmentCreateInput) {
+  return postJson<Assignment>('/assignments', input)
+}
+
+export function createNote(input: NoteCreateInput) {
+  return postJson<Note>('/notes', input)
+}
+
+export function listLectures(moduleId: number) {
+  return request<Lecture[]>(`/lectures?module_id=${moduleId}`)
+}
+
+export function createLecture(input: LectureCreateInput) {
+  return postJson<Lecture>('/lectures', input)
+}
+
+export function updateLecture(id: number, input: LectureUpdateInput) {
+  return patchJson<Lecture>(`/lectures/${id}`, input)
+}
+
+export function deleteLecture(id: number) {
+  return request<void>(`/lectures/${id}`, { method: 'DELETE' })
 }
 
 export function getCalendar(start: Date, end: Date) {
