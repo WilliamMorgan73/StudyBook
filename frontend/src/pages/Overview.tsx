@@ -10,6 +10,8 @@ import { AssignmentItem } from '@/components/AssignmentItem'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
 import { PageHeader } from '@/components/PageHeader'
+import { QuickNotepad } from '@/components/QuickNotepad'
+import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -28,6 +30,7 @@ export function Overview() {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [selected, setSelected] = useState(() => new Date())
+  const [expandedEventKey, setExpandedEventKey] = useState<string | null>(null)
 
   const gridRange = useMemo(() => calendarGridRange(month), [month])
 
@@ -92,7 +95,10 @@ export function Overview() {
                     onMonthChange={setMonth}
                     events={events}
                     selected={selected}
-                    onSelect={setSelected}
+                    onSelect={(date) => {
+                      setSelected(date)
+                      setExpandedEventKey(null)
+                    }}
                     eventColor={(event) => moduleColor(event.module_id)}
                   />
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
@@ -113,32 +119,64 @@ export function Overview() {
                       <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
                     ) : (
                       <ul className="space-y-1">
-                        {selectedDayEvents.map((event) => (
-                          <li key={`${event.kind}-${event.id}`}>
-                            <Link
-                              to={event.url}
-                              className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-muted"
-                            >
-                              <span
-                                className={`size-1.5 shrink-0 ${
-                                  event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
-                                }`}
-                                style={{ backgroundColor: moduleColor(event.module_id) }}
-                                aria-hidden
-                              />
-                              <span className="truncate">{event.title}</span>
-                              <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
-                              <span className="ml-auto shrink-0 text-muted-foreground">
-                                {event.kind === 'assignment_due'
-                                  ? 'Due'
-                                  : new Date(event.starts_at).toLocaleTimeString(undefined, {
+                        {selectedDayEvents.map((event) => {
+                          const isExpanded = expandedEventKey === `${event.kind}-${event.id}`
+                          return (
+                            <li key={`${event.kind}-${event.id}`}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedEventKey(isExpanded ? null : `${event.kind}-${event.id}`)
+                                }
+                                className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                              >
+                                <span
+                                  className={`size-1.5 shrink-0 ${
+                                    event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
+                                  }`}
+                                  style={{ backgroundColor: moduleColor(event.module_id) }}
+                                  aria-hidden
+                                />
+                                <span className="truncate">{event.title}</span>
+                                <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                <span className="ml-auto shrink-0 text-muted-foreground">
+                                  {event.kind === 'assignment_due'
+                                    ? 'Due'
+                                    : new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      })}
+                                </span>
+                              </button>
+                              {isExpanded && event.kind === 'lecture' && (
+                                <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
+                                  <p>
+                                    {new Date(event.starts_at).toLocaleTimeString(undefined, {
                                       hour: 'numeric',
                                       minute: '2-digit',
                                     })}
-                              </span>
-                            </Link>
-                          </li>
-                        ))}
+                                    {event.ends_at &&
+                                      ` – ${new Date(event.ends_at).toLocaleTimeString(undefined, {
+                                        hour: 'numeric',
+                                        minute: '2-digit',
+                                      })}`}
+                                  </p>
+                                  {event.location && <p>{event.location}</p>}
+                                  <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                    Open module &rarr;
+                                  </Link>
+                                </div>
+                              )}
+                              {isExpanded && event.kind === 'assignment_due' && (
+                                <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
+                                  <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                    Open assignment &rarr;
+                                  </Link>
+                                </div>
+                              )}
+                            </li>
+                          )
+                        })}
                       </ul>
                     )}
                   </div>
@@ -160,6 +198,26 @@ export function Overview() {
               {assignments.data?.map((a) => (
                 <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
               ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>To-do</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuickTodoList />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Notepad</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <QuickNotepad />
             </CardContent>
           </Card>
         </div>

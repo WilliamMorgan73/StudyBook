@@ -79,7 +79,20 @@ export interface CalendarEvent {
   module_id: number
   title: string
   starts_at: string
+  ends_at: string | null
+  location: string | null
   url: string
+}
+
+export interface QuickTodo {
+  id: number
+  text: string
+  done: boolean
+  created_at: string
+}
+
+export interface QuickNote {
+  content: string | null
 }
 
 export interface Lecture {
@@ -349,4 +362,28 @@ export function getAppSettings() {
 
 export function updateAppSettings(input: Partial<AppSettings>) {
   return patchJson<AppSettings>('/settings', input)
+}
+
+export function listQuickTodos() {
+  return request<QuickTodo[]>('/quick-todos')
+}
+
+export function createQuickTodo(text: string) {
+  return postJson<QuickTodo>('/quick-todos', { text })
+}
+
+export function updateQuickTodo(id: number, input: { text?: string; done?: boolean }) {
+  return patchJson<QuickTodo>(`/quick-todos/${id}`, input)
+}
+
+export function deleteQuickTodo(id: number) {
+  return request<void>(`/quick-todos/${id}`, { method: 'DELETE' })
+}
+
+export function getQuickNote() {
+  return request<QuickNote>('/quick-note')
+}
+
+export function updateQuickNote(content: string) {
+  return patchJson<QuickNote>('/quick-note', { content })
 }
