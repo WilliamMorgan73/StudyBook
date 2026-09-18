@@ -33,6 +33,60 @@ function skipTrailingSpace(state: EditorState, pos: number): number {
   return state.doc.sliceString(pos, pos + 1) === ' ' ? pos + 1 : pos
 }
 
+// [[Title]] / [[Title|Alias]] isn't CommonMark/GFM syntax, so the parser never produces a node
+// for it — wikilinks are found with a plain regex scan instead of a syntaxTree walk.
+const WIKILINK_PATTERN = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
+const CODE_NODE_NAMES = new Set(['InlineCode', 'FencedCode', 'CodeBlock', 'CodeText'])
+
+interface WalkableNode {
+  type: { name: string }
+  parent: WalkableNode | null
+}
+
+function isInsideCode(state: EditorState, pos: number): boolean {
+  let node: WalkableNode | null = syntaxTree(state).resolveInner(pos, 1)
+  while (node) {
+    if (CODE_NODE_NAMES.has(node.type.name)) return true
+    node = node.parent
+  }
+  return false
+}
+
+function addWikilinkDecorations(
+  state: EditorState,
+  from: number,
+  to: number,
+  cursorLine: number,
+  ranges: Range<Decoration>[],
+) {
+  const text = state.doc.sliceString(from, to)
+  WIKILINK_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = WIKILINK_PATTERN.exec(text))) {
+    const matchFrom = from + match.index
+    const matchTo = matchFrom + match[0].length
+    if (isInsideCode(state, matchFrom)) continue
+
+    const [, rawTitle, alias] = match
+    const titleFrom = matchFrom + 2
+    const titleTo = titleFrom + rawTitle.length
+    const displayFrom = alias ? titleTo + 1 : titleFrom
+    const displayTo = alias ? displayFrom + alias.length : titleTo
+
+    ranges.push(
+      Decoration.mark({ class: 'cm-wikilink', attributes: { 'data-wikilink-title': rawTitle.trim() } }).range(
+        displayFrom,
+        displayTo,
+      ),
+    )
+
+    if (state.doc.lineAt(matchFrom).number !== cursorLine) {
+      ranges.push(HIDE.range(matchFrom, displayFrom))
+      ranges.push(HIDE.range(displayTo, matchTo))
+    }
+  }
+}
+
 // CodeMirror's own `.cm-focused` class toggling proved unreliable inside this React tree,
 // so focus is tracked explicitly via React's onFocus/onBlur instead of `view.hasFocus`.
 const setFocused = StateEffect.define<boolean>()
@@ -55,6 +109,8 @@ function buildDecorations(view: EditorView): DecorationSet {
   const ranges: Range<Decoration>[] = []
 
   for (const { from, to } of view.visibleRanges) {
+    addWikilinkDecorations(state, from, to, cursorLine, ranges)
+
     syntaxTree(state).iterate({
       from,
       to,
@@ -159,8 +215,26 @@ const editorTheme = EditorView.theme({
     paddingLeft: '0.75rem',
     color: 'var(--muted-foreground)',
   },
+  '.cm-wikilink': {
+    textDecoration: 'underline',
+    textDecorationColor: 'var(--border)',
+    textUnderlineOffset: '2px',
+    cursor: 'pointer',
+  },
   '.cm-placeholder': { color: 'var(--muted-foreground)' },
 })
+
+function wikilinkClickHandler(onNavigateWikilink?: (title: string) => void) {
+  return (event: MouseEvent) => {
+    if (!onNavigateWikilink || !(event.metaKey || event.ctrlKey)) return false
+    const target = event.target
+    const link = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-wikilink-title]') : null
+    if (!link?.dataset.wikilinkTitle) return false
+    event.preventDefault()
+    onNavigateWikilink(link.dataset.wikilinkTitle)
+    return true
+  }
+}
 
 export function MarkdownEditor({
   value,
@@ -171,6 +245,7 @@ export function MarkdownEditor({
   autoFocus,
   className,
   minHeight,
+  onNavigateWikilink,
 }: {
   value: string
   onChange: (value: string) => void
@@ -180,6 +255,7 @@ export function MarkdownEditor({
   autoFocus?: boolean
   className?: string
   minHeight?: string
+  onNavigateWikilink?: (title: string) => void
 }) {
   const viewRef = useRef<EditorView | null>(null)
   // Clicking (especially on an empty line) can fire several synchronous focus/blur events
@@ -225,7 +301,14 @@ export function MarkdownEditor({
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
-        ...(sourceMode ? [] : [focusedField, liveMarkdown, focusAttributes]),
+        ...(sourceMode
+          ? []
+          : [
+              focusedField,
+              liveMarkdown,
+              focusAttributes,
+              EditorView.domEventHandlers({ click: wikilinkClickHandler(onNavigateWikilink) }),
+            ]),
       ]}
       className={className}
     />

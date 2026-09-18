@@ -111,6 +111,13 @@ export interface Lecture {
   week_number: number | null
 }
 
+export interface SubmoduleBacklink {
+  id: number
+  title: string
+  module_id: number
+  module_name: string
+}
+
 export interface Submodule {
   id: number
   module_id: number
@@ -119,6 +126,14 @@ export interface Submodule {
   created_at: string
   updated_at: string
   attachments: Attachment[]
+  backlinks: SubmoduleBacklink[]
+}
+
+export interface SubmoduleIndexEntry {
+  id: number
+  title: string
+  module_id: number
+  module_name: string
 }
 
 export interface Flashcard {
@@ -313,6 +328,17 @@ export function updateSubmodule(id: number, input: SubmoduleUpdateInput) {
 
 export function deleteSubmodule(id: number) {
   return request<void>(`/submodules/${id}`, { method: 'DELETE' })
+}
+
+export function listSubmodulesIndex(search?: string) {
+  const params = new URLSearchParams()
+  if (search) params.set('search', search)
+  return request<SubmoduleIndexEntry[]>(`/submodules?${params}`)
+}
+
+export function resolveWikilink(title: string, moduleId: number) {
+  const params = new URLSearchParams({ title, module_id: String(moduleId) })
+  return request<{ id: number; module_id: number }>(`/submodules/resolve?${params}`)
 }
 
 export function uploadSubmoduleAttachment(submoduleId: number, file: File) {

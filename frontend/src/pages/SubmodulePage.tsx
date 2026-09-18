@@ -17,6 +17,7 @@ import {
   getModule,
   getSubmodule,
   listFlashcards,
+  resolveWikilink,
   updateSubmodule,
   uploadSubmoduleAttachment,
   type Flashcard,
@@ -163,6 +164,15 @@ export function SubmodulePage() {
     navigate(`/modules/${moduleId}`)
   }
 
+  async function handleNavigateWikilink(title: string) {
+    try {
+      const target = await resolveWikilink(title, submodule!.module_id)
+      navigate(`/modules/${target.module_id}/submodules/${target.id}`)
+    } catch {
+      // Unresolved link (typo, or the note doesn't exist yet) — no-op, nothing to navigate to.
+    }
+  }
+
   return (
     <div className="flex min-h-full flex-col">
       <PageHeader
@@ -227,7 +237,27 @@ export function SubmodulePage() {
           sourceMode={sourceMode}
           placeholder="Start writing…"
           minHeight="70vh"
+          onNavigateWikilink={handleNavigateWikilink}
         />
+
+        {submodule.backlinks.length > 0 && (
+          <div className="mt-10 border-t pt-4">
+            <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">Linked mentions</p>
+            <ul className="space-y-1">
+              {submodule.backlinks.map((backlink) => (
+                <li key={backlink.id}>
+                  <Link
+                    to={`/modules/${backlink.module_id}/submodules/${backlink.id}`}
+                    className="text-sm hover:underline"
+                  >
+                    {backlink.title}
+                  </Link>
+                  <span className="ml-1.5 text-sm text-muted-foreground">— {backlink.module_name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </main>
 
       <div className="fixed right-6 bottom-6 flex flex-col gap-3">
