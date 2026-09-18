@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
+import { progressRingSegments } from '@/lib/progress'
 import { useAsync } from '@/lib/useAsync'
 
 function isSameDay(a: Date, b: Date) {
@@ -62,12 +63,7 @@ export function Overview() {
     if (totalWeight === 0) return []
     return (modules.data ?? []).flatMap((m) => {
       const share = (m.credits ?? 1) / totalWeight
-      const achieved = Math.max(0, Math.min(1, m.completion_progress.achieved_fraction))
-      const shortfall = Math.max(0, Math.min(1 - achieved, m.completion_progress.completed_fraction - achieved))
-      return [
-        { fraction: share * achieved, color: m.color },
-        { fraction: share * shortfall, color: `${m.color}4d` },
-      ]
+      return progressRingSegments(m.completion_progress, m.color, share)
     })
   }, [modules.data, totalWeight])
 

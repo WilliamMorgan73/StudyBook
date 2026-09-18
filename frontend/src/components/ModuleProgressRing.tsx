@@ -1,5 +1,6 @@
 import { RadialProgress } from '@/components/RadialProgress'
 import type { CompletionProgress } from '@/lib/api'
+import { progressRingSegments } from '@/lib/progress'
 
 /**
  * Two shades of the module's own accent color, weighted by each assignment's weight_percent
@@ -19,17 +20,5 @@ export function ModuleProgressRing({
   size?: number
   strokeWidth?: number
 }) {
-  const achieved = Math.max(0, Math.min(1, progress.achieved_fraction))
-  const shortfall = Math.max(0, Math.min(1 - achieved, progress.completed_fraction - achieved))
-
-  return (
-    <RadialProgress
-      size={size}
-      strokeWidth={strokeWidth}
-      segments={[
-        { fraction: achieved, color },
-        { fraction: shortfall, color: `${color}4d` },
-      ]}
-    />
-  )
+  return <RadialProgress size={size} strokeWidth={strokeWidth} segments={progressRingSegments(progress, color)} />
 }
