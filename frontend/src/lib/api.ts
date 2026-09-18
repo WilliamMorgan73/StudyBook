@@ -111,13 +111,6 @@ export interface Lecture {
   week_number: number | null
 }
 
-export interface SubmoduleBacklink {
-  id: number
-  title: string
-  module_id: number
-  module_name: string
-}
-
 export interface Submodule {
   id: number
   module_id: number
@@ -126,7 +119,6 @@ export interface Submodule {
   created_at: string
   updated_at: string
   attachments: Attachment[]
-  backlinks: SubmoduleBacklink[]
 }
 
 export interface SubmoduleIndexEntry {

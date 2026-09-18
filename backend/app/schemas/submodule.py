@@ -19,17 +19,6 @@ class SubmoduleUpdate(BaseModel):
     content_markdown: str | None = None
 
 
-class SubmoduleBacklink(BaseModel):
-    """A submodule that links to the current one via a [[wikilink]] in its content_markdown."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    title: str
-    module_id: int
-    module_name: str
-
-
 class SubmoduleLinkTarget(BaseModel):
     """Resolved wikilink target, returned by GET /submodules/resolve for click-to-navigate."""
 
@@ -56,4 +45,3 @@ class SubmoduleRead(SubmoduleBase):
     created_at: datetime
     updated_at: datetime
     attachments: list[AttachmentRead] = []
-    backlinks: list[SubmoduleBacklink] = []
