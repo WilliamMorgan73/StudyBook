@@ -44,6 +44,58 @@ class ImageWidget extends WidgetType {
   }
 }
 
+// Matches enough of SyntaxNode's shape to read TableCell children without importing the type
+// from @lezer/common directly (not resolvable as a direct import under this project's pnpm
+// layout — same workaround as WalkableNode, used by isInsideCode further down).
+interface TableRowSource {
+  getChildren(type: string): { from: number; to: number }[]
+}
+
+function getRowCells(state: EditorState, row: TableRowSource): string[] {
+  return row.getChildren('TableCell').map((cell) => state.doc.sliceString(cell.from, cell.to).trim())
+}
+
+class TableWidget extends WidgetType {
+  header: string[]
+  rows: string[][]
+  constructor(header: string[], rows: string[][]) {
+    super()
+    this.header = header
+    this.rows = rows
+  }
+  toDOM() {
+    const table = document.createElement('table')
+    table.className = 'cm-table'
+
+    const thead = document.createElement('thead')
+    const headRow = document.createElement('tr')
+    for (const cell of this.header) {
+      const th = document.createElement('th')
+      th.textContent = cell
+      headRow.appendChild(th)
+    }
+    thead.appendChild(headRow)
+    table.appendChild(thead)
+
+    const tbody = document.createElement('tbody')
+    for (const row of this.rows) {
+      const tr = document.createElement('tr')
+      for (const cell of row) {
+        const td = document.createElement('td')
+        td.textContent = cell
+        tr.appendChild(td)
+      }
+      tbody.appendChild(tr)
+    }
+    table.appendChild(tbody)
+
+    return table
+  }
+  eq(other: TableWidget) {
+    return JSON.stringify(this.header) === JSON.stringify(other.header) && JSON.stringify(this.rows) === JSON.stringify(other.rows)
+  }
+}
+
 const HEADING_LEVEL: Record<string, number> = {
   ATXHeading1: 1,
   ATXHeading2: 2,
@@ -232,6 +284,41 @@ const liveMarkdown = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 )
 
+// Tables need their own StateField: CodeMirror disallows both block decorations and decorations
+// that replace a line break from being provided by a ViewPlugin (confirmed by two separate
+// RangeErrors when this lived in buildDecorations/liveMarkdown above) — a table spans multiple
+// lines, so it needs a StateField, unlike every single-line decoration in this file.
+function buildTableDecorations(state: EditorState): DecorationSet {
+  const focused = state.field(focusedField, false)
+  const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
+  const ranges: Range<Decoration>[] = []
+
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.type.name !== 'Table') return
+      const startLine = state.doc.lineAt(node.from).number
+      const endLine = state.doc.lineAt(node.to).number
+      if (cursorLine >= startLine && cursorLine <= endLine) return
+
+      const headerNode = node.node.getChild('TableHeader')
+      if (!headerNode) return
+      const header = getRowCells(state, headerNode)
+      const rows = node.node.getChildren('TableRow').map((row) => getRowCells(state, row))
+      ranges.push(
+        Decoration.replace({ widget: new TableWidget(header, rows), block: true }).range(node.from, node.to),
+      )
+    },
+  })
+
+  return Decoration.set(ranges, true)
+}
+
+const tableDecorations = StateField.define<DecorationSet>({
+  create: (state) => buildTableDecorations(state),
+  update: (_decorations, tr) => buildTableDecorations(tr.state),
+  provide: (field) => EditorView.decorations.from(field),
+})
+
 // Drives a class on the editor root from focusedField, so cursor visibility doesn't depend
 // on CodeMirror's own (unreliable here) `.cm-focused` class.
 const focusAttributes = EditorView.editorAttributes.of((view) => ({
@@ -283,6 +370,20 @@ const editorTheme = EditorView.theme({
     maxWidth: '100%',
     borderRadius: '0.5rem',
     margin: '0.4em 0',
+  },
+  '.cm-table': {
+    borderCollapse: 'collapse',
+    margin: '0.4em 0',
+    fontSize: '0.9em',
+  },
+  '.cm-table th, .cm-table td': {
+    border: '1px solid var(--border)',
+    padding: '0.3em 0.6em',
+    textAlign: 'left',
+  },
+  '.cm-table th': {
+    fontWeight: '600',
+    backgroundColor: 'var(--muted)',
   },
   '.cm-heading': { fontWeight: '600' },
   '.cm-h1': { fontSize: '1.6em' },
@@ -437,6 +538,7 @@ export function MarkdownEditor({
           : [
               focusedField,
               liveMarkdown,
+              tableDecorations,
               focusAttributes,
               EditorView.domEventHandlers({ click: wikilinkClickHandler(onNavigateWikilink) }),
             ]),
