@@ -11,9 +11,20 @@ import CodeMirror, {
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
 import { useRef } from 'react'
-import { drawSelection, ViewPlugin, type ViewUpdate } from '@codemirror/view'
+import { drawSelection, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
 
 const HIDE = Decoration.replace({})
+
+class HorizontalRuleWidget extends WidgetType {
+  toDOM() {
+    const hr = document.createElement('div')
+    hr.className = 'cm-hr'
+    return hr
+  }
+  eq() {
+    return true
+  }
+}
 
 const HEADING_LEVEL: Record<string, number> = {
   ATXHeading1: 1,
@@ -124,6 +135,13 @@ function buildDecorations(view: EditorView): DecorationSet {
           return
         }
 
+        if (name === 'HorizontalRule') {
+          if (state.doc.lineAt(node.from).number !== cursorLine) {
+            ranges.push(Decoration.replace({ widget: new HorizontalRuleWidget() }).range(node.from, node.to))
+          }
+          return
+        }
+
         if (name === 'Blockquote') {
           const startLine = state.doc.lineAt(node.from).number
           const endLine = state.doc.lineAt(node.to).number
@@ -224,6 +242,12 @@ const editorTheme = EditorView.theme({
     opacity: 1,
     borderLeftColor: 'var(--foreground)',
     borderLeftWidth: '2px',
+  },
+  '.cm-hr': {
+    display: 'block',
+    height: 0,
+    margin: '0.6em 0',
+    borderTop: '1px solid var(--border)',
   },
   '.cm-heading': { fontWeight: '600' },
   '.cm-h1': { fontSize: '1.6em' },
