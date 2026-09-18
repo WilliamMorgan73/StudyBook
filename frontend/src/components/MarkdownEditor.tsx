@@ -186,14 +186,32 @@ const focusAttributes = EditorView.editorAttributes.of((view) => ({
 }))
 
 const editorTheme = EditorView.theme({
-  '&': { fontSize: '0.9375rem', backgroundColor: 'transparent' },
+  // @uiw/react-codemirror's own dimension theme sets `min-height` on `&` (.cm-editor) for the
+  // `minHeight` prop, but relies on `.cm-scroller { height: 100% }` to fill it — a percentage
+  // height can't resolve against an ancestor whose height comes only from min-height (not a
+  // definite `height`), so .cm-scroller silently collapses to content size on short documents.
+  // That mismatch (a tall .cm-editor, a short .cm-scroller) is what made the cursor-drawing
+  // layer compute a degenerate zero-size rect — invisible cursor — reproduced on any line, not
+  // just blank ones (blank lines just make an invisible cursor more noticeable, with nothing
+  // else on the line to anchor the eye). Flex with an explicit flex-basis sidesteps the
+  // percentage-height resolution issue entirely, regardless of how .cm-editor's height was set.
+  '&': { fontSize: '0.9375rem', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column' },
+  '.cm-scroller': { flex: '1 1 0px', minHeight: 0 },
   '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)' },
   '.cm-line': { padding: 0 },
   '&.cm-editor.cm-focused': { outline: 'none' },
   '&.cm-live-focused .cm-cursor, &.cm-live-focused .cm-dropCursor': {
     display: 'block',
+    // `drawSelection({ cursorBlinkRate: 0 })` sets `animation-duration: 0ms` on the cursor's
+    // `cm-blink` keyframe animation (steps(1), infinite) rather than removing it — whether a
+    // zero-duration infinite step animation resolves to its visible or invisible keyframe is a
+    // browser-specific edge case (`@keyframes cm-blink` toggles opacity at its 50% step), so
+    // relying on duration alone was fragile. `animation: none` removes the animation outright,
+    // guaranteeing a static, always-visible cursor regardless of that resolution.
+    animation: 'none',
+    opacity: 1,
     borderLeftColor: 'var(--foreground)',
-    borderLeftWidth: '1.5px',
+    borderLeftWidth: '2px',
   },
   '.cm-heading': { fontWeight: '600' },
   '.cm-h1': { fontSize: '1.6em' },
