@@ -7,6 +7,7 @@ from app.models.module import Module, ModuleLink
 from app.models.quick_note import QuickNote
 from app.models.quick_todo import QuickTodo
 from app.models.submodule import Submodule
+from app.models.submodule_link import SubmoduleLink
 from app.models.todo import AssignmentTodo
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "QuickNote",
     "QuickTodo",
     "Submodule",
+    "SubmoduleLink",
 ]
