@@ -1,15 +1,9 @@
-from datetime import UTC, datetime
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.crud.grades import (
-    compute_assignment_progress,
-    compute_completion_progress,
-    compute_current_grade,
-)
+from app.crud.modules import build_module_summary
 from app.models.module import Module, ModuleLink
 from app.schemas.module import (
     ModuleCreate,
@@ -22,28 +16,10 @@ from app.schemas.module import (
 router = APIRouter(prefix="/modules", tags=["modules"])
 
 
-def _next_lecture_at(module: Module) -> str | None:
-    upcoming = [lec for lec in module.lectures if lec.scheduled_at >= datetime.now(UTC).replace(tzinfo=None)]
-    if not upcoming:
-        return None
-    return min(upcoming, key=lambda lec: lec.scheduled_at).scheduled_at.isoformat()
-
-
 @router.get("", response_model=list[ModuleSummary])
 def list_modules(db: Session = Depends(get_db)) -> list[ModuleSummary]:
     modules = db.scalars(select(Module)).all()
-    return [
-        ModuleSummary.model_validate(
-            {
-                **ModuleRead.model_validate(m).model_dump(),
-                "current_grade": compute_current_grade(m.assignments),
-                "next_lecture_at": _next_lecture_at(m),
-                "assignment_progress": compute_assignment_progress(m.assignments),
-                "completion_progress": compute_completion_progress(m.assignments),
-            }
-        )
-        for m in modules
-    ]
+    return [build_module_summary(m) for m in modules]
 
 
 @router.post("", response_model=ModuleRead, status_code=201)
@@ -68,11 +44,7 @@ def get_module(module_id: int, db: Session = Depends(get_db)) -> ModuleDetail:
 
     return ModuleDetail.model_validate(
         {
-            **ModuleRead.model_validate(module).model_dump(),
-            "current_grade": compute_current_grade(module.assignments),
-            "next_lecture_at": _next_lecture_at(module),
-            "assignment_progress": compute_assignment_progress(module.assignments),
-            "completion_progress": compute_completion_progress(module.assignments),
+            **build_module_summary(module).model_dump(),
             "lectures": module.lectures,
             "assignments": module.assignments,
             "submodules": module.submodules,
