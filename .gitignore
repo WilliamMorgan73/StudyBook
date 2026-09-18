@@ -1,0 +1,6 @@
+# Claude Code local settings (per-machine, not project config)
+.claude/settings.local.json
+
+# Vendored/symlinked skill packs — restore with `npx skills@latest experimental_install`
+.claude/skills/
+.agents/
