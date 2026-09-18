@@ -10,8 +10,9 @@ import CodeMirror, {
 } from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
+import { EditorSelection, Prec } from '@codemirror/state'
 import { useRef } from 'react'
-import { drawSelection, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
+import { drawSelection, keymap, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
 
 const HIDE = Decoration.replace({})
 
@@ -278,6 +279,46 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': { color: 'var(--muted-foreground)' },
 })
 
+// Wraps (or, if the selection is already exactly wrapped, unwraps) each selected range in
+// `before`/`after` markers — Cmd/Ctrl+B, +I, +E below. An empty selection just inserts both
+// markers with the cursor left between them, so typing continues immediately.
+function toggleWrapCommand(before: string, after: string = before) {
+  return (view: EditorView): boolean => {
+    view.dispatch(
+      view.state.changeByRange((range) => {
+        const text = view.state.sliceDoc(range.from, range.to)
+        if (text.startsWith(before) && text.endsWith(after) && text.length >= before.length + after.length) {
+          const inner = text.slice(before.length, text.length - after.length)
+          return {
+            changes: { from: range.from, to: range.to, insert: inner },
+            range: EditorSelection.range(range.from, range.from + inner.length),
+          }
+        }
+        return {
+          changes: [
+            { from: range.from, insert: before },
+            { from: range.to, insert: after },
+          ],
+          range: EditorSelection.range(range.from + before.length, range.to + before.length),
+        }
+      }),
+    )
+    return true
+  }
+}
+
+// Prec.highest so these take priority over basicSetup's default keymap regardless of extension order.
+const formattingKeymap = Prec.highest(
+  keymap.of([
+    { key: 'Mod-b', run: toggleWrapCommand('**') },
+    { key: 'Mod-i', run: toggleWrapCommand('*') },
+    { key: 'Mod-e', run: toggleWrapCommand('`') },
+    // Plain Mod-k is Chrome/Firefox's own "focus address bar" shortcut and never reaches the
+    // page in a real browser tab (only worked in automated testing, which bypasses that).
+    { key: 'Mod-Shift-k', run: toggleWrapCommand('[[', ']]') },
+  ]),
+)
+
 function wikilinkClickHandler(onNavigateWikilink?: (title: string) => void) {
   return (event: MouseEvent) => {
     if (!onNavigateWikilink || !(event.metaKey || event.ctrlKey)) return false
@@ -353,6 +394,7 @@ export function MarkdownEditor({
         EditorView.lineWrapping,
         editorTheme,
         spellcheckAttributes,
+        formattingKeymap,
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
