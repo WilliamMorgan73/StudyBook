@@ -142,7 +142,13 @@ function buildDecorations(view: EditorView): DecorationSet {
           return
         }
         if (name === 'InlineCode') {
-          ranges.push(Decoration.mark({ class: 'cm-inline-code' }).range(node.from, node.to))
+          // Code isn't prose — suppress the spellcheck we otherwise enable on the editor.
+          ranges.push(
+            Decoration.mark({ class: 'cm-inline-code', attributes: { spellcheck: 'false' } }).range(
+              node.from,
+              node.to,
+            ),
+          )
           return
         }
         if (name === 'Strikethrough') {
@@ -184,6 +190,12 @@ const liveMarkdown = ViewPlugin.fromClass(
 const focusAttributes = EditorView.editorAttributes.of((view) => ({
   class: view.state.field(focusedField, false) ? 'cm-live-focused' : '',
 }))
+
+// @uiw/react-codemirror has no prop that reaches CM6's actual editable DOM node (unrecognized
+// props land on the outer wrapper div, not .cm-content) — spellcheck has to go through an
+// extension. Per-node exclusion (code shouldn't be spellchecked) is layered on top via the
+// `InlineCode` decoration's own `attributes`, which most browsers respect as an override.
+const spellcheckAttributes = EditorView.contentAttributes.of({ spellcheck: 'true' })
 
 const editorTheme = EditorView.theme({
   // @uiw/react-codemirror's own dimension theme sets `min-height` on `&` (.cm-editor) for the
@@ -316,6 +328,7 @@ export function MarkdownEditor({
         markdown({ extensions: GFM }),
         EditorView.lineWrapping,
         editorTheme,
+        spellcheckAttributes,
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
