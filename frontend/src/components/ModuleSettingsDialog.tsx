@@ -19,7 +19,16 @@ import {
   updateModule,
   type ModuleDetail,
 } from '@/lib/api'
-import { groupLectures, type LectureGroup } from '@/lib/lectureSchedule'
+import {
+  addDays,
+  addMinutesToTime,
+  groupLectures,
+  nextDateSeriesState,
+  nextTimeRangeState,
+  type DateSeriesState,
+  type LectureGroup,
+  type TimeRangeState,
+} from '@/lib/lectureSchedule'
 import { useAsync } from '@/lib/useAsync'
 
 type Category = 'general' | 'lectures'
@@ -46,48 +55,25 @@ function timeValue(iso: string) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function addDays(dateStr: string, days: number) {
-  const d = new Date(`${dateStr}T00:00`)
-  d.setDate(d.getDate() + days)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-function daysBetween(startStr: string, endStr: string) {
-  const start = new Date(`${startStr}T00:00`).getTime()
-  const end = new Date(`${endStr}T00:00`).getTime()
-  return Math.round((end - start) / 86_400_000)
-}
-
-function addMinutesToTime(time: string, minutes: number) {
-  const [h, m] = time.split(':').map(Number)
-  const total = ((h * 60 + m + minutes) % (24 * 60) + 24 * 60) % (24 * 60)
-  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
-}
-
-function minutesBetween(startTime: string, endTime: string) {
-  const [sh, sm] = startTime.split(':').map(Number)
-  const [eh, em] = endTime.split(':').map(Number)
-  const diff = eh * 60 + em - (sh * 60 + sm)
-  return diff > 0 ? diff : null
-}
-
 function seriesKey(group: LectureGroup) {
   return group.type === 'series' ? `${group.series.title}-${group.series.firstDate}` : `lecture-${group.lecture.id}`
 }
 
-function initialStateFromGroup(group: LectureGroup | undefined) {
+function initialStateFromGroup(group: LectureGroup | undefined): {
+  title: string
+  location: string
+  repeat: Repeat
+  dateSeries: DateSeriesState
+  timeRange: TimeRangeState
+} {
   if (!group) {
     const today = dateValue(new Date())
     return {
       title: '',
       location: '',
-      startDate: today,
-      startTime: '',
-      endTime: '',
-      duration: '',
-      repeat: 'none' as Repeat,
-      endDate: today,
-      occurrences: '10',
+      repeat: 'none',
+      dateSeries: { startDate: today, endDate: today, occurrences: '10' },
+      timeRange: { startTime: '', endTime: '', duration: '' },
     }
   }
   if (group.type === 'single') {
@@ -96,13 +82,13 @@ function initialStateFromGroup(group: LectureGroup | undefined) {
     return {
       title: l.title,
       location: l.location ?? '',
-      startDate: dateValue(l.scheduled_at),
-      startTime,
-      endTime: l.duration_minutes ? addMinutesToTime(startTime, l.duration_minutes) : '',
-      duration: l.duration_minutes ? String(l.duration_minutes) : '',
-      repeat: 'none' as Repeat,
-      endDate: dateValue(l.scheduled_at),
-      occurrences: '1',
+      repeat: 'none',
+      dateSeries: { startDate: dateValue(l.scheduled_at), endDate: dateValue(l.scheduled_at), occurrences: '1' },
+      timeRange: {
+        startTime,
+        endTime: l.duration_minutes ? addMinutesToTime(startTime, l.duration_minutes) : '',
+        duration: l.duration_minutes ? String(l.duration_minutes) : '',
+      },
     }
   }
   const s = group.series
@@ -111,13 +97,17 @@ function initialStateFromGroup(group: LectureGroup | undefined) {
   return {
     title: s.title,
     location: s.location ?? '',
-    startDate: dateValue(s.firstDate),
-    startTime,
-    endTime: firstLecture.duration_minutes ? addMinutesToTime(startTime, firstLecture.duration_minutes) : '',
-    duration: firstLecture.duration_minutes ? String(firstLecture.duration_minutes) : '',
-    repeat: (s.intervalDays === 7 ? 'weekly' : 'fortnightly') as Repeat,
-    endDate: dateValue(s.lastDate),
-    occurrences: String(s.lectures.length),
+    repeat: s.intervalDays === 7 ? 'weekly' : 'fortnightly',
+    dateSeries: {
+      startDate: dateValue(s.firstDate),
+      endDate: dateValue(s.lastDate),
+      occurrences: String(s.lectures.length),
+    },
+    timeRange: {
+      startTime,
+      endTime: firstLecture.duration_minutes ? addMinutesToTime(startTime, firstLecture.duration_minutes) : '',
+      duration: firstLecture.duration_minutes ? String(firstLecture.duration_minutes) : '',
+    },
   }
 }
 
@@ -135,13 +125,9 @@ function LectureSeriesForm({
   const initial = initialStateFromGroup(group)
   const [title, setTitle] = useState(initial.title)
   const [location, setLocation] = useState(initial.location)
-  const [startDate, setStartDate] = useState(initial.startDate)
-  const [startTime, setStartTime] = useState(initial.startTime)
-  const [endTime, setEndTime] = useState(initial.endTime)
-  const [duration, setDuration] = useState(initial.duration)
+  const [dateSeries, setDateSeries] = useState<DateSeriesState>(initial.dateSeries)
+  const [timeRange, setTimeRange] = useState<TimeRangeState>(initial.timeRange)
   const [repeat, setRepeat] = useState<Repeat>(initial.repeat)
-  const [endDate, setEndDate] = useState(initial.endDate)
-  const [occurrences, setOccurrences] = useState(initial.occurrences)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -150,60 +136,13 @@ function LectureSeriesForm({
   function handleRepeatChange(next: Repeat) {
     setRepeat(next)
     const interval = next === 'weekly' ? 7 : next === 'fortnightly' ? 14 : 0
-    if (interval > 0 && startDate) {
-      const count = Math.max(1, Number(occurrences) || 1)
-      setEndDate(addDays(startDate, (count - 1) * interval))
-    }
-  }
-
-  function handleStartDateChange(value: string) {
-    setStartDate(value)
-    if (intervalDays > 0 && value) {
-      const count = Math.max(1, Number(occurrences) || 1)
-      setEndDate(addDays(value, (count - 1) * intervalDays))
-    }
-  }
-
-  function handleEndDateChange(value: string) {
-    setEndDate(value)
-    if (intervalDays > 0 && startDate && value) {
-      const count = Math.max(1, Math.floor(daysBetween(startDate, value) / intervalDays) + 1)
-      setOccurrences(String(count))
-    }
-  }
-
-  function handleOccurrencesChange(value: string) {
-    setOccurrences(value)
-    const count = Math.max(1, Number(value) || 1)
-    if (intervalDays > 0 && startDate) {
-      setEndDate(addDays(startDate, (count - 1) * intervalDays))
-    }
-  }
-
-  function handleStartTimeChange(value: string) {
-    setStartTime(value)
-    if (duration && value) {
-      setEndTime(addMinutesToTime(value, Number(duration) || 0))
-    }
-  }
-
-  function handleEndTimeChange(value: string) {
-    setEndTime(value)
-    if (startTime && value) {
-      const minutes = minutesBetween(startTime, value)
-      if (minutes !== null) setDuration(String(minutes))
-    }
-  }
-
-  function handleDurationChange(value: string) {
-    setDuration(value)
-    if (startTime && value) {
-      setEndTime(addMinutesToTime(startTime, Number(value) || 0))
-    }
+    setDateSeries((s) => nextDateSeriesState(s, 'occurrences', s.occurrences, interval))
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
+    const { startDate, occurrences } = dateSeries
+    const { startTime, duration } = timeRange
     if (!title.trim() || !startDate || !startTime) {
       setError('Title, start date, and start time are required.')
       return
@@ -276,8 +215,8 @@ function LectureSeriesForm({
           <Input
             id="series-start-date"
             type="date"
-            value={startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
+            value={dateSeries.startDate}
+            onChange={(e) => setDateSeries((s) => nextDateSeriesState(s, 'startDate', e.target.value, intervalDays))}
           />
         </div>
         <div className="space-y-1.5">
@@ -285,9 +224,9 @@ function LectureSeriesForm({
           <Input
             id="series-end-date"
             type="date"
-            value={endDate}
+            value={dateSeries.endDate}
             disabled={repeat === 'none'}
-            onChange={(e) => handleEndDateChange(e.target.value)}
+            onChange={(e) => setDateSeries((s) => nextDateSeriesState(s, 'endDate', e.target.value, intervalDays))}
           />
         </div>
         <div className="space-y-1.5">
@@ -297,9 +236,11 @@ function LectureSeriesForm({
             type="number"
             min={1}
             max={52}
-            value={occurrences}
+            value={dateSeries.occurrences}
             disabled={repeat === 'none'}
-            onChange={(e) => handleOccurrencesChange(e.target.value)}
+            onChange={(e) =>
+              setDateSeries((s) => nextDateSeriesState(s, 'occurrences', e.target.value, intervalDays))
+            }
           />
         </div>
       </div>
@@ -310,13 +251,18 @@ function LectureSeriesForm({
           <Input
             id="series-start-time"
             type="time"
-            value={startTime}
-            onChange={(e) => handleStartTimeChange(e.target.value)}
+            value={timeRange.startTime}
+            onChange={(e) => setTimeRange((s) => nextTimeRangeState(s, 'startTime', e.target.value))}
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="series-end-time">End time</Label>
-          <Input id="series-end-time" type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} />
+          <Input
+            id="series-end-time"
+            type="time"
+            value={timeRange.endTime}
+            onChange={(e) => setTimeRange((s) => nextTimeRangeState(s, 'endTime', e.target.value))}
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="series-duration">Duration (min)</Label>
@@ -324,8 +270,8 @@ function LectureSeriesForm({
             id="series-duration"
             type="number"
             min={0}
-            value={duration}
-            onChange={(e) => handleDurationChange(e.target.value)}
+            value={timeRange.duration}
+            onChange={(e) => setTimeRange((s) => nextTimeRangeState(s, 'duration', e.target.value))}
             placeholder="50"
           />
         </div>
