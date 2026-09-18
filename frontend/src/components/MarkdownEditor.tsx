@@ -27,6 +27,23 @@ class HorizontalRuleWidget extends WidgetType {
   }
 }
 
+class ImageWidget extends WidgetType {
+  src: string
+  constructor(src: string) {
+    super()
+    this.src = src
+  }
+  toDOM() {
+    const img = document.createElement('img')
+    img.className = 'cm-image'
+    img.src = this.src
+    return img
+  }
+  eq(other: ImageWidget) {
+    return other.src === this.src
+  }
+}
+
 const HEADING_LEVEL: Record<string, number> = {
   ATXHeading1: 1,
   ATXHeading2: 2,
@@ -143,6 +160,17 @@ function buildDecorations(view: EditorView): DecorationSet {
           return
         }
 
+        if (name === 'Image') {
+          if (state.doc.lineAt(node.from).number !== cursorLine) {
+            const urlNode = node.node.getChild('URL')
+            const src = urlNode ? state.doc.sliceString(urlNode.from, urlNode.to) : null
+            if (src) {
+              ranges.push(Decoration.replace({ widget: new ImageWidget(src) }).range(node.from, node.to))
+            }
+          }
+          return
+        }
+
         if (name === 'Blockquote') {
           const startLine = state.doc.lineAt(node.from).number
           const endLine = state.doc.lineAt(node.to).number
@@ -249,6 +277,12 @@ const editorTheme = EditorView.theme({
     height: 0,
     margin: '0.6em 0',
     borderTop: '1px solid var(--border)',
+  },
+  '.cm-image': {
+    display: 'block',
+    maxWidth: '100%',
+    borderRadius: '0.5rem',
+    margin: '0.4em 0',
   },
   '.cm-heading': { fontWeight: '600' },
   '.cm-h1': { fontSize: '1.6em' },
