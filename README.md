@@ -8,7 +8,7 @@ Obsidian × Notion × Anki — a personal study app for organizing courses, lect
 - **Modules** (courses) — each has a color, a live countdown to its next lecture, a week/fortnight schedule view, and a current grade computed from graded assignments. Module settings (rename, recolor, delete) live in a single modal, alongside lecture-schedule management.
 - **Lectures** — one-off or recurring (weekly/fortnightly, with an end date or occurrence count), each with a start/end time and location. A recurring series shows as one line ("Every Monday at 5:10pm, until 23 Nov — 10 lectures") instead of every individual date.
 - **Assignments** — required weighting (the total for a module is capped at 100%), status, grade, a markdown notes section, a checklist, and PDF/PPTX attachments.
-- **Submodules** — topics within a module (e.g. "Graph Traversal"), each a full-page markdown document you click into and edit directly (Obsidian-style), with its own flashcards and lecture-slide attachments accessible via floating buttons.
+- **Submodules** — topics within a module (e.g. "Graph Traversal"), each a full-page markdown document you click into and edit directly in an Obsidian-style live-preview editor (headings, bold/italic/strikethrough, inline code, blockquotes, tables, images, and horizontal rules all render inline as you type, with formatting keybinds for bold/italic/code), with its own flashcards and lecture-slide attachments accessible via floating buttons. `[[Wikilink]]` / `[[Title|Alias]]` references to other submodules render inline and Cmd/Ctrl+click-navigate to their target.
 - **Flashcards** — SM-2 spaced repetition (ease factor, interval, due date), scoped to a submodule or standalone within a module.
 - **A total-credits cap**, set in app settings, that hides the "add module" tile once your course load is full — each module card shows its credits as a share of that cap.
 
@@ -42,6 +42,10 @@ pnpm dev                                # http://localhost:5173
 ```
 
 The backend's default database URL (`postgresql+psycopg://studybook:studybook@localhost:5432/studybook`) already matches `docker-compose.yml`, so no `.env` file is required for local development — add `backend/.env` only to override settings (see `app/core/config.py`).
+
+### Optional: desktop app
+
+With a Rust toolchain installed, `pnpm tauri dev` (from `frontend/`) opens the same frontend in a native chromeless window instead of a browser tab, still talking to the same local backend — see `CLAUDE.md` for details.
 
 ## Status
 
