@@ -1,22 +1,28 @@
-import { Database, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
+import { KeybindInput } from '@/components/KeybindInput'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { updateAppSettings, type AppSettings, type Skin, type ThemeMode } from '@/lib/api'
+import { updateAppSettings, type AppSettings, type Skin, type TableAlignment, type ThemeMode } from '@/lib/api'
+import { DEFAULT_KEYBINDS, KEYBIND_ACTIONS, type EditorKeybinds } from '@/lib/keybinds'
 import { applyTheme, SKINS } from '@/lib/theme'
 
-type Category = 'appearance' | 'general' | 'ai' | 'data'
+type Category = 'appearance' | 'general' | 'keybinds' | 'ai' | 'data'
 
 const CATEGORIES: { id: Category; label: string; icon: typeof Palette }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'general', label: 'General', icon: SlidersHorizontal },
+  { id: 'keybinds', label: 'Keybinds', icon: Keyboard },
   { id: 'ai', label: 'AI Integration', icon: Sparkles },
   { id: 'data', label: 'Data', icon: Database },
 ]
+
+const FONT_SIZE_MIN = 10
+const FONT_SIZE_MAX = 32
 
 export function AppSettingsDialog({
   settings,
@@ -37,6 +43,14 @@ export function AppSettingsDialog({
   // list etc., which briefly nulls its data and would otherwise unmount this whole dialog.
   const [themeMode, setThemeMode] = useState(settings.theme_mode)
   const [skin, setSkin] = useState(settings.skin)
+  const [tableAlignment, setTableAlignment] = useState(settings.table_alignment)
+  const [fontSizeDraft, setFontSizeDraft] = useState(String(settings.note_font_size))
+  const [keybinds, setKeybinds] = useState<EditorKeybinds>({
+    bold: settings.keybind_bold,
+    italic: settings.keybind_italic,
+    code: settings.keybind_code,
+    wikilink: settings.keybind_wikilink,
+  })
 
   useEffect(() => {
     if (open) {
@@ -44,8 +58,27 @@ export function AppSettingsDialog({
       setMaxCredits(settings.max_credits !== null ? String(settings.max_credits) : '')
       setThemeMode(settings.theme_mode)
       setSkin(settings.skin)
+      setTableAlignment(settings.table_alignment)
+      setFontSizeDraft(String(settings.note_font_size))
+      setKeybinds({
+        bold: settings.keybind_bold,
+        italic: settings.keybind_italic,
+        code: settings.keybind_code,
+        wikilink: settings.keybind_wikilink,
+      })
     }
-  }, [open, settings.max_credits, settings.theme_mode, settings.skin])
+  }, [
+    open,
+    settings.max_credits,
+    settings.theme_mode,
+    settings.skin,
+    settings.table_alignment,
+    settings.note_font_size,
+    settings.keybind_bold,
+    settings.keybind_italic,
+    settings.keybind_code,
+    settings.keybind_wikilink,
+  ])
 
   async function handleSaveCredits() {
     setSavingCredits(true)
@@ -67,6 +100,25 @@ export function AppSettingsDialog({
     setSkin(nextSkin)
     applyTheme(themeMode, nextSkin)
     await updateAppSettings({ skin: nextSkin })
+  }
+
+  async function handleTableAlignment(next: TableAlignment) {
+    setTableAlignment(next)
+    await updateAppSettings({ table_alignment: next })
+  }
+
+  async function handleFontSizeCommit() {
+    const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Number(fontSizeDraft) || settings.note_font_size))
+    setFontSizeDraft(String(clamped))
+    if (clamped !== settings.note_font_size) await updateAppSettings({ note_font_size: clamped })
+  }
+
+  async function handleKeybind(action: keyof EditorKeybinds, combo: string) {
+    setKeybinds((prev) => ({ ...prev, [action]: combo }))
+    const field = (
+      { bold: 'keybind_bold', italic: 'keybind_italic', code: 'keybind_code', wikilink: 'keybind_wikilink' } as const
+    )[action]
+    await updateAppSettings({ [field]: combo })
   }
 
   return (
@@ -133,6 +185,39 @@ export function AppSettingsDialog({
                     ))}
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Table alignment</Label>
+                  <Tabs value={tableAlignment} onValueChange={(v) => handleTableAlignment(v as TableAlignment)}>
+                    <TabsList>
+                      <TabsTrigger value="left">Left</TabsTrigger>
+                      <TabsTrigger value="center">Center</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <p className="text-xs text-muted-foreground">
+                    How rendered tables sit in the notes editor.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="note-font-size">Note font size</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="note-font-size"
+                      type="number"
+                      min={FONT_SIZE_MIN}
+                      max={FONT_SIZE_MAX}
+                      value={fontSizeDraft}
+                      onChange={(e) => setFontSizeDraft(e.target.value)}
+                      onBlur={handleFontSizeCommit}
+                      className="max-w-24"
+                    />
+                    <span className="text-sm text-muted-foreground">px</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Editor text size in submodule notes ({FONT_SIZE_MIN}–{FONT_SIZE_MAX}px).
+                  </p>
+                </div>
               </>
             )}
 
@@ -154,6 +239,25 @@ export function AppSettingsDialog({
                 <Button size="sm" onClick={handleSaveCredits} disabled={savingCredits} className="mt-1">
                   {savingCredits ? 'Saving…' : 'Save'}
                 </Button>
+              </div>
+            )}
+
+            {category === 'keybinds' && (
+              <div className="divide-y">
+                {KEYBIND_ACTIONS.map(({ id, label, description }) => {
+                  const conflict = KEYBIND_ACTIONS.find((other) => other.id !== id && keybinds[other.id] === keybinds[id])
+                  return (
+                    <KeybindInput
+                      key={id}
+                      label={label}
+                      description={description}
+                      value={keybinds[id]}
+                      defaultValue={DEFAULT_KEYBINDS[id]}
+                      onChange={(combo) => handleKeybind(id, combo)}
+                      conflictLabel={conflict?.label}
+                    />
+                  )
+                })}
               </div>
             )}
 

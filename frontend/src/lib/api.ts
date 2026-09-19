@@ -378,11 +378,18 @@ export function getCalendar(start: Date, end: Date) {
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type Skin = 'default' | 'slate' | 'sepia'
+export type TableAlignment = 'left' | 'center'
 
 export interface AppSettings {
   max_credits: number | null
   theme_mode: ThemeMode
   skin: Skin
+  table_alignment: TableAlignment
+  note_font_size: number
+  keybind_bold: string
+  keybind_italic: string
+  keybind_code: string
+  keybind_wikilink: string
 }
 
 export function getAppSettings() {

@@ -14,6 +14,7 @@ import {
   createFlashcard,
   deleteFlashcard,
   deleteSubmodule,
+  getAppSettings,
   getModule,
   getSubmodule,
   listFlashcards,
@@ -22,6 +23,7 @@ import {
   uploadSubmoduleAttachment,
   type Flashcard,
 } from '@/lib/api'
+import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
 import { useAsync } from '@/lib/useAsync'
 
 function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: number; submoduleId: number; onCreated: () => void }) {
@@ -100,6 +102,7 @@ export function SubmodulePage() {
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
   const { data: submodule, loading, error } = useAsync(() => getSubmodule(id), [id, reloadKey])
   const { data: flashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey])
+  const { data: appSettings } = useAsync(() => getAppSettings(), [])
 
   const [content, setContent] = useState('')
   const [sourceMode, setSourceMode] = useState(false)
@@ -238,6 +241,18 @@ export function SubmodulePage() {
           placeholder="Start writing…"
           minHeight="70vh"
           onNavigateWikilink={handleNavigateWikilink}
+          fontSize={appSettings?.note_font_size}
+          tableAlign={appSettings?.table_alignment}
+          keybinds={
+            appSettings
+              ? {
+                  bold: appSettings.keybind_bold,
+                  italic: appSettings.keybind_italic,
+                  code: appSettings.keybind_code,
+                  wikilink: appSettings.keybind_wikilink,
+                }
+              : DEFAULT_KEYBINDS
+          }
         />
       </main>
 

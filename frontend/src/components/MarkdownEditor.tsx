@@ -16,6 +16,9 @@ import { drawSelection, keymap, ViewPlugin, WidgetType, type ViewUpdate } from '
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
+import type { TableAlignment } from '@/lib/api'
+import { DEFAULT_KEYBINDS, type EditorKeybinds } from '@/lib/keybinds'
+
 const HIDE = Decoration.replace({})
 
 class HorizontalRuleWidget extends WidgetType {
@@ -489,7 +492,15 @@ const editorTheme = EditorView.theme({
   // just blank ones (blank lines just make an invisible cursor more noticeable, with nothing
   // else on the line to anchor the eye). Flex with an explicit flex-basis sidesteps the
   // percentage-height resolution issue entirely, regardless of how .cm-editor's height was set.
-  '&': { fontSize: '0.9375rem', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column' },
+  // Font size is a CSS custom property (set inline per-render via dynamicAttributes below,
+  // see the comment there) rather than baked into this rule directly, since this object is a
+  // stable module-level singleton shared by every render/instance.
+  '&': {
+    fontSize: 'var(--note-font-size, 0.9375rem)',
+    backgroundColor: 'transparent',
+    display: 'flex',
+    flexDirection: 'column',
+  },
   // flex-basis: 0 (rather than `auto`) tells the browser this item's *hypothetical* size is 0
   // for the purpose of sizing its auto-height flex container — so `.cm-editor` was resolving to
   // exactly `min-height` no matter how tall the actual content was, and `.cm-scroller` (bounded
@@ -529,7 +540,8 @@ const editorTheme = EditorView.theme({
   },
   '.cm-table': {
     borderCollapse: 'collapse',
-    margin: '0.4em 0',
+    // 'auto' (centered) or '0px' (left) — see the fontSize comment above on '&'.
+    margin: '0.4em var(--note-table-margin-x, 0px)',
     fontSize: '0.9em',
   },
   '.cm-table th, .cm-table td': {
@@ -603,6 +615,24 @@ const editorTheme = EditorView.theme({
   '.cm-placeholder': { color: 'var(--muted-foreground)' },
 })
 
+// Font size and table alignment come from AppSettings, so they vary per render — but
+// EditorView.theme() mounts a real, permanent CSS rule into the document the first time each
+// *object* is seen, and CodeMirror never garbage-collects a theme's rule just because a later
+// reconfigure stopped using it (themes are normally a handful of stable, reused objects, e.g.
+// swapped via a Compartment). Building one with `EditorView.theme({'&': {fontSize: ...}})` fresh
+// per render/prop-change mounts a new orphaned rule each time, and which one wins the cascade for
+// a given property becomes render-history-dependent rather than "whatever the current props are"
+// — reproduced by opening a note, then changing font size in settings: two competing `.cm-table`
+// rules end up in the stylesheet and the *older* one kept winning. Setting CSS custom properties
+// via an inline `style` attribute instead sidesteps this entirely: editorAttributes just replaces
+// an element attribute on reconfigure, with no persistent stylesheet growth, and the static
+// editorTheme above reads them with `var(--note-font-size, ...)` fallbacks.
+function buildDynamicAttributes(fontSize: number, tableAlign: TableAlignment) {
+  return EditorView.editorAttributes.of({
+    style: `--note-font-size: ${fontSize}px; --note-table-margin-x: ${tableAlign === 'center' ? 'auto' : '0px'};`,
+  })
+}
+
 // Wraps (or, if the selection is already exactly wrapped, unwraps) each selected range in
 // `before`/`after` markers — Cmd/Ctrl+B, +I, +E below. An empty selection just inserts both
 // markers with the cursor left between them, so typing continues immediately.
@@ -631,17 +661,23 @@ function toggleWrapCommand(before: string, after: string = before) {
   }
 }
 
-// Prec.highest so these take priority over basicSetup's default keymap regardless of extension order.
-const formattingKeymap = Prec.highest(
-  keymap.of([
-    { key: 'Mod-b', run: toggleWrapCommand('**') },
-    { key: 'Mod-i', run: toggleWrapCommand('*') },
-    { key: 'Mod-e', run: toggleWrapCommand('`') },
-    // Plain Mod-k is Chrome/Firefox's own "focus address bar" shortcut and never reaches the
-    // page in a real browser tab (only worked in automated testing, which bypasses that).
-    { key: 'Mod-Shift-k', run: toggleWrapCommand('[[', ']]') },
-  ]),
-)
+// Prec.highest so these take priority over basicSetup's default keymap regardless of extension
+// order. Built per render from AppSettings' keybind_* fields (falling back to DEFAULT_KEYBINDS,
+// the same combos this used to hardcode) rather than a module constant, so a rebind takes effect
+// without reloading. Plain Mod-k is deliberately never offered as the wikilink default — it's
+// Chrome/Firefox's own "focus address bar" shortcut and never reaches the page in a real browser
+// tab (only worked in automated testing, which bypasses that) — but a user can still rebind onto
+// it themselves if they want, since KeybindInput doesn't second-guess what they record.
+function buildFormattingKeymap(keybinds: EditorKeybinds) {
+  return Prec.highest(
+    keymap.of([
+      { key: keybinds.bold, run: toggleWrapCommand('**') },
+      { key: keybinds.italic, run: toggleWrapCommand('*') },
+      { key: keybinds.code, run: toggleWrapCommand('`') },
+      { key: keybinds.wikilink, run: toggleWrapCommand('[[', ']]') },
+    ]),
+  )
+}
 
 function wikilinkClickHandler(onNavigateWikilink?: (title: string) => void) {
   return (event: MouseEvent) => {
@@ -665,6 +701,9 @@ export function MarkdownEditor({
   className,
   minHeight,
   onNavigateWikilink,
+  fontSize = 15,
+  tableAlign = 'left',
+  keybinds = DEFAULT_KEYBINDS,
 }: {
   value: string
   onChange: (value: string) => void
@@ -675,6 +714,12 @@ export function MarkdownEditor({
   className?: string
   minHeight?: string
   onNavigateWikilink?: (title: string) => void
+  /** From AppSettings.note_font_size, in px. */
+  fontSize?: number
+  /** From AppSettings.table_alignment. */
+  tableAlign?: TableAlignment
+  /** From AppSettings.keybind_*. */
+  keybinds?: EditorKeybinds
 }) {
   const viewRef = useRef<EditorView | null>(null)
   // Clicking (especially on an empty line) can fire several synchronous focus/blur events
@@ -717,8 +762,9 @@ export function MarkdownEditor({
         markdown({ extensions: GFM }),
         EditorView.lineWrapping,
         editorTheme,
+        buildDynamicAttributes(fontSize, tableAlign),
         spellcheckAttributes,
-        formattingKeymap,
+        buildFormattingKeymap(keybinds),
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
