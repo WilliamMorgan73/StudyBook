@@ -684,12 +684,14 @@ function buildFormattingKeymap(keybinds: EditorKeybinds) {
 // not the preceding whitespace.
 const SLASH_TRIGGER_PATTERN = /(?:^|\s)(\\\w+)$/
 
-// bold/link/code/image all reduce to the same "before + after, cursor between" shape that
-// toggleWrapCommand already uses for its empty-selection case.
+// bold/link/code/image/codeblock all reduce to the same "before + after, cursor between" shape
+// that toggleWrapCommand already uses for its empty-selection case — codeblock's cursor lands on
+// its own blank line between the fences, ready to type code directly.
 const SIMPLE_SLASH_COMMANDS: Record<string, { before: string; after: string }> = {
   bold: { before: '**', after: '**' },
   link: { before: '[[', after: ']]' },
   code: { before: '`', after: '`' },
+  codeblock: { before: '```\n', after: '\n```' },
   image: { before: '![', after: ']()' },
 }
 
@@ -715,8 +717,9 @@ function buildTableMarkdown(cols: number, rows: number): { text: string; selectF
   return { text, selectFrom: 2, selectTo: 2 + 'Header 1'.length } // select "Header 1", ready to overwrite
 }
 
-// Space/Enter handler for \bold, \link, \code, \image, \table<N>x<M>. A single dispatch both
-// deletes the `\word` span and inserts the replacement, so one undo step reverts it fully.
+// Space/Enter handler for \bold, \link, \code, \codeblock, \image, \table<N>x<M>. A single
+// dispatch both deletes the `\word` span and inserts the replacement, so one undo step reverts
+// it fully.
 function runSlashCommand(view: EditorView): boolean {
   const { state } = view
   const { main } = state.selection
