@@ -679,6 +679,97 @@ function buildFormattingKeymap(keybinds: EditorKeybinds) {
   )
 }
 
+// Matches `\word` immediately before the cursor, with the backslash preceded by start-of-line
+// or whitespace (so "foo\bold" mid-prose doesn't trigger) — captures the backslash + word run,
+// not the preceding whitespace.
+const SLASH_TRIGGER_PATTERN = /(?:^|\s)(\\\w+)$/
+
+// bold/link/code/image all reduce to the same "before + after, cursor between" shape that
+// toggleWrapCommand already uses for its empty-selection case.
+const SIMPLE_SLASH_COMMANDS: Record<string, { before: string; after: string }> = {
+  bold: { before: '**', after: '**' },
+  link: { before: '[[', after: ']]' },
+  code: { before: '`', after: '`' },
+  image: { before: '![', after: ']()' },
+}
+
+const TABLE_SLASH_PATTERN = /^table(\d+)x(\d+)$/
+const MAX_TABLE_DIMENSION = 12
+
+// \table<N>x<M> convention: N columns, M *data* rows — header row + its `---` divider are
+// always present in addition to M (e.g. \table3x4 -> 3 cols, header + divider + 4 empty rows).
+// A cell that's *entirely* whitespace never gets a TableCell node from @lezer/markdown's table
+// parser (it only tokenizes non-whitespace runs between '|'s), so a truly empty data cell would
+// silently disappear from getRowCells/TableWidget's rendered row — reproduced live (rowCount
+// matched, but each row's cells came back empty). A zero-width space keeps the cell invisible
+// but gives the parser a real (non-whitespace) character to tokenize; it also survives
+// getRowCells' `.trim()`, since JS's trim() doesn't strip U+200B (a Unicode "Format" character,
+// not "space separator").
+const EMPTY_CELL = '​'
+
+function buildTableMarkdown(cols: number, rows: number): { text: string; selectFrom: number; selectTo: number } {
+  const header = `| ${Array.from({ length: cols }, (_, i) => `Header ${i + 1}`).join(' | ')} |`
+  const divider = `| ${Array(cols).fill('---').join(' | ')} |`
+  const dataRow = `| ${Array(cols).fill(EMPTY_CELL).join(' | ')} |`
+  const text = [header, divider, ...Array(rows).fill(dataRow)].join('\n')
+  return { text, selectFrom: 2, selectTo: 2 + 'Header 1'.length } // select "Header 1", ready to overwrite
+}
+
+// Space/Enter handler for \bold, \link, \code, \image, \table<N>x<M>. A single dispatch both
+// deletes the `\word` span and inserts the replacement, so one undo step reverts it fully.
+function runSlashCommand(view: EditorView): boolean {
+  const { state } = view
+  const { main } = state.selection
+  if (!main.empty) return false // only a single empty cursor triggers expansion
+
+  const pos = main.head
+  const line = state.doc.lineAt(pos)
+  const match = SLASH_TRIGGER_PATTERN.exec(line.text.slice(0, pos - line.from))
+  if (!match) return false
+
+  const token = match[1] // e.g. "\bold" or "\table3x4"
+  const matchFrom = pos - token.length
+  if (isInsideCode(state, matchFrom)) return false
+
+  const word = token.slice(1).toLowerCase()
+
+  const simple = SIMPLE_SLASH_COMMANDS[word]
+  if (simple) {
+    view.dispatch({
+      changes: { from: matchFrom, to: pos, insert: simple.before + simple.after },
+      selection: EditorSelection.cursor(matchFrom + simple.before.length),
+    })
+    return true
+  }
+
+  const tableMatch = TABLE_SLASH_PATTERN.exec(word)
+  if (tableMatch) {
+    const cols = Number(tableMatch[1])
+    const rows = Number(tableMatch[2])
+    if (cols < 1 || rows < 1 || cols > MAX_TABLE_DIMENSION || rows > MAX_TABLE_DIMENSION) return false
+    const { text, selectFrom, selectTo } = buildTableMarkdown(cols, rows)
+    view.dispatch({
+      changes: { from: matchFrom, to: pos, insert: text },
+      selection: EditorSelection.range(matchFrom + selectFrom, matchFrom + selectTo),
+    })
+    return true
+  }
+
+  return false
+}
+
+// Fixed command set, not user-configurable (unlike buildFormattingKeymap's keybinds), so this
+// is a stable module-level constant rather than rebuilt per render. Prec.highest for the same
+// reason buildFormattingKeymap uses it: wins over basicSetup's default Space/Enter handling, but
+// only when a command actually matched — returns false otherwise, so normal typing, newlines,
+// and markdown list continuation on Enter are completely unaffected.
+const slashCommandKeymap = Prec.highest(
+  keymap.of([
+    { key: 'Space', run: runSlashCommand },
+    { key: 'Enter', run: runSlashCommand },
+  ]),
+)
+
 function wikilinkClickHandler(onNavigateWikilink?: (title: string) => void) {
   return (event: MouseEvent) => {
     if (!onNavigateWikilink || !(event.metaKey || event.ctrlKey)) return false
@@ -765,6 +856,7 @@ export function MarkdownEditor({
         buildDynamicAttributes(fontSize, tableAlign),
         spellcheckAttributes,
         buildFormattingKeymap(keybinds),
+        slashCommandKeymap,
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
