@@ -50,6 +50,10 @@
 }
 
 :root {
+    /* Without this, native form UI (the <select> popup list, number-input spinners, checkboxes,
+       date pickers) renders with the browser's light-mode default regardless of the app's own
+       theme — the page background going dark doesn't tell the browser the page *is* dark. */
+    color-scheme: light;
     --background: oklch(0.98 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -85,6 +89,7 @@
 }
 
 .dark {
+    color-scheme: dark;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -233,5 +238,16 @@
     }
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
+    }
+  /* The native up/down spinner on <input type="number"> is unstyleable and always renders as
+     plain OS/browser chrome, clashing with this app's own custom-styled inputs — hidden in favor
+     of typing/arrow-keys, matching the rest of the app's minimal, non-native form styling. */
+  input[type='number'] {
+    -moz-appearance: textfield;
+    }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
     }
 }

@@ -170,6 +170,10 @@ export function SubmodulePage() {
   async function handleNavigateWikilink(title: string) {
     try {
       const target = await resolveWikilink(title, submodule!.module_id)
+      // Cmd/Ctrl+click navigates straight from a click handler inside the editor, not via a DOM
+      // blur — so the usual onBlur={saveContent} on MarkdownEditor never fires, and this route
+      // swap would otherwise unmount the page (and any unsaved edits) before they're persisted.
+      await saveContent()
       navigate(`/modules/${target.module_id}/submodules/${target.id}`)
     } catch {
       // Unresolved link (typo, or the note doesn't exist yet) — no-op, nothing to navigate to.
