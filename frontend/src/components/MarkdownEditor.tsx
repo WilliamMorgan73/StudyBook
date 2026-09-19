@@ -223,6 +223,29 @@ function buildDecorations(view: EditorView): DecorationSet {
           return
         }
 
+        if (name === 'FencedCode' || name === 'CodeBlock') {
+          // The block keeps its background/monospace box regardless of cursor position — only
+          // the fence marks (handled generically below, via MARK_NODES) hide/reveal per line.
+          const startLine = state.doc.lineAt(node.from).number
+          const endLine = state.doc.lineAt(node.to).number
+          for (let n = startLine; n <= endLine; n++) {
+            const classes = ['cm-codeblock']
+            if (n === startLine) classes.push('cm-codeblock-start')
+            if (n === endLine) classes.push('cm-codeblock-end')
+            ranges.push(
+              Decoration.line({ class: classes.join(' '), attributes: { spellcheck: 'false' } }).range(
+                state.doc.line(n).from,
+              ),
+            )
+          }
+          return
+        }
+
+        if (name === 'CodeInfo') {
+          ranges.push(Decoration.mark({ class: 'cm-code-lang' }).range(node.from, node.to))
+          return
+        }
+
         if (name === 'Blockquote') {
           const startLine = state.doc.lineAt(node.from).number
           const endLine = state.doc.lineAt(node.to).number
@@ -399,6 +422,30 @@ const editorTheme = EditorView.theme({
     backgroundColor: 'var(--muted)',
     borderRadius: '0.25rem',
     padding: '0.05em 0.3em',
+  },
+  '.cm-codeblock': {
+    fontFamily: 'ui-monospace, monospace',
+    fontSize: '0.875em',
+    backgroundColor: 'var(--muted)',
+    padding: '0 0.75rem',
+  },
+  '.cm-codeblock-start': {
+    borderTopLeftRadius: '0.5rem',
+    borderTopRightRadius: '0.5rem',
+    paddingTop: '0.5rem',
+    marginTop: '0.4em',
+  },
+  '.cm-codeblock-end': {
+    borderBottomLeftRadius: '0.5rem',
+    borderBottomRightRadius: '0.5rem',
+    paddingBottom: '0.5rem',
+    marginBottom: '0.4em',
+  },
+  '.cm-code-lang': {
+    color: 'var(--muted-foreground)',
+    fontSize: '0.75em',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
   },
   '.cm-quote': {
     borderLeft: '2px solid var(--border)',
