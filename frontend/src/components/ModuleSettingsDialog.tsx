@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   createLecture,
@@ -39,9 +40,6 @@ const CATEGORIES: { id: Category; label: string; icon: typeof SlidersHorizontal 
 ]
 
 type Repeat = 'none' | 'weekly' | 'fortnightly'
-
-const SELECT_CLASS =
-  'h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -196,16 +194,16 @@ function LectureSeriesForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="series-repeat">Repeats</Label>
-          <select
-            id="series-repeat"
-            className={SELECT_CLASS}
-            value={repeat}
-            onChange={(e) => handleRepeatChange(e.target.value as Repeat)}
-          >
-            <option value="none">Does not repeat</option>
-            <option value="weekly">Weekly</option>
-            <option value="fortnightly">Fortnightly</option>
-          </select>
+          <Select value={repeat} onValueChange={(v) => handleRepeatChange(v as Repeat)}>
+            <SelectTrigger id="series-repeat" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Does not repeat</SelectItem>
+              <SelectItem value="weekly">Weekly</SelectItem>
+              <SelectItem value="fortnightly">Fortnightly</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
