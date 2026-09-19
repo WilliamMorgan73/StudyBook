@@ -490,7 +490,15 @@ const editorTheme = EditorView.theme({
   // else on the line to anchor the eye). Flex with an explicit flex-basis sidesteps the
   // percentage-height resolution issue entirely, regardless of how .cm-editor's height was set.
   '&': { fontSize: '0.9375rem', backgroundColor: 'transparent', display: 'flex', flexDirection: 'column' },
-  '.cm-scroller': { flex: '1 1 0px', minHeight: 0 },
+  // flex-basis: 0 (rather than `auto`) tells the browser this item's *hypothetical* size is 0
+  // for the purpose of sizing its auto-height flex container — so `.cm-editor` was resolving to
+  // exactly `min-height` no matter how tall the actual content was, and `.cm-scroller` (bounded
+  // to that same height, with the base theme's default `overflow: auto`) grew its own internal
+  // scrollbar instead of the page ever needing to scroll. `flex-basis: auto` makes the
+  // hypothetical size track real content height, so `.cm-editor` still gets stretched up to
+  // `min-height` by flex-grow on a short document (fixing the bug above), but grows past it on a
+  // long one instead of clipping — the page scrolls, not the editor.
+  '.cm-scroller': { flex: '1 1 auto', overflow: 'visible' },
   '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)' },
   '.cm-line': { padding: 0 },
   '&.cm-editor.cm-focused': { outline: 'none' },
