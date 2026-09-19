@@ -13,6 +13,8 @@ import { syntaxTree } from '@codemirror/language'
 import { EditorSelection, Prec } from '@codemirror/state'
 import { useRef } from 'react'
 import { drawSelection, keymap, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 const HIDE = Decoration.replace({})
 
@@ -96,6 +98,51 @@ class TableWidget extends WidgetType {
   }
 }
 
+// katex.render throws on malformed input even with throwOnError: false turned off for *display*
+// purposes — it still throws for a handful of parse errors, so this stays defensive rather than
+// trusting the option alone.
+function renderMath(formula: string, el: HTMLElement, displayMode: boolean) {
+  try {
+    katex.render(formula, el, { throwOnError: false, displayMode })
+  } catch {
+    el.textContent = formula
+  }
+}
+
+class MathInlineWidget extends WidgetType {
+  formula: string
+  constructor(formula: string) {
+    super()
+    this.formula = formula
+  }
+  toDOM() {
+    const span = document.createElement('span')
+    span.className = 'cm-math-inline'
+    renderMath(this.formula, span, false)
+    return span
+  }
+  eq(other: MathInlineWidget) {
+    return other.formula === this.formula
+  }
+}
+
+class MathBlockWidget extends WidgetType {
+  formula: string
+  constructor(formula: string) {
+    super()
+    this.formula = formula
+  }
+  toDOM() {
+    const div = document.createElement('div')
+    div.className = 'cm-math-block'
+    renderMath(this.formula, div, true)
+    return div
+  }
+  eq(other: MathBlockWidget) {
+    return other.formula === this.formula
+  }
+}
+
 const HEADING_LEVEL: Record<string, number> = {
   ATXHeading1: 1,
   ATXHeading2: 2,
@@ -117,6 +164,14 @@ function skipTrailingSpace(state: EditorState, pos: number): number {
 // [[Title]] / [[Title|Alias]] isn't CommonMark/GFM syntax, so the parser never produces a node
 // for it — wikilinks are found with a plain regex scan instead of a syntaxTree walk.
 const WIKILINK_PATTERN = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
+// $$...$$ (display math, may span lines) and $...$ (inline) are LaTeX conventions, not
+// CommonMark/GFM — same regex-scan approach as wikilinks. The inline pattern requires
+// non-whitespace immediately inside both delimiters (Obsidian/Typora's own heuristic) so plain
+// currency like "$5 and $10" doesn't get mistaken for math; block matches are found first and
+// excluded from inline scanning so "$$x$$" doesn't also get read as inline math via its two
+// middle '$'s.
+const BLOCK_MATH_PATTERN = /\$\$([\s\S]+?)\$\$/g
+const INLINE_MATH_PATTERN = /\$(?!\s)([^$\n]+?)(?<!\s)\$/g
 const CODE_NODE_NAMES = new Set(['InlineCode', 'FencedCode', 'CodeBlock', 'CodeText'])
 
 interface WalkableNode {
@@ -168,6 +223,41 @@ function addWikilinkDecorations(
   }
 }
 
+// Scanned once per decoration build (by both the inline pass below and mathBlockDecorations)
+// so inline math never re-matches a $$ block's own delimiters as a pair of inline ones.
+function findBlockMathRanges(text: string): { from: number; to: number }[] {
+  const ranges: { from: number; to: number }[] = []
+  BLOCK_MATH_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = BLOCK_MATH_PATTERN.exec(text))) {
+    ranges.push({ from: match.index, to: match.index + match[0].length })
+  }
+  return ranges
+}
+
+function addInlineMathDecorations(
+  state: EditorState,
+  from: number,
+  to: number,
+  cursorLine: number,
+  ranges: Range<Decoration>[],
+  blockMathRanges: { from: number; to: number }[],
+) {
+  const text = state.doc.sliceString(from, to)
+  INLINE_MATH_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = INLINE_MATH_PATTERN.exec(text))) {
+    const matchFrom = from + match.index
+    const matchTo = matchFrom + match[0].length
+    if (isInsideCode(state, matchFrom)) continue
+    if (blockMathRanges.some((b) => matchFrom < b.to && matchTo > b.from)) continue
+
+    if (state.doc.lineAt(matchFrom).number !== cursorLine) {
+      ranges.push(Decoration.replace({ widget: new MathInlineWidget(match[1]) }).range(matchFrom, matchTo))
+    }
+  }
+}
+
 // CodeMirror's own `.cm-focused` class toggling proved unreliable inside this React tree,
 // so focus is tracked explicitly via React's onFocus/onBlur instead of `view.hasFocus`.
 const setFocused = StateEffect.define<boolean>()
@@ -188,9 +278,11 @@ function buildDecorations(view: EditorView): DecorationSet {
   const focused = state.field(focusedField, false)
   const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
   const ranges: Range<Decoration>[] = []
+  const blockMathRanges = findBlockMathRanges(state.doc.toString())
 
   for (const { from, to } of view.visibleRanges) {
     addWikilinkDecorations(state, from, to, cursorLine, ranges)
+    addInlineMathDecorations(state, from, to, cursorLine, ranges, blockMathRanges)
 
     syntaxTree(state).iterate({
       from,
@@ -342,6 +434,39 @@ const tableDecorations = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+// Display math ($$...$$) needs its own StateField for the same reason as tables: it commonly
+// spans multiple lines, and a ViewPlugin can't provide a decoration that replaces a line break.
+function buildMathBlockDecorations(state: EditorState): DecorationSet {
+  const focused = state.field(focusedField, false)
+  const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
+  const ranges: Range<Decoration>[] = []
+  const text = state.doc.toString()
+
+  BLOCK_MATH_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = BLOCK_MATH_PATTERN.exec(text))) {
+    const from = match.index
+    const to = from + match[0].length
+    if (isInsideCode(state, from)) continue
+
+    const startLine = state.doc.lineAt(from).number
+    const endLine = state.doc.lineAt(to).number
+    if (cursorLine >= startLine && cursorLine <= endLine) continue
+
+    ranges.push(
+      Decoration.replace({ widget: new MathBlockWidget(match[1].trim()), block: true }).range(from, to),
+    )
+  }
+
+  return Decoration.set(ranges, true)
+}
+
+const mathBlockDecorations = StateField.define<DecorationSet>({
+  create: (state) => buildMathBlockDecorations(state),
+  update: (_decorations, tr) => buildMathBlockDecorations(tr.state),
+  provide: (field) => EditorView.decorations.from(field),
+})
+
 // Drives a class on the editor root from focusedField, so cursor visibility doesn't depend
 // on CodeMirror's own (unreliable here) `.cm-focused` class.
 const focusAttributes = EditorView.editorAttributes.of((view) => ({
@@ -457,6 +582,15 @@ const editorTheme = EditorView.theme({
     textDecorationColor: 'var(--border)',
     textUnderlineOffset: '2px',
     cursor: 'pointer',
+  },
+  // KaTeX's own CSS leaves color unset on the base glyphs, so they inherit this — no extra
+  // dark-mode handling needed.
+  '.cm-math-inline': { padding: '0 0.15em' },
+  '.cm-math-block': {
+    display: 'flex',
+    justifyContent: 'center',
+    margin: '0.6em 0',
+    overflowX: 'auto',
   },
   '.cm-placeholder': { color: 'var(--muted-foreground)' },
 })
@@ -586,6 +720,7 @@ export function MarkdownEditor({
               focusedField,
               liveMarkdown,
               tableDecorations,
+              mathBlockDecorations,
               focusAttributes,
               EditorView.domEventHandlers({ click: wikilinkClickHandler(onNavigateWikilink) }),
             ]),
