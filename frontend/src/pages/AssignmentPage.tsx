@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { Settings as SettingsIcon, Trash2, ArrowLeft} from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, useParams } from 'react-router-dom'
@@ -140,9 +140,14 @@ export function AssignmentPage() {
     <div className="min-h-full">
       <PageHeader
         left={
-          <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; Module
-          </Link>
+        <Link
+          to={`/modules/${moduleId}`}
+          aria-label={`Back to ${module?.name ?? "module"}`}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="truncate">{module?.name}</span>
+        </Link>
         }
         right={
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>

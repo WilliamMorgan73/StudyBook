@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react'
+import { Settings, ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -100,8 +100,9 @@ export function ModulePage() {
     <div className="min-h-full">
       <PageHeader
         left={
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; Overview
+          <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="truncate">Overview</span>
           </Link>
         }
         right={
