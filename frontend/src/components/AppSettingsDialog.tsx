@@ -128,7 +128,7 @@ export function AppSettingsDialog({
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-[22rem]">
+        <div className="flex min-h-[30rem]">
           <nav className="w-44 shrink-0 space-y-0.5 border-r bg-muted/30 p-2">
             {CATEGORIES.map(({ id, label, icon: Icon }) => (
               <button
