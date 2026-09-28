@@ -117,3 +117,17 @@ An optional Tauri wrapper (generated via `pnpm tauri init`) gives the existing V
 ### Known quirk: shadcn CLI path alias resolution
 
 This project's Vite template splits `tsconfig.json` into `tsconfig.app.json`/`tsconfig.node.json` via project references; the root `tsconfig.json` only has `references`, no `compilerOptions`. The `shadcn` CLI resolves the `@/*` import alias by reading the root `tsconfig.json` only, so without `paths` duplicated there too, `shadcn add` writes new component files into a literal `./@/` directory instead of `./src/`. The root `tsconfig.json` in this repo already carries a `paths` block for this reason — if `shadcn add` ever creates a stray `frontend/@/` directory again, move its contents into `src/` and delete it.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live in GitHub Issues on `WilliamMorgan73/StudyBook`, managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one root `CONTEXT.md` + `docs/adr/` (created lazily). See `docs/agents/domain.md`.
