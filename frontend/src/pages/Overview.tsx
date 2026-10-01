@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { BookOpen, Settings } from 'lucide-react'
@@ -17,7 +17,7 @@ import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getAppSettings, getCalendar, listModules, listUpcomingAssignments, type CalendarEvent } from '@/lib/api'
+import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
 import { progressRingSegments } from '@/lib/progress'
 import { useAsync } from '@/lib/useAsync'
 
@@ -26,7 +26,6 @@ function isSameDay(a: Date, b: Date) {
 }
 
 export function Overview() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [month, setMonth] = useState(() => {
     const now = new Date()
@@ -37,21 +36,13 @@ export function Overview() {
 
   const gridRange = useMemo(() => calendarGridRange(month), [month])
 
-  const modules = useAsync(() => listModules(), [reloadKey])
+  const modules = useAsync(() => listModules(), [])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
-  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange])
-  const appSettings = useAsync(() => getAppSettings(), [reloadKey])
-
-  // useAsync nulls `data` the instant `gridRange` changes identity (i.e. on every month
-  // switch), and the calendar card below was gated on `calendar.data` truthiness — so switching
-  // months unmounted the whole card in favor of a skeleton for a moment, a visible "blink".
-  // Keeping the last-loaded month's events on display until the next month's finish loading
-  // (stale-while-revalidate) avoids that without changing useAsync's shared behavior, which
-  // other pages rely on as-is.
-  const [displayedEvents, setDisplayedEvents] = useState<CalendarEvent[] | null>(null)
-  useEffect(() => {
-    if (calendar.data) setDisplayedEvents(calendar.data)
-  }, [calendar.data])
+  // Keep the current month on screen until the next one loads, so paging doesn't blink.
+  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange], {
+    keepPreviousData: true,
+  })
+  const appSettings = useAsync(() => getAppSettings(), [])
 
   const maxCredits = appSettings.data?.max_credits ?? null
   const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
@@ -60,7 +51,7 @@ export function Overview() {
   const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
   const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
 
-  const events = useMemo(() => displayedEvents ?? [], [displayedEvents])
+  const events = useMemo(() => calendar.data ?? [], [calendar.data])
   const selectedDayEvents = useMemo(
     () => events.filter((e) => isSameDay(new Date(e.starts_at), selected)),
     [events, selected],
@@ -117,9 +108,9 @@ export function Overview() {
               <CardTitle>Calendar</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {calendar.loading && !displayedEvents && <Skeleton className="h-80 w-full" />}
+              {calendar.loading && <Skeleton className="h-80 w-full" />}
               {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
-              {displayedEvents && (
+              {calendar.data && (
                 <>
                   <MonthCalendar
                     month={month}
@@ -326,7 +317,7 @@ export function Overview() {
                 <ModuleCard key={m.id} module={m} maxCredits={maxCredits} />
               ))}
               {hasCreditRoom && (
-                <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
+                <AddModuleDialog onCreated={modules.refetch} trigger={<AddModuleTile />} />
               )}
             </div>
           )}
@@ -338,7 +329,7 @@ export function Overview() {
           settings={appSettings.data}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
-          onChanged={() => setReloadKey((k) => k + 1)}
+          onChanged={appSettings.refetch}
         />
       )}
     </div>

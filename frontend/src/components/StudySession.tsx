@@ -17,7 +17,7 @@ export interface StudyScope {
 /**
  * A "Study" button plus the session dialog it opens over the scope's due Flashcards.
  * `onFinished` runs when a session that reviewed at least one card is closed, so the caller can
- * refresh due counts; it isn't called mid-session because a refetch may unmount this component.
+ * refresh due counts once rather than after every review.
  */
 export function StudySession({
   scope,

@@ -97,12 +97,11 @@ export function SubmodulePage() {
   const { moduleId, submoduleId } = useParams()
   const navigate = useNavigate()
   const id = Number(submoduleId)
-  const [reloadKey, setReloadKey] = useState(0)
-  const refetch = () => setReloadKey((k) => k + 1)
-
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
-  const { data: submodule, loading, error } = useAsync(() => getSubmodule(id), [id, reloadKey])
-  const { data: flashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey])
+  const { data: submodule, loading, refetch: refetchSubmodule } = useAsync(() => getSubmodule(id), [id])
+  const { data: flashcards, refetch: refetchFlashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id])
+  // Saves here can touch the note or its flashcards, so refresh both together.
+  const refetch = () => Promise.all([refetchSubmodule(), refetchFlashcards()])
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
 
   const [content, setContent] = useState('')
@@ -130,7 +129,8 @@ export function SubmodulePage() {
     )
   }
 
-  if (error || !submodule) {
+  // Not loading and no data means the first load failed; a failed refresh keeps the data.
+  if (!submodule) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
