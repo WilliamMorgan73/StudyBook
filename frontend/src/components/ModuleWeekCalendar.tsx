@@ -1,6 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
-import type { Lecture } from '@/lib/api'
+import { EventMarker } from '@/components/EventMarker'
+import type { Assignment, Lecture } from '@/lib/api'
+import { examEndsAt } from '@/lib/exam'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -29,8 +32,16 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
-/** A fixed (non-navigable) two-week grid — this week and next — showing only this module's lectures. */
-export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; color: string }) {
+/** A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures and exams. */
+export function ModuleWeekCalendar({
+  lectures,
+  exams,
+  color,
+}: {
+  lectures: Lecture[]
+  exams: Assignment[]
+  color: string
+}) {
   const today = useState(() => new Date())[0]
   const weekStart = startOfWeek(today)
   const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i))
@@ -41,7 +52,13 @@ export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; c
       .filter((l) => isSameDay(new Date(l.scheduled_at), day))
       .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
 
+  const examsByDay = (day: Date) =>
+    exams
+      .filter((e) => e.due_at !== null && isSameDay(new Date(e.due_at), day))
+      .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
+
   const selectedLectures = lecturesByDay(selected)
+  const selectedExams = examsByDay(selected)
 
   return (
     <div>
@@ -55,6 +72,7 @@ export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; c
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border">
         {days.map((day) => {
           const dayLectures = lecturesByDay(day)
+          const dayExams = examsByDay(day)
           const isToday = isSameDay(day, today)
           const isSelected = isSameDay(day, selected)
 
@@ -74,8 +92,11 @@ export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; c
               >
                 {day.getDate()}
               </span>
-              {dayLectures.length > 0 && (
-                <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+              {(dayLectures.length > 0 || dayExams.length > 0) && (
+                <span className="flex items-center gap-1">
+                  {dayLectures.length > 0 && <EventMarker kind="lecture" color={color} />}
+                  {dayExams.length > 0 && <EventMarker kind="exam" color={color} />}
+                </span>
               )}
             </button>
           )
@@ -86,8 +107,8 @@ export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; c
         <p className="mb-1.5 text-sm font-medium">
           {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
-        {selectedLectures.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No lectures this day.</p>
+        {selectedLectures.length === 0 && selectedExams.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
         ) : (
           <ul className="space-y-1">
             {selectedLectures.map((l) => {
@@ -99,6 +120,26 @@ export function ModuleWeekCalendar({ lectures, color }: { lectures: Lecture[]; c
                     {formatTime(start)}
                     {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
                     {l.location && ` · ${l.location}`}
+                  </span>
+                </li>
+              )
+            })}
+            {selectedExams.map((exam) => {
+              const start = new Date(exam.due_at!)
+              const end = examEndsAt(exam.due_at!, exam.duration_minutes)
+              return (
+                <li key={`exam-${exam.id}`} className="flex items-center justify-between gap-3 text-sm">
+                  <Link
+                    to={`/modules/${exam.module_id}/assignments/${exam.id}`}
+                    className="flex min-w-0 items-center gap-2 font-medium hover:underline"
+                  >
+                    <EventMarker kind="exam" color={color} className="shrink-0" />
+                    <span className="truncate">{exam.title}</span>
+                  </Link>
+                  <span className="shrink-0 text-muted-foreground">
+                    {formatTime(start)}
+                    {end && ` – ${formatTime(end)}`}
+                    {exam.location && ` · ${exam.location}`}
                   </span>
                 </li>
               )

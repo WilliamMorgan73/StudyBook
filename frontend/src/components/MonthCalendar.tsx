@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
 
+import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
 
@@ -127,12 +128,7 @@ export function MonthCalendar({
               {dayEvents.length > 0 && (
                 <div className="flex flex-wrap gap-0.5">
                   {dayEvents.slice(0, 4).map((event) => (
-                    <span
-                      key={`${event.kind}-${event.id}`}
-                      className={`size-1.5 ${event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'}`}
-                      style={{ backgroundColor: eventColor(event) }}
-                      aria-hidden
-                    />
+                    <EventMarker key={`${event.kind}-${event.id}`} kind={event.kind} color={eventColor(event)} />
                   ))}
                 </div>
               )}

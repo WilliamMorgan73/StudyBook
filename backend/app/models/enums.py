@@ -8,6 +8,11 @@ class AssignmentStatus(str, enum.Enum):
     graded = "graded"
 
 
+class AssignmentKind(str, enum.Enum):
+    coursework = "coursework"
+    exam = "exam"
+
+
 class AttachmentKind(str, enum.Enum):
     pdf = "pdf"
     pptx = "pptx"

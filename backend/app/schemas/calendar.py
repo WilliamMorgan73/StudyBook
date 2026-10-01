@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 
 class CalendarEvent(BaseModel):
-    kind: Literal["lecture", "assignment_due"]
+    kind: Literal["lecture", "assignment_due", "exam"]
     id: int
     module_id: int
     title: str

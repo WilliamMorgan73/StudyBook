@@ -6,6 +6,8 @@ from app.core.database import get_db
 from app.crud.attachments import store_upload
 from app.models.assignment import Assignment
 from app.models.attachment import Attachment
+from app.models.enums import AssignmentKind
+from app.models.submodule import Submodule
 from app.models.todo import AssignmentTodo
 from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentUpdate
 from app.schemas.attachment import AttachmentRead
@@ -27,6 +29,16 @@ def _check_total_weight(
             f"Total weighting for this module would be {other_total + new_weight:.2f}%, "
             f"which exceeds 100% (other assignments already total {other_total:.2f}%)",
         )
+
+
+def _covered_submodules(db: Session, module_id: int, submodule_ids: list[int]) -> list[Submodule]:
+    """Load the given Submodules, rejecting any that don't exist or belong to another Module."""
+    if not submodule_ids:
+        return []
+    submodules = list(db.scalars(select(Submodule).where(Submodule.id.in_(submodule_ids))).all())
+    if len(submodules) != len(set(submodule_ids)) or any(s.module_id != module_id for s in submodules):
+        raise HTTPException(400, "Covered submodules must belong to the assignment's module")
+    return submodules
 
 
 def _get_assignment_or_404(db: Session, assignment_id: int) -> Assignment:
@@ -53,7 +65,16 @@ def list_assignments(
 @router.post("", response_model=AssignmentRead, status_code=201)
 def create_assignment(payload: AssignmentCreate, db: Session = Depends(get_db)) -> Assignment:
     _check_total_weight(db, payload.module_id, payload.weight_percent)
-    assignment = Assignment(**payload.model_dump())
+    covered_ids = payload.covered_submodule_ids
+    assignment = Assignment(**payload.model_dump(exclude={"covered_submodule_ids"}))
+    if covered_ids is None:
+        assignment.covered_submodules = (
+            list(db.scalars(select(Submodule).where(Submodule.module_id == payload.module_id)).all())
+            if payload.kind == AssignmentKind.exam
+            else []
+        )
+    else:
+        assignment.covered_submodules = _covered_submodules(db, payload.module_id, covered_ids)
     db.add(assignment)
     db.commit()
     db.refresh(assignment)
@@ -71,6 +92,9 @@ def update_assignment(assignment_id: int, payload: AssignmentUpdate, db: Session
     updates = payload.model_dump(exclude_unset=True)
     if "weight_percent" in updates:
         _check_total_weight(db, assignment.module_id, updates["weight_percent"], exclude_assignment_id=assignment_id)
+    if "covered_submodule_ids" in updates:
+        covered_ids = updates.pop("covered_submodule_ids") or []
+        assignment.covered_submodules = _covered_submodules(db, assignment.module_id, covered_ids)
     for field, value in updates.items():
         setattr(assignment, field, value)
     db.commit()
