@@ -1,4 +1,4 @@
-from sqlalchemy import String, Text
+from sqlalchemy import JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -28,3 +28,7 @@ class AppSettings(Base):
     gemini_api_key: Mapped[str | None] = mapped_column(Text)
     # Also decides the provider (`services/ai_models.py::provider_of`).
     ai_model: Mapped[str] = mapped_column(String(64), default=DEFAULT_AI_MODEL)
+    # Overview widget placement: a list of {i, x, y, w, h} grid items (react-grid-layout shape).
+    # Null means the frontend's default layout. Widget ids are owned by the frontend
+    # (frontend/src/lib/dashboardLayout.ts), so they aren't validated here.
+    dashboard_layout: Mapped[list | None] = mapped_column(JSON)

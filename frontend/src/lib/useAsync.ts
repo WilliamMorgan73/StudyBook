@@ -9,7 +9,7 @@ interface AsyncOptions {
   keepPreviousData?: boolean
 }
 
-interface AsyncState<T> {
+export interface AsyncState<T> {
   data: T | null
   error: Error | null
   /** True only while a fetch is in flight and there's no data to show yet. */
