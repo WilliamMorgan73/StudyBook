@@ -1,6 +1,8 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo } from 'react'
+import { motion } from 'motion/react'
+import { useId, useMemo, useState } from 'react'
 
+import { PopIn, SelectionRing } from '@/components/CalendarEffects'
 import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
@@ -69,6 +71,16 @@ export function MonthCalendar({
 
   const today = new Date()
 
+  const uid = useId()
+
+  // Which way the last month change went (0 before any), so the new grid slides in from that side.
+  const [shownMonth, setShownMonth] = useState(month)
+  const [direction, setDirection] = useState(0)
+  if (month.getTime() !== shownMonth.getTime()) {
+    setDirection(month > shownMonth ? 1 : -1)
+    setShownMonth(month)
+  }
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -103,7 +115,14 @@ export function MonthCalendar({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border">
+      <motion.div
+        // Remounting per month is what lets the new grid slide in.
+        key={month.toISOString()}
+        initial={direction !== 0 ? { opacity: 0, x: direction * 12 } : false}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.2 }}
+        className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border"
+      >
         {days.map((day) => {
           const inMonth = day.getMonth() === month.getMonth()
           const dayEvents = eventsByDay.get(day.toDateString()) ?? []
@@ -115,10 +134,11 @@ export function MonthCalendar({
               key={day.toISOString()}
               type="button"
               onClick={() => onSelect(day)}
-              className={`flex min-h-11 flex-col items-start gap-1 bg-card p-1.5 text-left transition-colors hover:bg-muted ${
+              className={`relative flex min-h-11 flex-col items-start gap-1 bg-card p-1.5 text-left transition-colors hover:bg-muted ${
                 inMonth ? '' : 'opacity-40'
-              } ${isSelected ? 'ring-2 ring-inset ring-foreground' : ''}`}
+              }`}
             >
+              {isSelected && <SelectionRing layoutId={`${uid}-selection`} />}
               <span
                 className={`flex size-5 items-center justify-center rounded-full text-xs ${
                   isToday ? 'bg-foreground text-background' : ''
@@ -129,14 +149,16 @@ export function MonthCalendar({
               {dayEvents.length > 0 && (
                 <div className="flex flex-wrap items-center gap-0.5">
                   {busyLast(dayEvents).slice(0, 4).map((event) => (
-                    <EventMarker key={calendarEventKey(event)} kind={event.kind} color={eventColor(event)} />
+                    <PopIn key={calendarEventKey(event)}>
+                      <EventMarker kind={event.kind} color={eventColor(event)} />
+                    </PopIn>
                   ))}
                 </div>
               )}
             </button>
           )
         })}
-      </div>
+      </motion.div>
     </div>
   )
 }

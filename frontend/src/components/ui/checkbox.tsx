@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Checkbox as CheckboxPrimitive } from "radix-ui"
-import { CheckIcon } from "lucide-react"
+import { motion } from "motion/react"
 
 function Checkbox({
   className,
@@ -20,10 +20,24 @@ function Checkbox({
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
       >
-        <CheckIcon
-        />
+        <CheckGlyph />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
+  )
+}
+
+// The indicator only mounts while checked, so the draw plays each time the box gets ticked.
+function CheckGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      {/* lucide's Check path */}
+      <motion.path
+        d="M20 6 9 17l-5-5"
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+      />
+    </svg>
   )
 }
 
