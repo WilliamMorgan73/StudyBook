@@ -56,6 +56,17 @@ export interface Attachment {
   file_path: string
   url: string
   uploaded_at: string
+  /** PDF/PPTX that can be converted to markdown for AI features. */
+  text_extractable: boolean
+}
+
+export interface AttachmentExtractedText {
+  attachment_id: number
+  kind: AttachmentKind
+  /** Exactly the text AI features receive for this Attachment. */
+  markdown: string
+  /** A PDF that yielded almost no text (likely scanned). */
+  near_empty: boolean
 }
 
 export interface Todo {
@@ -246,12 +257,29 @@ export function toNaiveDateTime(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+/**
+ * A non-2xx API response. `message` is the backend's `detail` when it sent a string one. `kind`
+ * is set on AI failures (see `lib/ai.ts`), whose `detail` is already a readable message.
+ */
+export class ApiError extends Error {
+  readonly status: number
+  readonly kind: string | null
+
+  constructor(message: string, status: number, kind: string | null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.kind = kind
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     const detail = typeof body?.detail === 'string' ? body.detail : null
-    throw new Error(detail ?? `${res.status} ${res.statusText}`)
+    const kind = typeof body?.kind === 'string' ? body.kind : null
+    throw new ApiError(detail ?? `${res.status} ${res.statusText}`, res.status, kind)
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
@@ -333,6 +361,10 @@ export function updateTodo(assignmentId: number, todoId: number, input: { text?:
 
 export function deleteTodo(assignmentId: number, todoId: number) {
   return request<void>(`/assignments/${assignmentId}/todos/${todoId}`, { method: 'DELETE' })
+}
+
+export function getAttachmentExtractedText(id: number) {
+  return request<AttachmentExtractedText>(`/attachments/${id}/extracted-text`)
 }
 
 export function deleteAttachment(id: number) {
@@ -451,14 +483,39 @@ export interface AppSettings {
   keybind_italic: string
   keybind_code: string
   keybind_wikilink: string
+  ai_model: string
+  /** A key is saved in settings. The key itself is write-only and never sent back. */
+  has_api_key: boolean
+  /** A key is available (saved, or set in the backend environment), so AI actions work. */
+  ai_enabled: boolean
+}
+
+export type AppSettingsUpdate = Partial<Omit<AppSettings, 'has_api_key' | 'ai_enabled'>> & {
+  /** Write-only: a string sets the key, `null` clears it, omitted leaves it unchanged. */
+  anthropic_api_key?: string | null
 }
 
 export function getAppSettings() {
   return request<AppSettings>('/settings')
 }
 
-export function updateAppSettings(input: Partial<AppSettings>) {
+export function updateAppSettings(input: AppSettingsUpdate) {
   return patchJson<AppSettings>('/settings', input)
+}
+
+export interface AIModelOption {
+  id: string
+  label: string
+  description: string
+}
+
+export function listAIModels() {
+  return request<AIModelOption[]>('/ai/models')
+}
+
+/** Checks the saved key against the selected model. Rejects with an `ApiError` on failure. */
+export function testAIConnection() {
+  return request<{ ok: true; model: string }>('/ai/test', { method: 'POST' })
 }
 
 export function listQuickTodos() {

@@ -5,7 +5,7 @@ StudyBook is a single-user, no-auth study app: Obsidian-style markdown notes, No
 - **Frontend** (`frontend/`): React + TypeScript, Vite, Tailwind v4 + shadcn/ui (Nova preset, Radix), React Router. `pnpm`.
 - **Backend** (`backend/`): FastAPI, SQLAlchemy 2.0, Alembic. `uv`.
 - **Database**: Postgres via `docker-compose.yml` (db/user/password all `studybook`, `localhost:5432`).
-- **AI**: Anthropic API, planned, not implemented. Design and phase order in `docs/ai-integration-plan.md`.
+- **AI**: Anthropic API via the `anthropic` SDK. Settings + the `app/services/ai.py` seam exist; features land per `docs/ai-integration-plan.md` (design and phase order).
 
 ## Commands
 

@@ -30,9 +30,17 @@
 
 `Attachment` is polymorphic by construction: `submodule_id` and `assignment_id` are both nullable and exactly one is set, because the only writers are the two upload endpoints (`POST /submodules/{id}/attachments`, `POST /assignments/{id}/attachments`) via `crud/attachments.py::store_upload`. Files go to `backend/uploads/{submodules,assignments}/<id>/<uuid>` (namespaced so equal ids can't collide); `file_path` is the disk path, `url` is a computed property served by the `/uploads` static mount. `DELETE /attachments/{id}` removes row and file.
 
+Text extraction lives in `crud/attachment_text.py`, the one entry point AI features use for an Attachment's text: `get_extracted_text(attachment, convert=...)` converts PDF/PPTX locally with `markitdown` on first call, caches it in the deferred `extracted_markdown` column (caller commits), and returns `ExtractedText(markdown, near_empty)`. `near_empty` (fewer than `NEAR_EMPTY_MIN_CHARS` letters/digits) is PDF-only and computed on read, not stored. Other kinds, and legacy `.ppt` filed under `pptx`, raise `AttachmentNotExtractableError`; a failed conversion raises `AttachmentExtractionFailedError` and isn't cached. `GET /attachments/{id}/extracted-text` wraps it (415 unsupported, 422 failed), and `AttachmentRead.text_extractable` tells the UI which rows get "View extracted text".
+
 ### Wikilinks
 
 `[[Title]]` / `[[Title|Alias]]` links between submodules are resolved on demand, never stored, and are one-directional by design (a `SubmoduleLink` table plus backlinks panel was built and deliberately removed). `crud/submodule_links.py::resolve_wikilink` supports `"Module Title/Submodule Title"` disambiguation, else prefers a same-module match, else the first match anywhere. `GET /submodules/resolve?title=&module_id=` wraps it and 404s when unresolved. `GET /submodules` is a lightweight cross-module index (`SubmoduleIndexEntry`, optional `search`) for a future link picker.
+
+## AI service
+
+Every Claude call goes through `services/ai.py`'s `AIClient` protocol: `ping()` (Models API lookup, no tokens; backs `POST /ai/test`), `complete(prompt, system=, max_tokens=) -> str`, and `complete_structured(prompt, schema, ...) -> schema instance` (SDK `messages.parse` structured output). Feature functions take an `AIClient` parameter; routes get one from `api/deps.py::get_ai_client`, which reads AppSettings and calls `build_ai_client`, the only place the SDK client is constructed. SDK failures become `AIError(kind, message)` with a readable message; `main.py`'s handler returns them as `{"detail", "kind"}` (`not_configured` 409, `rate_limit` 429, `network`/`unavailable` 503, others 502). Tests use `FakeAIClient` (queued replies, recorded `requests`) or override `get_ai_client`; `tests/conftest.py` blanks the env key for every test.
+
+`AppSettings.anthropic_api_key` is write-only: `AppSettingsRead.from_row` reports `has_api_key` (saved in the row) and `ai_enabled` (saved or `ANTHROPIC_API_KEY` in `core/config.py`, saved wins). PATCH sets it (trimmed), clears it with `null`/`""`, or leaves it alone when omitted. `ai_model` is validated against `services/ai_models.py::AI_MODELS`, the one model list, also served at `GET /ai/models`.
 
 ## Alembic
 
