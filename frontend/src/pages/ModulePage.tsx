@@ -67,10 +67,8 @@ function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Su
 export function ModulePage() {
   const { moduleId } = useParams()
   const id = Number(moduleId)
-  const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
-  const refetch = () => setReloadKey((k) => k + 1)
+  const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
 
   if (loading) {
     return (
@@ -82,7 +80,8 @@ export function ModulePage() {
     )
   }
 
-  if (error || !module) {
+  // Not loading and no data means the first load failed; a failed refresh keeps the data.
+  if (!module) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">

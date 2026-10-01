@@ -33,7 +33,7 @@ pnpm lint     # oxlint
 Read the matching doc before working in that area:
 
 - **Backend**, data model, attachments, wikilink resolution, Alembic: `docs/agents/backend.md`
-- **Frontend** pages, `useAsync` quirk, lectures, settings dialogs, theming, Tauri shell: `docs/agents/frontend.md`
+- **Frontend** pages, `useAsync` (refetch, keep-previous-data), lectures, settings dialogs, theming, Tauri shell: `docs/agents/frontend.md`
 - **MarkdownEditor** (CodeMirror live preview, widgets, keybinds, slash commands): `docs/agents/markdown-editor.md`
 
 Invariants worth knowing everywhere:

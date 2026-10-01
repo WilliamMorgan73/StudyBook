@@ -34,10 +34,9 @@ function TodoRow({ todo, onChanged }: { todo: QuickTodo; onChanged: () => void }
 }
 
 export function QuickTodoList() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [text, setText] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const todos = useAsync(() => listQuickTodos(), [reloadKey])
+  const todos = useAsync(() => listQuickTodos(), [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -46,7 +45,7 @@ export function QuickTodoList() {
     try {
       await createQuickTodo(text.trim())
       setText('')
-      setReloadKey((k) => k + 1)
+      todos.refetch()
     } finally {
       setSubmitting(false)
     }
@@ -64,7 +63,7 @@ export function QuickTodoList() {
       {todos.data && todos.data.length > 0 && (
         <ul className="divide-y">
           {todos.data.map((todo) => (
-            <TodoRow key={todo.id} todo={todo} onChanged={() => setReloadKey((k) => k + 1)} />
+            <TodoRow key={todo.id} todo={todo} onChanged={todos.refetch} />
           ))}
         </ul>
       )}

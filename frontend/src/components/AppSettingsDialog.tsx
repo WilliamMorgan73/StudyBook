@@ -1,7 +1,8 @@
-import { Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { CalendarDays, Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { useState } from 'react'
 
 import { KeybindInput } from '@/components/KeybindInput'
+import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -11,12 +12,13 @@ import { updateAppSettings, type AppSettings, type Skin, type TableAlignment, ty
 import { DEFAULT_KEYBINDS, KEYBIND_ACTIONS, type EditorKeybinds } from '@/lib/keybinds'
 import { applyTheme, SKINS } from '@/lib/theme'
 
-type Category = 'appearance' | 'general' | 'keybinds' | 'ai' | 'data'
+type Category = 'appearance' | 'general' | 'keybinds' | 'calendars' | 'ai' | 'data'
 
 const CATEGORIES: { id: Category; label: string; icon: typeof Palette }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'keybinds', label: 'Keybinds', icon: Keyboard },
+  { id: 'calendars', label: 'Calendars', icon: CalendarDays },
   { id: 'ai', label: 'AI Integration', icon: Sparkles },
   { id: 'data', label: 'Data', icon: Database },
 ]
@@ -29,56 +31,47 @@ export function AppSettingsDialog({
   open,
   onOpenChange,
   onChanged,
+  onCalendarChanged,
 }: {
   settings: AppSettings
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** App settings changed. */
   onChanged: () => void
+  /** Personal events changed, so calendars showing busy time should refetch. */
+  onCalendarChanged?: () => void
 }) {
   const [category, setCategory] = useState<Category>('appearance')
+  // Drafts for the fields that commit on save/blur rather than on click. Everything else reads
+  // straight from `settings`, which the parent refetches (in place) after each change.
   const [maxCredits, setMaxCredits] = useState(settings.max_credits !== null ? String(settings.max_credits) : '')
   const [savingCredits, setSavingCredits] = useState(false)
-  // Appearance changes apply immediately and are tracked locally rather than via the `settings`
-  // prop: the parent refetches app settings through the same reloadKey used for the modules
-  // list etc., which briefly nulls its data and would otherwise unmount this whole dialog.
+  const [fontSizeDraft, setFontSizeDraft] = useState(String(settings.note_font_size))
+  // Theme mode and skin are applied together, so each click must pair with the latest pick of the
+  // other, not the `settings` prop, which lags until the refetch lands (skin-then-mode clicked
+  // quickly would otherwise re-apply the old skin).
   const [themeMode, setThemeMode] = useState(settings.theme_mode)
   const [skin, setSkin] = useState(settings.skin)
-  const [tableAlignment, setTableAlignment] = useState(settings.table_alignment)
-  const [fontSizeDraft, setFontSizeDraft] = useState(String(settings.note_font_size))
-  const [keybinds, setKeybinds] = useState<EditorKeybinds>({
+  const keybinds: EditorKeybinds = {
     bold: settings.keybind_bold,
     italic: settings.keybind_italic,
     code: settings.keybind_code,
     wikilink: settings.keybind_wikilink,
-  })
+  }
 
-  useEffect(() => {
+  // Reset the category and drafts each time the dialog opens (not on every settings refetch,
+  // which would discard an in-progress edit or jump back to Appearance).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (open) {
       setCategory('appearance')
       setMaxCredits(settings.max_credits !== null ? String(settings.max_credits) : '')
+      setFontSizeDraft(String(settings.note_font_size))
       setThemeMode(settings.theme_mode)
       setSkin(settings.skin)
-      setTableAlignment(settings.table_alignment)
-      setFontSizeDraft(String(settings.note_font_size))
-      setKeybinds({
-        bold: settings.keybind_bold,
-        italic: settings.keybind_italic,
-        code: settings.keybind_code,
-        wikilink: settings.keybind_wikilink,
-      })
     }
-  }, [
-    open,
-    settings.max_credits,
-    settings.theme_mode,
-    settings.skin,
-    settings.table_alignment,
-    settings.note_font_size,
-    settings.keybind_bold,
-    settings.keybind_italic,
-    settings.keybind_code,
-    settings.keybind_wikilink,
-  ])
+  }
 
   async function handleSaveCredits() {
     setSavingCredits(true)
@@ -94,31 +87,35 @@ export function AppSettingsDialog({
     setThemeMode(mode)
     applyTheme(mode, skin)
     await updateAppSettings({ theme_mode: mode })
+    onChanged()
   }
 
   async function handleSkin(nextSkin: Skin) {
     setSkin(nextSkin)
     applyTheme(themeMode, nextSkin)
     await updateAppSettings({ skin: nextSkin })
+    onChanged()
   }
 
   async function handleTableAlignment(next: TableAlignment) {
-    setTableAlignment(next)
     await updateAppSettings({ table_alignment: next })
+    onChanged()
   }
 
   async function handleFontSizeCommit() {
     const clamped = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Number(fontSizeDraft) || settings.note_font_size))
     setFontSizeDraft(String(clamped))
-    if (clamped !== settings.note_font_size) await updateAppSettings({ note_font_size: clamped })
+    if (clamped === settings.note_font_size) return
+    await updateAppSettings({ note_font_size: clamped })
+    onChanged()
   }
 
   async function handleKeybind(action: keyof EditorKeybinds, combo: string) {
-    setKeybinds((prev) => ({ ...prev, [action]: combo }))
     const field = (
       { bold: 'keybind_bold', italic: 'keybind_italic', code: 'keybind_code', wikilink: 'keybind_wikilink' } as const
     )[action]
     await updateAppSettings({ [field]: combo })
+    onChanged()
   }
 
   return (
@@ -188,7 +185,7 @@ export function AppSettingsDialog({
 
                 <div className="space-y-2">
                   <Label>Table alignment</Label>
-                  <Tabs value={tableAlignment} onValueChange={(v) => handleTableAlignment(v as TableAlignment)}>
+                  <Tabs value={settings.table_alignment} onValueChange={(v) => handleTableAlignment(v as TableAlignment)}>
                     <TabsList>
                       <TabsTrigger value="left">Left</TabsTrigger>
                       <TabsTrigger value="center">Center</TabsTrigger>
@@ -260,6 +257,8 @@ export function AppSettingsDialog({
                 })}
               </div>
             )}
+
+            {category === 'calendars' && <PersonalEventsSettings onChanged={() => onCalendarChanged?.()} />}
 
             {category === 'ai' && (
               <div className="space-y-1.5">

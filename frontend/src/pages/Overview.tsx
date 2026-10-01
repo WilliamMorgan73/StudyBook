@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { BookOpen, Settings } from 'lucide-react'
+import { BookOpen, Eye, EyeOff, Settings } from 'lucide-react'
 
 import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AddModuleTile } from '@/components/AddModuleTile'
@@ -17,16 +17,26 @@ import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getAppSettings, getCalendar, listModules, listUpcomingAssignments, type CalendarEvent } from '@/lib/api'
+import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
+import { calendarEventKey, visibleCalendarEvents } from '@/lib/busyTime'
 import { progressRingSegments } from '@/lib/progress'
 import { useAsync } from '@/lib/useAsync'
+
+const SHOW_BUSY_KEY = 'studybook.overview.showBusy'
+
+function readShowBusy() {
+  try {
+    return localStorage.getItem(SHOW_BUSY_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
 export function Overview() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [month, setMonth] = useState(() => {
     const now = new Date()
@@ -34,33 +44,37 @@ export function Overview() {
   })
   const [selected, setSelected] = useState(() => new Date())
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>(null)
+  const [showBusy, setShowBusy] = useState(readShowBusy)
+
+  function toggleShowBusy() {
+    const next = !showBusy
+    setShowBusy(next)
+    try {
+      localStorage.setItem(SHOW_BUSY_KEY, String(next))
+    } catch {
+      // Storage unavailable: the toggle still works for this visit.
+    }
+  }
 
   const gridRange = useMemo(() => calendarGridRange(month), [month])
 
-  const modules = useAsync(() => listModules(), [reloadKey])
+  const modules = useAsync(() => listModules(), [])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
-  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange])
-  const appSettings = useAsync(() => getAppSettings(), [reloadKey])
-
-  // useAsync nulls `data` the instant `gridRange` changes identity (i.e. on every month
-  // switch), and the calendar card below was gated on `calendar.data` truthiness — so switching
-  // months unmounted the whole card in favor of a skeleton for a moment, a visible "blink".
-  // Keeping the last-loaded month's events on display until the next month's finish loading
-  // (stale-while-revalidate) avoids that without changing useAsync's shared behavior, which
-  // other pages rely on as-is.
-  const [displayedEvents, setDisplayedEvents] = useState<CalendarEvent[] | null>(null)
-  useEffect(() => {
-    if (calendar.data) setDisplayedEvents(calendar.data)
-  }, [calendar.data])
+  // Keep the current month on screen until the next one loads, so paging doesn't blink.
+  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange], {
+    keepPreviousData: true,
+  })
+  const appSettings = useAsync(() => getAppSettings(), [])
 
   const maxCredits = appSettings.data?.max_credits ?? null
   const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
   const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
 
   const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
-  const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
+  const moduleColor = (id: number | null) =>
+    modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
 
-  const events = useMemo(() => displayedEvents ?? [], [displayedEvents])
+  const events = useMemo(() => visibleCalendarEvents(calendar.data ?? [], showBusy), [calendar.data, showBusy])
   const selectedDayEvents = useMemo(
     () => events.filter((e) => isSameDay(new Date(e.starts_at), selected)),
     [events, selected],
@@ -117,9 +131,9 @@ export function Overview() {
               <CardTitle>Calendar</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {calendar.loading && !displayedEvents && <Skeleton className="h-80 w-full" />}
+              {calendar.loading && <Skeleton className="h-80 w-full" />}
               {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
-              {displayedEvents && (
+              {calendar.data && (
                 <>
                   <MonthCalendar
                     month={month}
@@ -145,6 +159,19 @@ export function Overview() {
                       <EventMarker kind="exam" />
                       Exam
                     </span>
+                    <button
+                      type="button"
+                      onClick={toggleShowBusy}
+                      aria-pressed={showBusy}
+                      title={showBusy ? 'Hide busy time' : 'Show busy time'}
+                      className={`ml-auto flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground ${
+                        showBusy ? '' : 'line-through opacity-60'
+                      }`}
+                    >
+                      <EventMarker kind="busy" />
+                      Busy
+                      {showBusy ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                    </button>
                   </div>
                   <div className="border-t pt-2">
                     <p className="mb-1.5 text-sm font-medium">
@@ -156,14 +183,14 @@ export function Overview() {
                     ) : (
                       <ul className="space-y-1">
                         {selectedDayEvents.map((event) => {
-                          const isExpanded = expandedEventKey === `${event.kind}-${event.id}`
+                          const key = calendarEventKey(event)
+                          const isExpanded = expandedEventKey === key
+                          const isBusy = event.kind === 'busy'
                           return (
-                            <li key={`${event.kind}-${event.id}`}>
+                            <li key={key}>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setExpandedEventKey(isExpanded ? null : `${event.kind}-${event.id}`)
-                                }
+                                onClick={() => setExpandedEventKey(isExpanded ? null : key)}
                                 className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
                               >
                                 <EventMarker
@@ -171,8 +198,10 @@ export function Overview() {
                                   color={moduleColor(event.module_id)}
                                   className="shrink-0"
                                 />
-                                <span className="truncate">{event.title}</span>
-                                <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                <span className={`truncate ${isBusy ? 'text-muted-foreground' : ''}`}>{event.title}</span>
+                                {event.module_id !== null && (
+                                  <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                )}
                                 <span className="ml-auto shrink-0 text-muted-foreground">
                                   {event.kind === 'assignment_due'
                                     ? 'Due'
@@ -196,12 +225,15 @@ export function Overview() {
                                       })}`}
                                   </p>
                                   {event.location && <p>{event.location}</p>}
-                                  <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                    {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
-                                  </Link>
+                                  {isBusy && <p>Personal event (Settings → Calendars)</p>}
+                                  {event.url && (
+                                    <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                      {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
+                                    </Link>
+                                  )}
                                 </div>
                               )}
-                              {isExpanded && event.kind === 'assignment_due' && (
+                              {isExpanded && event.kind === 'assignment_due' && event.url && (
                                 <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
                                   <Link to={event.url} className="inline-block text-foreground hover:underline">
                                     Open assignment &rarr;
@@ -326,7 +358,7 @@ export function Overview() {
                 <ModuleCard key={m.id} module={m} maxCredits={maxCredits} />
               ))}
               {hasCreditRoom && (
-                <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
+                <AddModuleDialog onCreated={modules.refetch} trigger={<AddModuleTile />} />
               )}
             </div>
           )}
@@ -338,7 +370,8 @@ export function Overview() {
           settings={appSettings.data}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
-          onChanged={() => setReloadKey((k) => k + 1)}
+          onChanged={appSettings.refetch}
+          onCalendarChanged={calendar.refetch}
         />
       )}
     </div>

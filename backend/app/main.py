@@ -12,6 +12,7 @@ from app.api.routes import (
     flashcards,
     lectures,
     modules,
+    personal_events,
     quick_note,
     quick_todos,
     submodules,
@@ -36,6 +37,7 @@ app.include_router(attachments.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)
+app.include_router(personal_events.router)
 app.include_router(quick_todos.router)
 app.include_router(quick_note.router)
 
