@@ -167,12 +167,16 @@ export interface SubmoduleIndexEntry {
   module_name: string
 }
 
+/** `ai` = generated and accepted in the review dialog. */
+export type FlashcardSource = 'manual' | 'ai'
+
 export interface Flashcard {
   id: number
   module_id: number
   submodule_id: number | null
   front: string
   back: string
+  source: FlashcardSource
   ease_factor: number
   interval_days: number
   repetitions: number
@@ -229,6 +233,41 @@ export type SubmoduleUpdateInput = Partial<Omit<SubmoduleCreateInput, 'module_id
 export interface FlashcardCreateInput {
   module_id: number
   submodule_id?: number | null
+  front: string
+  back: string
+  /** Defaults to `manual` on the backend. */
+  source?: FlashcardSource
+}
+
+/** One extractable Attachment in a Submodule's AI source material. */
+export interface SourceAttachment {
+  attachment_id: number
+  filename: string
+  kind: AttachmentKind
+  /** A PDF that yielded almost no text; the original can be sent instead after opting in. */
+  near_empty: boolean
+  send_raw_pdf: boolean
+  /** As it would be sent now (0 when extraction failed). */
+  estimated_tokens: number
+  /** Near-empty PDFs only: the estimated cost of sending the original. */
+  raw_pdf_estimated_tokens: number | null
+  /** Extraction failed; the file is left out. */
+  error: string | null
+}
+
+/** What an AI feature would send for a Submodule (note + Attachment text) and its rough size. */
+export interface SubmoduleSourceEstimate {
+  submodule_id: number
+  note_estimated_tokens: number
+  estimated_tokens: number
+  large: boolean
+  large_threshold_tokens: number
+  /** Nothing to send: blank note and no usable Attachments. */
+  is_empty: boolean
+  attachments: SourceAttachment[]
+}
+
+export interface FlashcardProposal {
   front: string
   back: string
 }
@@ -423,6 +462,21 @@ export function reviewFlashcard(id: number, quality: number) {
 
 export function createFlashcard(input: FlashcardCreateInput) {
   return postJson<Flashcard>('/flashcards', input)
+}
+
+/**
+ * Estimates a Submodule's AI source material. Converts its Attachments on first use, so it can
+ * take a few seconds. `rawPdfIds` are near-empty PDFs to send as the original file instead.
+ */
+export function getSubmoduleAISource(submoduleId: number, rawPdfIds: number[] = []) {
+  const params = new URLSearchParams()
+  for (const id of rawPdfIds) params.append('raw_pdf_ids', String(id))
+  return request<SubmoduleSourceEstimate>(`/submodules/${submoduleId}/ai-source?${params}`)
+}
+
+/** Proposals only; nothing is saved. Accepted cards go through `createFlashcard` with `source: 'ai'`. */
+export function generateFlashcards(submoduleId: number, input: { count: number; raw_pdf_ids: number[] }) {
+  return postJson<{ proposals: FlashcardProposal[] }>(`/submodules/${submoduleId}/flashcards/generate`, input)
 }
 
 export function deleteFlashcard(id: number) {

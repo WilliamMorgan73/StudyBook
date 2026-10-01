@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AttachmentList } from '@/components/AttachmentList'
+import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { StudySession } from '@/components/StudySession'
@@ -229,6 +230,12 @@ export function SubmodulePage() {
         right={
           <>
             <StudySession scope={{ submoduleId: id }} title={submodule.title} />
+            <GenerateFlashcardsDialog
+              submodule={submodule}
+              aiEnabled={appSettings?.ai_enabled}
+              beforeOpen={saveContent}
+              onSaved={refetch}
+            />
             <Button
               variant={sourceMode ? 'secondary' : 'ghost'}
               size="sm"
