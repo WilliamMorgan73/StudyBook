@@ -21,14 +21,16 @@ from app.models.flashcard import Flashcard
 from app.models.module import Module
 from app.models.submodule import Submodule
 from app.schemas.flashcard import FlashcardCreate
-from app.services.ai import FakeAIClient
+from app.services.ai import AIError, FakeAIClient
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC).replace(tzinfo=None)
 SLIDES_TEXT = "Dijkstra's algorithm relaxes edges in order of distance using a priority queue. " * 3
 
 
 @pytest.fixture
-def db() -> Iterator[Session]:
+def db(monkeypatch) -> Iterator[Session]:
+    # `updated_at`'s onupdate is the Postgres string "now()", which SQLite's DateTime rejects.
+    monkeypatch.setattr(Submodule.__table__.c.updated_at, "onupdate", None)
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     for model in (AppSettings, Module, Submodule, Attachment, Flashcard):
         model.__table__.create(engine)
@@ -108,3 +110,65 @@ def test_create_payload_carries_the_source():
     card = Flashcard(**FlashcardCreate(module_id=1, front="Q", back="A", source="ai").model_dump())
     assert card.source == FlashcardSource.ai
     assert FlashcardCreate(module_id=1, front="Q", back="A").source == FlashcardSource.manual
+
+
+def test_read_payload_has_no_summary_and_is_not_stale_by_default(client):
+    body = client.get("/submodules/1").json()
+
+    assert body["summary_markdown"] is None
+    assert body["summary_stale"] is False
+
+
+def test_summarize_stores_summary_and_hash_then_stale_flag_follows_the_note(client, db):
+    fake = FakeAIClient(text_replies=["## Graphs\n\nVertices and edges."])
+    app.dependency_overrides[get_ai_client] = lambda: fake
+
+    response = client.post("/submodules/1/summary", json={})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary_markdown"] == "## Graphs\n\nVertices and edges."
+    assert body["summary_stale"] is False
+    assert "Notes on graphs." in fake.requests[0]["prompt"]
+    assert SLIDES_TEXT.strip() in fake.requests[0]["prompt"]
+    assert len(db.get(Submodule, 1).summary_source_hash) == 64
+
+    assert client.get("/submodules/1").json()["summary_stale"] is False
+    patched = client.patch("/submodules/1", json={"content_markdown": "Notes on graphs, edited."}).json()
+    assert patched["summary_stale"] is True
+    assert patched["summary_markdown"] == "## Graphs\n\nVertices and edges."  # never regenerated automatically
+    assert client.get("/submodules/1").json()["summary_stale"] is True
+
+
+def test_summarize_with_raw_pdf_sends_the_document_and_rejects_other_ids(client, monkeypatch):
+    monkeypatch.setattr("app.services.submodule_summary.Path.read_bytes", lambda self: b"%PDF raw")
+    fake = FakeAIClient(text_replies=["Summary."])
+    app.dependency_overrides[get_ai_client] = lambda: fake
+
+    assert client.post("/submodules/1/summary", json={"raw_pdf_ids": [1]}).status_code == 422
+    response = client.post("/submodules/1/summary", json={"raw_pdf_ids": [2]})
+
+    assert response.status_code == 200
+    [doc] = fake.requests[0]["documents"]
+    assert doc.title == "scan.pdf" and doc.data == b"%PDF raw"
+    # The raw-PDF opt-in doesn't change the material's hash, so the summary isn't stale.
+    assert response.json()["summary_stale"] is False
+
+
+def test_failed_summary_keeps_the_previous_one(client, db):
+    db.get(Submodule, 1).summary_markdown = "Old summary."
+    db.commit()
+    app.dependency_overrides[get_ai_client] = lambda: FakeAIClient(text_replies=[AIError("rate_limit", "Slow down.")])
+
+    response = client.post("/submodules/1/summary", json={})
+
+    assert response.status_code == 429
+    assert response.json() == {"detail": "Slow down.", "kind": "rate_limit"}
+    assert db.get(Submodule, 1).summary_markdown == "Old summary."
+
+
+def test_summarize_without_a_key_is_not_configured(client):
+    response = client.post("/submodules/1/summary", json={})
+
+    assert response.status_code == 409
+    assert response.json()["kind"] == "not_configured"

@@ -14,6 +14,7 @@ from app.schemas.flashcard import (
     FlashcardProposal,
     FlashcardProposals,
 )
+from app.schemas.submodule import SubmoduleDetail, SubmoduleSummaryRequest
 from app.services.ai import AIClient
 from app.services.flashcard_generation import generate_flashcards
 from app.services.submodule_source import (
@@ -21,6 +22,7 @@ from app.services.submodule_source import (
     SubmoduleSource,
     gather_submodule_source,
 )
+from app.services.submodule_summary import source_hash, summarize
 
 router = APIRouter(prefix="/submodules", tags=["ai"])
 
@@ -70,3 +72,27 @@ def generate_submodule_flashcards(
     except OSError as exc:
         raise HTTPException(422, f"Couldn't read a PDF to send: {exc}") from exc
     return FlashcardProposals(proposals=[FlashcardProposal(front=c.front, back=c.back) for c in cards])
+
+
+@router.post("/{submodule_id}/summary", response_model=SubmoduleDetail)
+def summarize_submodule(
+    submodule_id: int,
+    payload: SubmoduleSummaryRequest,
+    db: Session = Depends(get_db),
+    ai: AIClient = Depends(get_ai_client),
+) -> SubmoduleDetail:
+    """Generates (or regenerates) the Submodule's summary and stores it with the source hash it
+    was made from. Only ever runs on request. A failure leaves any previous summary untouched."""
+    source = load_submodule_source(db, submodule_id, payload.raw_pdf_ids)
+    if source.is_empty:
+        raise HTTPException(422, "There's nothing to summarise yet: write some notes or attach lecture files.")
+    try:
+        summary = summarize(ai, source)
+    except OSError as exc:
+        raise HTTPException(422, f"Couldn't read a PDF to send: {exc}") from exc
+    submodule = db.get(Submodule, submodule_id)
+    submodule.summary_markdown = summary
+    submodule.summary_source_hash = source_hash(source)
+    db.commit()
+    db.refresh(submodule)
+    return SubmoduleDetail.from_submodule(submodule)
