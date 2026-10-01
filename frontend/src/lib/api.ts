@@ -1,5 +1,7 @@
 const API_BASE = '/api'
 
+export type AssignmentKind = 'coursework' | 'exam'
+
 export type AssignmentStatus = 'not_started' | 'in_progress' | 'submitted' | 'graded'
 
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
@@ -75,12 +77,16 @@ export interface Assignment {
   grade_earned: number | null
   grade_max: number | null
   notes_markdown: string
+  kind: AssignmentKind
+  /** Exam-only; for exams `due_at` is the exam start. */
+  duration_minutes: number | null
+  location: string | null
   attachments: Attachment[]
   todos: Todo[]
 }
 
 export interface CalendarEvent {
-  kind: 'lecture' | 'assignment_due'
+  kind: 'lecture' | 'assignment_due' | 'exam'
   id: number
   module_id: number
   title: string
@@ -165,6 +171,9 @@ export interface AssignmentCreateInput {
   description?: string | null
   due_at?: string | null
   weight_percent: number
+  kind?: AssignmentKind
+  duration_minutes?: number | null
+  location?: string | null
 }
 
 export type AssignmentUpdateInput = Partial<Omit<AssignmentCreateInput, 'module_id'>> & {

@@ -1,12 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { ExamFields } from '@/components/ExamFields'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteAssignment, toNaiveDateTime, updateAssignment, type Assignment } from '@/lib/api'
+import { examFieldsPayload, type ExamFormState } from '@/lib/exam'
+
+function examFormState(
+  kind: Assignment['kind'],
+  durationMinutes: number | null,
+  location: string | null,
+): ExamFormState {
+  return { isExam: kind === 'exam', duration: durationMinutes ? String(durationMinutes) : '', location: location ?? '' }
+}
 
 function toLocalInput(iso: string) {
   const date = new Date(iso)
@@ -32,6 +42,9 @@ export function AssignmentSettingsDialog({
   const [dueAt, setDueAt] = useState(assignment.due_at ? toLocalInput(assignment.due_at) : '')
   const [weight, setWeight] = useState(String(assignment.weight_percent))
   const [description, setDescription] = useState(assignment.description ?? '')
+  const [exam, setExam] = useState(() =>
+    examFormState(assignment.kind, assignment.duration_minutes, assignment.location),
+  )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -41,14 +54,29 @@ export function AssignmentSettingsDialog({
       setDueAt(assignment.due_at ? toLocalInput(assignment.due_at) : '')
       setWeight(String(assignment.weight_percent))
       setDescription(assignment.description ?? '')
+      setExam(examFormState(assignment.kind, assignment.duration_minutes, assignment.location))
       setError(null)
     }
-  }, [open, assignment.title, assignment.due_at, assignment.weight_percent, assignment.description])
+  }, [
+    open,
+    assignment.title,
+    assignment.due_at,
+    assignment.weight_percent,
+    assignment.description,
+    assignment.kind,
+    assignment.duration_minutes,
+    assignment.location,
+  ])
 
   async function handleSave() {
     const weightValue = Number(weight)
     if (!title.trim() || !weight || weightValue <= 0 || weightValue > 100) {
       setError('Title and a weighting between 0 and 100 are required.')
+      return
+    }
+    const examFields = examFieldsPayload(exam)
+    if ('error' in examFields) {
+      setError(examFields.error)
       return
     }
     setSaving(true)
@@ -59,6 +87,7 @@ export function AssignmentSettingsDialog({
         due_at: dueAt ? toNaiveDateTime(new Date(dueAt)) : null,
         weight_percent: weightValue,
         description: description.trim() || null,
+        ...examFields,
       })
       onOpenChange(false)
       onChanged()
@@ -90,7 +119,7 @@ export function AssignmentSettingsDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="assignment-due">Due date</Label>
+              <Label htmlFor="assignment-due">{exam.isExam ? 'Exam start' : 'Due date'}</Label>
               <Input id="assignment-due" type="datetime-local" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
             </div>
             <div className="space-y-1.5">
@@ -106,6 +135,8 @@ export function AssignmentSettingsDialog({
               />
             </div>
           </div>
+
+          <ExamFields value={exam} onChange={setExam} />
 
           <div className="space-y-1.5">
             <Label htmlFor="assignment-description">Description</Label>

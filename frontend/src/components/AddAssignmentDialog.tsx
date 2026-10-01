@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { ExamFields } from '@/components/ExamFields'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,6 +13,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createAssignment, toNaiveDateTime, type Assignment } from '@/lib/api'
+import { examFieldsPayload, type ExamFormState } from '@/lib/exam'
+
+const NO_EXAM: ExamFormState = { isExam: false, duration: '', location: '' }
 
 export function AddAssignmentDialog({
   moduleId,
@@ -24,6 +28,7 @@ export function AddAssignmentDialog({
   const [title, setTitle] = useState('')
   const [dueAt, setDueAt] = useState('')
   const [weight, setWeight] = useState('')
+  const [exam, setExam] = useState<ExamFormState>(NO_EXAM)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,6 +36,7 @@ export function AddAssignmentDialog({
     setTitle('')
     setDueAt('')
     setWeight('')
+    setExam(NO_EXAM)
     setError(null)
   }
 
@@ -45,6 +51,11 @@ export function AddAssignmentDialog({
       setError('Weighting must be a number between 0 and 100.')
       return
     }
+    const examFields = examFieldsPayload(exam)
+    if ('error' in examFields) {
+      setError(examFields.error)
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -53,6 +64,7 @@ export function AddAssignmentDialog({
         title: title.trim(),
         due_at: dueAt ? toNaiveDateTime(new Date(dueAt)) : null,
         weight_percent: weightValue,
+        ...examFields,
       })
       onCreated(created)
       setOpen(false)
@@ -97,7 +109,7 @@ export function AddAssignmentDialog({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="assignment-due">Due date</Label>
+                <Label htmlFor="assignment-due">{exam.isExam ? 'Exam start' : 'Due date'}</Label>
                 <Input
                   id="assignment-due"
                   type="datetime-local"
@@ -119,6 +131,8 @@ export function AddAssignmentDialog({
                 />
               </div>
             </div>
+
+            <ExamFields value={exam} onChange={setExam} />
 
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>

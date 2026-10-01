@@ -4,7 +4,7 @@ from sqlalchemy import Enum, ForeignKey, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models.enums import AssignmentStatus
+from app.models.enums import AssignmentKind, AssignmentStatus
 
 
 class Assignment(Base):
@@ -22,6 +22,12 @@ class Assignment(Base):
     grade_earned: Mapped[float | None] = mapped_column(Numeric(6, 2))
     grade_max: Mapped[float | None] = mapped_column(Numeric(6, 2))
     notes_markdown: Mapped[str] = mapped_column(default="")
+    kind: Mapped[AssignmentKind] = mapped_column(
+        Enum(AssignmentKind, native_enum=False), default=AssignmentKind.coursework, server_default="coursework"
+    )
+    # Exam-only; for exams `due_at` is the exam start.
+    duration_minutes: Mapped[int | None]
+    location: Mapped[str | None] = mapped_column(String(200))
 
     module: Mapped["Module"] = relationship(back_populates="assignments")  # noqa: F821
     attachments: Mapped[list["Attachment"]] = relationship(back_populates="assignment", cascade="all, delete-orphan")  # noqa: F821

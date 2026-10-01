@@ -34,7 +34,10 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
         <div className="min-w-0">
           <p className="truncate font-medium">{assignment.title}</p>
           <p className="text-sm text-muted-foreground">
-            {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot;{' '}
+            {assignment.due_at
+              ? `${assignment.kind === 'exam' ? 'Exam' : 'Due'} ${formatDate(assignment.due_at)}`
+              : 'No due date'}{' '}
+            &middot;{' '}
             {assignment.weight_percent}% of grade
           </p>
         </div>
@@ -149,7 +152,11 @@ export function ModulePage() {
             <CardTitle>Schedule</CardTitle>
           </CardHeader>
           <CardContent>
-            <ModuleWeekCalendar lectures={module.lectures} color={module.color} />
+            <ModuleWeekCalendar
+              lectures={module.lectures}
+              exams={module.assignments.filter((a) => a.kind === 'exam')}
+              color={module.color}
+            />
           </CardContent>
         </Card>
 

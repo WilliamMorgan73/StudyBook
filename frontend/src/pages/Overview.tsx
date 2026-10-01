@@ -7,6 +7,7 @@ import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AddModuleTile } from '@/components/AddModuleTile'
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
+import { EventMarker } from '@/components/EventMarker'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
 import { PageHeader } from '@/components/PageHeader'
@@ -133,12 +134,16 @@ export function Overview() {
                   />
                   <div className="flex items-center gap-4 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1.5">
-                      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                      <EventMarker kind="lecture" />
                       Lecture
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="size-1.5 rotate-45 rounded-[1px] bg-current" aria-hidden />
+                      <EventMarker kind="assignment_due" />
                       Assignment due
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <EventMarker kind="exam" />
+                      Exam
                     </span>
                   </div>
                   <div className="border-t pt-2">
@@ -161,12 +166,10 @@ export function Overview() {
                                 }
                                 className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
                               >
-                                <span
-                                  className={`size-1.5 shrink-0 ${
-                                    event.kind === 'lecture' ? 'rounded-full' : 'rotate-45 rounded-[1px]'
-                                  }`}
-                                  style={{ backgroundColor: moduleColor(event.module_id) }}
-                                  aria-hidden
+                                <EventMarker
+                                  kind={event.kind}
+                                  color={moduleColor(event.module_id)}
+                                  className="shrink-0"
                                 />
                                 <span className="truncate">{event.title}</span>
                                 <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
@@ -179,7 +182,7 @@ export function Overview() {
                                       })}
                                 </span>
                               </button>
-                              {isExpanded && event.kind === 'lecture' && (
+                              {isExpanded && event.kind !== 'assignment_due' && (
                                 <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
                                   <p>
                                     {new Date(event.starts_at).toLocaleTimeString(undefined, {
@@ -194,7 +197,7 @@ export function Overview() {
                                   </p>
                                   {event.location && <p>{event.location}</p>}
                                   <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                    Open module &rarr;
+                                    {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
                                   </Link>
                                 </div>
                               )}
