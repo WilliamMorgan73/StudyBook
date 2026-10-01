@@ -47,6 +47,8 @@ Both use the same category-sidebar shell.
 
 **Flashcard generation.** `GenerateFlashcardsDialog` (SubmodulePage header, "Generate cards") flushes the note via `beforeOpen`, then: count (1–30, `lib/flashcardReview.ts::clampCardCount`) + source panel → `POST .../flashcards/generate` → review list. Each proposal renders with `FlashcardFace` (the study session's card face, markdown + KaTeX) and can be accepted (created immediately via `createFlashcard` with `source: 'ai'`), edited (textareas, `validateEdit`) or rejected; "Accept all remaining" saves the pending ones in order. Closing never saves pending proposals; `onSaved` refetches on close if anything was saved. Review state helpers live in `lib/flashcardReview.ts`.
 
+**Summaries.** `components/SubmoduleSummary.tsx`. `getSubmodule`/`updateSubmodule` return `SubmoduleDetail` (`summary_markdown`, `summary_stale`). With no summary, the SubmodulePage header shows "Summarize" (`AIActionButton`); once one exists, `SubmoduleSummary` renders it above the editor (collapsible, collapsed state in `localStorage`, `MarkdownView` for markdown + KaTeX) with Regenerate and a "Notes changed since this summary" badge when stale. Both open the controlled `SummarizeDialog` (source panel → `POST /submodules/{id}/summary`) after flushing the note; success refetches the Submodule. The stale badge updates on its own because note saves refetch.
+
 ## Theming
 
 `lib/theme.ts`: `SKINS` (`default`/`slate`/`sepia`, CSS variables in `index.css` under `:root[data-skin="…"]` and `.dark`) and `applyTheme(mode, skin)`, which toggles `.dark` and sets `data-skin` (resolving `system` via `prefers-color-scheme`). `App.tsx` calls `useApplyTheme()` once. `index.css` also:

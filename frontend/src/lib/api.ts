@@ -160,6 +160,14 @@ export interface Submodule {
   attachments: Attachment[]
 }
 
+/** A single Submodule as its own endpoints return it: with its AI summary. */
+export interface SubmoduleDetail extends Submodule {
+  /** Generated on request only; never regenerated automatically. */
+  summary_markdown: string | null
+  /** The note or Attachments changed since the summary was generated (false with no summary). */
+  summary_stale: boolean
+}
+
 export interface SubmoduleIndexEntry {
   id: number
   title: string
@@ -411,15 +419,15 @@ export function deleteAttachment(id: number) {
 }
 
 export function getSubmodule(id: number) {
-  return request<Submodule>(`/submodules/${id}`)
+  return request<SubmoduleDetail>(`/submodules/${id}`)
 }
 
 export function createSubmodule(input: SubmoduleCreateInput) {
-  return postJson<Submodule>('/submodules', input)
+  return postJson<SubmoduleDetail>('/submodules', input)
 }
 
 export function updateSubmodule(id: number, input: SubmoduleUpdateInput) {
-  return patchJson<Submodule>(`/submodules/${id}`, input)
+  return patchJson<SubmoduleDetail>(`/submodules/${id}`, input)
 }
 
 export function deleteSubmodule(id: number) {
@@ -477,6 +485,11 @@ export function getSubmoduleAISource(submoduleId: number, rawPdfIds: number[] = 
 /** Proposals only; nothing is saved. Accepted cards go through `createFlashcard` with `source: 'ai'`. */
 export function generateFlashcards(submoduleId: number, input: { count: number; raw_pdf_ids: number[] }) {
   return postJson<{ proposals: FlashcardProposal[] }>(`/submodules/${submoduleId}/flashcards/generate`, input)
+}
+
+/** Generates (or regenerates) and stores the Submodule's summary; returns the updated Submodule. */
+export function summarizeSubmodule(submoduleId: number, input: { raw_pdf_ids: number[] }) {
+  return postJson<SubmoduleDetail>(`/submodules/${submoduleId}/summary`, input)
 }
 
 export function deleteFlashcard(id: number) {
