@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { Settings as SettingsIcon, Trash2, ArrowLeft} from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, useParams } from 'react-router-dom'
@@ -23,10 +23,25 @@ import {
   uploadAssignmentAttachment,
   type Todo,
 } from '@/lib/api'
+import { examEndsAt } from '@/lib/exam'
 import { useAsync } from '@/lib/useAsync'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatTime(date: Date) {
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+/** "Exam Jun 1, 2026, 9:00 AM – 11:00 AM · Sports Hall": an exam's `due_at` is its start time. */
+function formatExamWhen(startsAt: string, durationMinutes: number | null, location: string | null) {
+  const end = examEndsAt(startsAt, durationMinutes)
+  return (
+    `Exam ${formatDate(startsAt)}, ${formatTime(new Date(startsAt))}` +
+    (end ? ` – ${formatTime(end)}` : '') +
+    (location ? ` · ${location}` : '')
+  )
 }
 
 function NewTodoForm({ assignmentId, onCreated }: { assignmentId: number; onCreated: () => void }) {
@@ -119,6 +134,7 @@ export function AssignmentPage() {
 
   const overdue =
     assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
+  const isExam = assignment.kind === 'exam'
 
   function startEditingNotes() {
     setNotes(assignment!.notes_markdown)
@@ -140,9 +156,14 @@ export function AssignmentPage() {
     <div className="min-h-full">
       <PageHeader
         left={
-          <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; Module
-          </Link>
+        <Link
+          to={`/modules/${moduleId}`}
+          aria-label={`Back to ${module?.name ?? "module"}`}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="truncate">{module?.name}</span>
+        </Link>
         }
         right={
           <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
@@ -160,13 +181,21 @@ export function AssignmentPage() {
               {module?.credits !== null && module?.credits !== undefined && ` · ${module.credits} credits`}
               {' · '}
               <span className={overdue ? 'font-medium text-destructive' : ''}>
-                {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'}
+                {!assignment.due_at
+                  ? 'No due date'
+                  : isExam
+                    ? formatExamWhen(assignment.due_at, assignment.duration_minutes, assignment.location)
+                    : `Due ${formatDate(assignment.due_at)}`}
               </span>
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-8 text-right">
             <div>
-              <Countdown target={assignment.due_at} noneLabel="No due date" arrivedLabel="Due now" />
+              <Countdown
+                target={assignment.due_at}
+                noneLabel="No due date"
+                arrivedLabel={isExam ? 'Exam started' : 'Due now'}
+              />
               <p className="mt-0.5 text-sm text-muted-foreground">{assignment.weight_percent}% of grade</p>
             </div>
             <AssignmentCompletion assignment={assignment} onChanged={refetch} />
@@ -214,6 +243,24 @@ export function AssignmentPage() {
           )}
         </section>
 
+        {assignment.covered_submodules.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-lg font-medium">Covers</h2>
+            <ul className="flex flex-wrap gap-2">
+              {assignment.covered_submodules.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    to={`/modules/${moduleId}/submodules/${s.id}`}
+                    className="inline-block rounded-lg border px-2.5 py-1 text-sm transition-colors hover:bg-muted"
+                  >
+                    {s.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <AttachmentList
           title="Files"
           attachments={assignment.attachments}
@@ -239,6 +286,7 @@ export function AssignmentPage() {
       <AssignmentSettingsDialog
         moduleId={Number(moduleId)}
         assignment={assignment}
+        submodules={module?.submodules ?? []}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onChanged={refetch}

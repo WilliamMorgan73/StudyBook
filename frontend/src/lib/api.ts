@@ -1,5 +1,7 @@
 const API_BASE = '/api'
 
+export type AssignmentKind = 'coursework' | 'exam'
+
 export type AssignmentStatus = 'not_started' | 'in_progress' | 'submitted' | 'graded'
 
 export const ASSIGNMENT_STATUS_LABEL: Record<AssignmentStatus, string> = {
@@ -75,12 +77,17 @@ export interface Assignment {
   grade_earned: number | null
   grade_max: number | null
   notes_markdown: string
+  kind: AssignmentKind
+  /** Exam-only; for exams `due_at` is the exam start. */
+  duration_minutes: number | null
+  location: string | null
   attachments: Attachment[]
   todos: Todo[]
+  covered_submodules: { id: number; title: string }[]
 }
 
 export interface CalendarEvent {
-  kind: 'lecture' | 'assignment_due'
+  kind: 'lecture' | 'assignment_due' | 'exam'
   id: number
   module_id: number
   title: string
@@ -165,6 +172,11 @@ export interface AssignmentCreateInput {
   description?: string | null
   due_at?: string | null
   weight_percent: number
+  kind?: AssignmentKind
+  duration_minutes?: number | null
+  location?: string | null
+  /** Omit on create for the default: every Submodule for an exam, none for coursework. */
+  covered_submodule_ids?: number[]
 }
 
 export type AssignmentUpdateInput = Partial<Omit<AssignmentCreateInput, 'module_id'>> & {
@@ -342,6 +354,18 @@ export function listFlashcards(filter: { moduleId?: number; submoduleId?: number
   if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
   if (filter.submoduleId !== undefined) params.set('submodule_id', String(filter.submoduleId))
   return request<Flashcard[]>(`/flashcards?${params}`)
+}
+
+export function listDueFlashcards(scope: { moduleId?: number; submoduleId?: number }) {
+  const params = new URLSearchParams()
+  if (scope.moduleId !== undefined) params.set('module_id', String(scope.moduleId))
+  if (scope.submoduleId !== undefined) params.set('submodule_id', String(scope.submoduleId))
+  return request<Flashcard[]>(`/flashcards/due?${params}`)
+}
+
+/** `quality` is SM-2's 0–5 recall rating; >=3 counts as correct. */
+export function reviewFlashcard(id: number, quality: number) {
+  return postJson<Flashcard>(`/flashcards/${id}/review`, { quality })
 }
 
 export function createFlashcard(input: FlashcardCreateInput) {

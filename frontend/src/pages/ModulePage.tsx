@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react'
+import { Settings, ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -9,6 +9,7 @@ import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { ModuleWeekCalendar } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
+import { StudySession } from '@/components/StudySession'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -33,7 +34,10 @@ function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment:
         <div className="min-w-0">
           <p className="truncate font-medium">{assignment.title}</p>
           <p className="text-sm text-muted-foreground">
-            {assignment.due_at ? `Due ${formatDate(assignment.due_at)}` : 'No due date'} &middot;{' '}
+            {assignment.due_at
+              ? `${assignment.kind === 'exam' ? 'Exam' : 'Due'} ${formatDate(assignment.due_at)}`
+              : 'No due date'}{' '}
+            &middot;{' '}
             {assignment.weight_percent}% of grade
           </p>
         </div>
@@ -100,8 +104,9 @@ export function ModulePage() {
     <div className="min-h-full">
       <PageHeader
         left={
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-            &larr; Overview
+          <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="truncate">Overview</span>
           </Link>
         }
         right={
@@ -147,7 +152,11 @@ export function ModulePage() {
             <CardTitle>Schedule</CardTitle>
           </CardHeader>
           <CardContent>
-            <ModuleWeekCalendar lectures={module.lectures} color={module.color} />
+            <ModuleWeekCalendar
+              lectures={module.lectures}
+              exams={module.assignments.filter((a) => a.kind === 'exam')}
+              color={module.color}
+            />
           </CardContent>
         </Card>
 
@@ -177,7 +186,7 @@ export function ModulePage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Assignments</CardTitle>
-                <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+                <AddAssignmentDialog moduleId={module.id} submodules={module.submodules} onCreated={refetch} />
               </div>
             </CardHeader>
             <CardContent>
@@ -195,7 +204,10 @@ export function ModulePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Flashcards</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Flashcards</CardTitle>
+                <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
+              </div>
             </CardHeader>
             <CardContent>
               {module.flashcards.length === 0 ? (

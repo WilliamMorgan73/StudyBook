@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AttachmentList } from '@/components/AttachmentList'
 import { MarkdownEditor } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
+import { StudySession } from '@/components/StudySession'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -185,14 +186,14 @@ export function SubmodulePage() {
       <PageHeader
         left={
           <>
-            <Link
-              to={`/modules/${moduleId}`}
-              aria-label="Back to module"
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-            </Link>
-            <span className="truncate text-sm text-muted-foreground">{module?.name}</span>
+        <Link
+          to={`/modules/${moduleId}`}
+          aria-label={`Back to ${module?.name ?? "module"}`}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="truncate">{module?.name}</span>
+        </Link>
             <span className="text-muted-foreground">/</span>
             {editingTitle ? (
               <input
@@ -222,6 +223,7 @@ export function SubmodulePage() {
         }
         right={
           <>
+            <StudySession scope={{ submoduleId: id }} title={submodule.title} />
             <Button
               variant={sourceMode ? 'secondary' : 'ghost'}
               size="sm"
