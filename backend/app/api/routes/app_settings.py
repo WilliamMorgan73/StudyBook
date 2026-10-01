@@ -2,32 +2,25 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.models.app_settings import AppSettings
+from app.crud.app_settings import get_or_create_settings
 from app.schemas.app_settings import AppSettingsRead, AppSettingsUpdate
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
 
-def _get_or_create(db: Session) -> AppSettings:
-    settings = db.get(AppSettings, 1)
-    if settings is None:
-        settings = AppSettings(id=1, max_credits=None)
-        db.add(settings)
-        db.commit()
-        db.refresh(settings)
-    return settings
-
-
 @router.get("", response_model=AppSettingsRead)
-def get_settings(db: Session = Depends(get_db)) -> AppSettings:
-    return _get_or_create(db)
+def get_settings(db: Session = Depends(get_db)) -> AppSettingsRead:
+    return AppSettingsRead.from_row(get_or_create_settings(db))
 
 
 @router.patch("", response_model=AppSettingsRead)
-def update_settings(payload: AppSettingsUpdate, db: Session = Depends(get_db)) -> AppSettings:
-    settings = _get_or_create(db)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+def update_settings(payload: AppSettingsUpdate, db: Session = Depends(get_db)) -> AppSettingsRead:
+    settings = get_or_create_settings(db)
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("ai_model", "") is None:
+        del changes["ai_model"]
+    for field, value in changes.items():
         setattr(settings, field, value)
     db.commit()
     db.refresh(settings)
-    return settings
+    return AppSettingsRead.from_row(settings)
