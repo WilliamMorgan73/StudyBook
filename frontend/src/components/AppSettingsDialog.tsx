@@ -41,6 +41,11 @@ export function AppSettingsDialog({
   const [maxCredits, setMaxCredits] = useState(settings.max_credits !== null ? String(settings.max_credits) : '')
   const [savingCredits, setSavingCredits] = useState(false)
   const [fontSizeDraft, setFontSizeDraft] = useState(String(settings.note_font_size))
+  // Theme mode and skin are applied together, so each click must pair with the latest pick of the
+  // other, not the `settings` prop, which lags until the refetch lands (skin-then-mode clicked
+  // quickly would otherwise re-apply the old skin).
+  const [themeMode, setThemeMode] = useState(settings.theme_mode)
+  const [skin, setSkin] = useState(settings.skin)
   const keybinds: EditorKeybinds = {
     bold: settings.keybind_bold,
     italic: settings.keybind_italic,
@@ -57,6 +62,8 @@ export function AppSettingsDialog({
       setCategory('appearance')
       setMaxCredits(settings.max_credits !== null ? String(settings.max_credits) : '')
       setFontSizeDraft(String(settings.note_font_size))
+      setThemeMode(settings.theme_mode)
+      setSkin(settings.skin)
     }
   }
 
@@ -71,13 +78,15 @@ export function AppSettingsDialog({
   }
 
   async function handleThemeMode(mode: ThemeMode) {
-    applyTheme(mode, settings.skin)
+    setThemeMode(mode)
+    applyTheme(mode, skin)
     await updateAppSettings({ theme_mode: mode })
     onChanged()
   }
 
   async function handleSkin(nextSkin: Skin) {
-    applyTheme(settings.theme_mode, nextSkin)
+    setSkin(nextSkin)
+    applyTheme(themeMode, nextSkin)
     await updateAppSettings({ skin: nextSkin })
     onChanged()
   }
@@ -134,7 +143,7 @@ export function AppSettingsDialog({
               <>
                 <div className="space-y-2">
                   <Label>Theme</Label>
-                  <Tabs value={settings.theme_mode} onValueChange={(v) => handleThemeMode(v as ThemeMode)}>
+                  <Tabs value={themeMode} onValueChange={(v) => handleThemeMode(v as ThemeMode)}>
                     <TabsList>
                       <TabsTrigger value="light">Light</TabsTrigger>
                       <TabsTrigger value="dark">Dark</TabsTrigger>
@@ -151,9 +160,9 @@ export function AppSettingsDialog({
                         key={s.id}
                         type="button"
                         onClick={() => handleSkin(s.id)}
-                        aria-pressed={settings.skin === s.id}
+                        aria-pressed={skin === s.id}
                         className={`flex flex-col items-center gap-1.5 rounded-lg p-2 transition-shadow ${
-                          settings.skin === s.id ? 'ring-2 ring-foreground' : 'ring-1 ring-border hover:ring-foreground/40'
+                          skin === s.id ? 'ring-2 ring-foreground' : 'ring-1 ring-border hover:ring-foreground/40'
                         }`}
                       >
                         <span
