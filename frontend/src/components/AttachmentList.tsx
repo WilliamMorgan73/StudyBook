@@ -1,6 +1,7 @@
-import { Paperclip, Trash2 } from 'lucide-react'
+import { FileText, Paperclip, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
+import { ExtractedTextDialog } from '@/components/ExtractedTextDialog'
 import { Button } from '@/components/ui/button'
 import { deleteAttachment, type Attachment } from '@/lib/api'
 
@@ -17,6 +18,8 @@ export function AttachmentList({
 }) {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [viewing, setViewing] = useState<Attachment | null>(null)
+  const [viewingOpen, setViewingOpen] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
 
   async function handleUpload(file: File) {
@@ -74,6 +77,20 @@ export function AttachmentList({
               >
                 {a.filename}
               </a>
+              {a.text_extractable && (
+                <Button
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label="View extracted text"
+                  title="View extracted text"
+                  onClick={() => {
+                    setViewing(a)
+                    setViewingOpen(true)
+                  }}
+                >
+                  <FileText />
+                </Button>
+              )}
               <Button size="icon-sm" variant="ghost" aria-label="Delete file" onClick={() => handleDelete(a.id)}>
                 <Trash2 />
               </Button>
@@ -81,6 +98,7 @@ export function AttachmentList({
           ))}
         </ul>
       )}
+      <ExtractedTextDialog attachment={viewing} open={viewingOpen} onOpenChange={setViewingOpen} />
     </section>
   )
 }

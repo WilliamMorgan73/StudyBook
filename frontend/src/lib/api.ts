@@ -56,6 +56,17 @@ export interface Attachment {
   file_path: string
   url: string
   uploaded_at: string
+  /** PDF/PPTX that can be converted to markdown for AI features. */
+  text_extractable: boolean
+}
+
+export interface AttachmentExtractedText {
+  attachment_id: number
+  kind: AttachmentKind
+  /** Exactly the text AI features receive for this Attachment. */
+  markdown: string
+  /** A PDF that yielded almost no text (likely scanned). */
+  near_empty: boolean
 }
 
 export interface Todo {
@@ -350,6 +361,10 @@ export function updateTodo(assignmentId: number, todoId: number, input: { text?:
 
 export function deleteTodo(assignmentId: number, todoId: number) {
   return request<void>(`/assignments/${assignmentId}/todos/${todoId}`, { method: 'DELETE' })
+}
+
+export function getAttachmentExtractedText(id: number) {
+  return request<AttachmentExtractedText>(`/attachments/${id}/extracted-text`)
 }
 
 export function deleteAttachment(id: number) {
