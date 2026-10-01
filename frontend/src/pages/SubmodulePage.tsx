@@ -1,12 +1,15 @@
-import { ArrowLeft, Code2, FileText, Layers, Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { AIActionButton } from '@/components/AIActionButton'
 import { AttachmentList } from '@/components/AttachmentList'
+import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { StudySession } from '@/components/StudySession'
+import { SubmoduleSummary, SummarizeDialog } from '@/components/SubmoduleSummary'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -119,6 +122,7 @@ export function SubmodulePage() {
 
   const [pdfOpen, setPdfOpen] = useState(false)
   const [flashcardsOpen, setFlashcardsOpen] = useState(false)
+  const [summarizeOpen, setSummarizeOpen] = useState(false)
 
   useEffect(() => {
     if (submodule) setContent(submodule.content_markdown)
@@ -151,6 +155,12 @@ export function SubmodulePage() {
       await updateSubmodule(id, { content_markdown: content })
       refetch()
     }
+  }
+
+  async function openSummarize() {
+    // Flush unsaved note edits first so the summary (and its source hash) reflects them.
+    await saveContent()
+    setSummarizeOpen(true)
   }
 
   function startEditingTitle() {
@@ -229,6 +239,18 @@ export function SubmodulePage() {
         right={
           <>
             <StudySession scope={{ submoduleId: id }} title={submodule.title} />
+            <GenerateFlashcardsDialog
+              submodule={submodule}
+              aiEnabled={appSettings?.ai_enabled}
+              beforeOpen={saveContent}
+              onSaved={refetch}
+            />
+            {/* Once a summary exists, Regenerate lives on the summary block instead. */}
+            {submodule.summary_markdown === null && (
+              <AIActionButton size="sm" variant="outline" aiEnabled={appSettings?.ai_enabled} onClick={openSummarize}>
+                <ScrollText /> Summarize
+              </AIActionButton>
+            )}
             <Button
               variant={sourceMode ? 'secondary' : 'ghost'}
               size="sm"
@@ -244,6 +266,7 @@ export function SubmodulePage() {
       />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-8 py-10">
+        <SubmoduleSummary submodule={submodule} aiEnabled={appSettings?.ai_enabled} onRegenerate={openSummarize} />
         <MarkdownEditor
           value={content}
           onChange={setContent}
@@ -286,6 +309,13 @@ export function SubmodulePage() {
           <Layers />
         </Button>
       </div>
+
+      <SummarizeDialog
+        submodule={submodule}
+        open={summarizeOpen}
+        onOpenChange={setSummarizeOpen}
+        onSummarized={() => refetchSubmodule()}
+      />
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>

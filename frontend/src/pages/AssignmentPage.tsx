@@ -9,6 +9,7 @@ import { AssignmentSettingsDialog } from '@/components/AssignmentSettingsDialog'
 import { AttachmentList } from '@/components/AttachmentList'
 import { Countdown } from '@/components/Countdown'
 import { PageHeader } from '@/components/PageHeader'
+import { RevisionPlan } from '@/components/RevisionPlan'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -260,6 +261,8 @@ export function AssignmentPage() {
             </ul>
           </section>
         )}
+
+        {isExam && <RevisionPlan exam={assignment} />}
 
         <AttachmentList
           title="Files"

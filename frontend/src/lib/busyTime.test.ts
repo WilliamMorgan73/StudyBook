@@ -31,6 +31,7 @@ function event(kind: CalendarEvent['kind'], id: number, startsAt: string): Calen
     ends_at: null,
     location: null,
     url: kind === 'busy' ? null : '/modules/1',
+    done: null,
   }
 }
 

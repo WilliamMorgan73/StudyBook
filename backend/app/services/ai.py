@@ -9,20 +9,24 @@ The interface is deliberately small:
 
 - `complete(prompt, system=..., max_tokens=...) -> str` for free text (summaries, guidance).
 - `complete_structured(prompt, schema, ...) -> schema instance` for validated JSON
-  (card proposals), via the SDK's structured-output support.
+  (card proposals), via the SDK's structured-output support. A reply that doesn't fit the
+  schema raises `AIError("unknown")`, never a raw validation error.
+- Both take optional `documents` (`AIDocument`: raw PDF bytes), sent ahead of the prompt. Only
+  used once the student has confirmed sending an original PDF (see `submodule_source`).
 - `ping()` cheaply checks that the key and model work (Settings' "Test connection").
 
 Every SDK failure surfaces as an `AIError` with a `kind` and a message a student can act on;
 `app.main` turns it into an HTTP error response.
 """
 
-from collections.abc import Callable, Iterator
+import base64
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, TypeVar
 
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings as env_settings
 
@@ -46,6 +50,8 @@ _HTTP_STATUS: dict[str, int] = {
 
 SETTINGS_HINT = "Settings → AI Integration"
 
+UNREADABLE_REPLY = "Claude's reply couldn't be read. Try again."
+
 
 class AIError(Exception):
     """A failed AI request, with a message fit to show the student as-is."""
@@ -60,15 +66,36 @@ class AIError(Exception):
         return _HTTP_STATUS[self.kind]
 
 
+@dataclass(frozen=True)
+class AIDocument:
+    """A raw PDF sent alongside the prompt as a document block."""
+
+    title: str
+    data: bytes
+
+
 class AIClient(Protocol):
     model: str
 
     def ping(self) -> None: ...
 
-    def complete(self, prompt: str, *, system: str | None = None, max_tokens: int = 4096) -> str: ...
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+        documents: Sequence[AIDocument] = (),
+    ) -> str: ...
 
     def complete_structured(
-        self, prompt: str, schema: type[T], *, system: str | None = None, max_tokens: int = 16000
+        self,
+        prompt: str,
+        schema: type[T],
+        *,
+        system: str | None = None,
+        max_tokens: int = 16000,
+        documents: Sequence[AIDocument] = (),
     ) -> T: ...
 
 
@@ -102,32 +129,69 @@ class AnthropicAIClient:
         with _mapped_errors():
             self._client.models.retrieve(self.model)
 
-    def complete(self, prompt: str, *, system: str | None = None, max_tokens: int = 4096) -> str:
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+        documents: Sequence[AIDocument] = (),
+    ) -> str:
         with _mapped_errors():
             response = self._client.messages.create(
                 model=self.model,
                 max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": _user_content(prompt, documents)}],
                 **({"system": system} if system else {}),
             )
         _check_refusal(response.stop_reason)
         return "".join(block.text for block in response.content if block.type == "text")
 
     def complete_structured(
-        self, prompt: str, schema: type[T], *, system: str | None = None, max_tokens: int = 16000
+        self,
+        prompt: str,
+        schema: type[T],
+        *,
+        system: str | None = None,
+        max_tokens: int = 16000,
+        documents: Sequence[AIDocument] = (),
     ) -> T:
         with _mapped_errors():
-            response = self._client.messages.parse(
-                model=self.model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-                output_format=schema,
-                **({"system": system} if system else {}),
-            )
+            try:
+                response = self._client.messages.parse(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": _user_content(prompt, documents)}],
+                    output_format=schema,
+                    **({"system": system} if system else {}),
+                )
+            except ValidationError as exc:
+                # The reply wasn't valid for the schema (e.g. cut off at max_tokens).
+                raise AIError("unknown", UNREADABLE_REPLY) from exc
         _check_refusal(response.stop_reason)
         if response.parsed_output is None:
-            raise AIError("unknown", "Claude's reply couldn't be read. Try again.")
+            raise AIError("unknown", UNREADABLE_REPLY)
         return response.parsed_output
+
+
+def _user_content(prompt: str, documents: Sequence[AIDocument]) -> str | list[dict]:
+    """The prompt as-is, or PDF document blocks first and the prompt last when any are attached."""
+    if not documents:
+        return prompt
+    blocks: list[dict] = [
+        {
+            "type": "document",
+            "source": {
+                "type": "base64",
+                "media_type": "application/pdf",
+                "data": base64.standard_b64encode(doc.data).decode("ascii"),
+            },
+            "title": doc.title,
+        }
+        for doc in documents
+    ]
+    blocks.append({"type": "text", "text": prompt})
+    return blocks
 
 
 def _check_refusal(stop_reason: str | None) -> None:
@@ -182,8 +246,23 @@ class FakeAIClient:
         if self.ping_error is not None:
             raise self.ping_error
 
-    def complete(self, prompt: str, *, system: str | None = None, max_tokens: int = 4096) -> str:
-        self.requests.append({"kind": "complete", "prompt": prompt, "system": system, "max_tokens": max_tokens})
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+        documents: Sequence[AIDocument] = (),
+    ) -> str:
+        self.requests.append(
+            {
+                "kind": "complete",
+                "prompt": prompt,
+                "system": system,
+                "max_tokens": max_tokens,
+                "documents": list(documents),
+            }
+        )
         if self.text_replies:
             reply = self.text_replies.pop(0)
             if isinstance(reply, AIError):
@@ -194,15 +273,31 @@ class FakeAIClient:
         return ""
 
     def complete_structured(
-        self, prompt: str, schema: type[T], *, system: str | None = None, max_tokens: int = 16000
+        self,
+        prompt: str,
+        schema: type[T],
+        *,
+        system: str | None = None,
+        max_tokens: int = 16000,
+        documents: Sequence[AIDocument] = (),
     ) -> T:
         self.requests.append(
-            {"kind": "structured", "prompt": prompt, "system": system, "schema": schema, "max_tokens": max_tokens}
+            {
+                "kind": "structured",
+                "prompt": prompt,
+                "system": system,
+                "schema": schema,
+                "max_tokens": max_tokens,
+                "documents": list(documents),
+            }
         )
         if not self.structured_replies:
             raise AssertionError("FakeAIClient has no structured reply queued")
         reply = self.structured_replies.pop(0)
         if isinstance(reply, AIError):
             raise reply
-        # Validate through the schema, as the real client does, so malformed fixtures fail loudly.
-        return schema.model_validate(reply.model_dump() if isinstance(reply, BaseModel) else reply)
+        # Validate through the schema, as the real client does: a malformed reply is an AIError.
+        try:
+            return schema.model_validate(reply.model_dump() if isinstance(reply, BaseModel) else reply)
+        except ValidationError as exc:
+            raise AIError("unknown", UNREADABLE_REPLY) from exc

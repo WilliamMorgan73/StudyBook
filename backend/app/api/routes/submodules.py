@@ -11,9 +11,9 @@ from app.models.submodule import Submodule
 from app.schemas.attachment import AttachmentRead
 from app.schemas.submodule import (
     SubmoduleCreate,
+    SubmoduleDetail,
     SubmoduleIndexEntry,
     SubmoduleLinkTarget,
-    SubmoduleRead,
     SubmoduleUpdate,
 )
 
@@ -40,25 +40,26 @@ def resolve_submodule_link(title: str, module_id: int, db: Session = Depends(get
     return SubmoduleLinkTarget(id=target.id, module_id=target.module_id)
 
 
-@router.post("", response_model=SubmoduleRead, status_code=201)
-def create_submodule(payload: SubmoduleCreate, db: Session = Depends(get_db)) -> Submodule:
+@router.post("", response_model=SubmoduleDetail, status_code=201)
+def create_submodule(payload: SubmoduleCreate, db: Session = Depends(get_db)) -> SubmoduleDetail:
     submodule = Submodule(**payload.model_dump())
     db.add(submodule)
     db.commit()
     db.refresh(submodule)
-    return submodule
+    return SubmoduleDetail.from_submodule(submodule)
 
 
-@router.get("/{submodule_id}", response_model=SubmoduleRead)
-def get_submodule(submodule_id: int, db: Session = Depends(get_db)) -> Submodule:
+@router.get("/{submodule_id}", response_model=SubmoduleDetail)
+def get_submodule(submodule_id: int, db: Session = Depends(get_db)) -> SubmoduleDetail:
+    """The Submodule page's payload: includes the AI summary and whether it's stale."""
     submodule = db.get(Submodule, submodule_id)
     if submodule is None:
         raise HTTPException(404, "Submodule not found")
-    return submodule
+    return SubmoduleDetail.from_submodule(submodule)
 
 
-@router.patch("/{submodule_id}", response_model=SubmoduleRead)
-def update_submodule(submodule_id: int, payload: SubmoduleUpdate, db: Session = Depends(get_db)) -> Submodule:
+@router.patch("/{submodule_id}", response_model=SubmoduleDetail)
+def update_submodule(submodule_id: int, payload: SubmoduleUpdate, db: Session = Depends(get_db)) -> SubmoduleDetail:
     submodule = db.get(Submodule, submodule_id)
     if submodule is None:
         raise HTTPException(404, "Submodule not found")
@@ -66,7 +67,7 @@ def update_submodule(submodule_id: int, payload: SubmoduleUpdate, db: Session = 
         setattr(submodule, field, value)
     db.commit()
     db.refresh(submodule)
-    return submodule
+    return SubmoduleDetail.from_submodule(submodule)
 
 
 @router.delete("/{submodule_id}", status_code=204)

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.crud.busy_time import BusyOccurrence, expand_personal_events
@@ -10,6 +10,7 @@ from app.models.assignment import Assignment
 from app.models.enums import AssignmentKind
 from app.models.lecture import Lecture
 from app.models.personal_event import PersonalEvent
+from app.models.revision_session import RevisionSession
 from app.schemas.calendar import CalendarEvent
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
@@ -45,6 +46,21 @@ def _busy_event(occ: BusyOccurrence) -> CalendarEvent:
     )
 
 
+def _revision_event(session: RevisionSession) -> CalendarEvent:
+    exam = session.assignment
+    return CalendarEvent(
+        kind="revision",
+        id=session.id,
+        module_id=exam.module_id,
+        title=f"Revise: {exam.title}",
+        starts_at=session.starts_at,
+        ends_at=_ends_at(session.starts_at, session.duration_minutes),
+        # The exam page opens the session view from `?session=`.
+        url=f"/modules/{exam.module_id}/assignments/{exam.id}?session={session.id}",
+        done=session.done,
+    )
+
+
 @router.get("", response_model=list[CalendarEvent])
 def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) -> list[CalendarEvent]:
     lectures = db.scalars(
@@ -52,6 +68,11 @@ def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) 
     ).all()
     assignments = db.scalars(
         select(Assignment).where(Assignment.due_at >= start, Assignment.due_at <= end)
+    ).all()
+    revision_sessions = db.scalars(
+        select(RevisionSession)
+        .where(RevisionSession.starts_at >= start, RevisionSession.starts_at <= end)
+        .options(selectinload(RevisionSession.assignment))
     ).all()
     # Coarse prefilter; expand_personal_events does the exact range check (incl. overnight spill).
     personal_events = db.scalars(
@@ -77,6 +98,9 @@ def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) 
         _assignment_event(a)
         for a in assignments
         if a.due_at is not None
+    ] + [
+        _revision_event(s)
+        for s in revision_sessions
     ] + [
         _busy_event(occ)
         for occ in expand_personal_events(personal_events, start, end)

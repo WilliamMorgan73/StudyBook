@@ -2,7 +2,7 @@ import { CheckCircle2, GraduationCap } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 
-import { MarkdownView } from '@/components/MarkdownView'
+import { FlashcardFace } from '@/components/FlashcardFace'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -243,7 +243,7 @@ function SessionBody({ scope, onReviewed, onDone }: { scope: StudyScope; onRevie
  * The back repeats the question small above the answer, since flipping hides the front.
  */
 function FlipCard({ card, revealed }: { card: Flashcard; revealed: boolean }) {
-  const face = 'min-h-48 rounded-xl border bg-card p-6 [backface-visibility:hidden] [grid-area:1/1]'
+  const face = '[backface-visibility:hidden] [grid-area:1/1]'
   return (
     <div style={{ perspective: 1200 }}>
       <motion.div
@@ -253,14 +253,13 @@ function FlipCard({ card, revealed }: { card: Flashcard; revealed: boolean }) {
         animate={{ rotateY: revealed ? 180 : 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 26 }}
       >
-        <div className={face} aria-hidden={revealed}>
-          <MarkdownView>{card.front}</MarkdownView>
-        </div>
-        <div className={`${face} space-y-4 [transform:rotateY(180deg)]`} aria-hidden={!revealed}>
-          <MarkdownView className="prose-sm opacity-60">{card.front}</MarkdownView>
-          <hr />
-          <MarkdownView>{card.back}</MarkdownView>
-        </div>
+        <FlashcardFace front={card.front} className={face} aria-hidden={revealed} />
+        <FlashcardFace
+          front={card.front}
+          back={card.back}
+          className={`${face} [transform:rotateY(180deg)]`}
+          aria-hidden={!revealed}
+        />
       </motion.div>
     </div>
   )

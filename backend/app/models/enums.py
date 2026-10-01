@@ -20,3 +20,10 @@ class AttachmentKind(str, enum.Enum):
     audio = "audio"
     image = "image"
     other = "other"
+
+
+class FlashcardSource(str, enum.Enum):
+    """Who wrote a Flashcard: the student, or AI generation (accepted in the review dialog)."""
+
+    manual = "manual"
+    ai = "ai"

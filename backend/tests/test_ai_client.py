@@ -7,7 +7,7 @@ import httpx2
 import pytest
 from pydantic import BaseModel
 
-from app.services.ai import AIError, AnthropicAIClient, FakeAIClient
+from app.services.ai import AIDocument, AIError, AnthropicAIClient, FakeAIClient
 
 
 def make_client(handler) -> AnthropicAIClient:
@@ -85,6 +85,33 @@ def test_complete_structured_returns_a_validated_instance():
     assert make_client(handler).complete_structured("Make a card", Card) == Card(front="Q", back="A")
 
 
+@pytest.mark.parametrize("text", ['{"front": "Q"}', '{"front": "Q", "ba'])
+def test_complete_structured_reports_a_reply_that_does_not_fit_the_schema(text):
+    def handler(request):
+        return httpx2.Response(200, json=message_body([{"type": "text", "text": text}]))
+
+    with pytest.raises(AIError) as excinfo:
+        make_client(handler).complete_structured("Make a card", Card)
+
+    assert excinfo.value.kind == "unknown"
+
+
+def test_documents_are_sent_as_pdf_blocks_before_the_prompt():
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx2.Response(200, json=message_body([{"type": "text", "text": "ok"}]))
+
+    make_client(handler).complete("Summarise", documents=[AIDocument(title="slides.pdf", data=b"%PDF-1.4")])
+
+    content = sent["messages"][0]["content"]
+    assert content[0]["type"] == "document"
+    assert content[0]["title"] == "slides.pdf"
+    assert content[0]["source"] == {"type": "base64", "media_type": "application/pdf", "data": "JVBERi0xLjQ="}
+    assert content[1] == {"type": "text", "text": "Summarise"}
+
+
 def test_refusal_is_reported():
     def handler(request):
         return httpx2.Response(200, json=message_body([], stop_reason="refusal"))
@@ -132,7 +159,7 @@ def test_fake_client_records_requests_and_validates_replies():
 
     assert fake.complete("notes", system="sys") == "summary"
     assert fake.complete_structured("p", Card) == Card(front="Q", back="A")
-    with pytest.raises(ValueError):
+    with pytest.raises(AIError):
         fake.complete_structured("p", Card)  # malformed reply fails validation, as the real client would
 
     assert [r["kind"] for r in fake.requests] == ["complete", "structured", "structured"]

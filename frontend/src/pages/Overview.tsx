@@ -19,8 +19,16 @@ import { QuickNotepad } from '@/components/QuickNotepad'
 import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
+import {
+  getAppSettings,
+  getCalendar,
+  listModules,
+  listUpcomingAssignments,
+  updateRevisionSession,
+  type CalendarEvent,
+} from '@/lib/api'
 import { calendarEventKey, visibleCalendarEvents } from '@/lib/busyTime'
 import { enter, fadeUp, fadeUpAt, stagger } from '@/lib/motion'
 import { progressRingSegments } from '@/lib/progress'
@@ -36,6 +44,14 @@ const reveal = {
   transition: { duration: 0.2 },
   style: { overflow: 'hidden' },
 } as const
+
+const EVENT_LINK_LABEL: Record<CalendarEvent['kind'], string> = {
+  lecture: 'Open module',
+  assignment_due: 'Open assignment',
+  exam: 'Open exam',
+  busy: 'Open module',
+  revision: 'Open session',
+}
 
 const SHOW_BUSY_KEY = 'studybook.overview.showBusy'
 
@@ -82,6 +98,11 @@ export function Overview() {
     keepPreviousData: true,
   })
   const appSettings = useAsync(() => getAppSettings(), [])
+
+  async function setRevisionDone(sessionId: number, done: boolean) {
+    await updateRevisionSession(sessionId, { done })
+    await calendar.refetch()
+  }
 
   // The dashboard cards enter one at a time in reading order.
   const slot = { calendar: 0, upcoming: 1, progress: 2, todo: 3, notepad: 4 }
@@ -187,6 +208,10 @@ export function Overview() {
                         <EventMarker kind="exam" />
                         Exam
                       </span>
+                      <span className="flex items-center gap-1.5">
+                        <EventMarker kind="revision" />
+                        Revision
+                      </span>
                       <button
                         type="button"
                         onClick={toggleShowBusy}
@@ -225,9 +250,14 @@ export function Overview() {
                                       <EventMarker
                                         kind={event.kind}
                                         color={moduleColor(event.module_id)}
+                                        done={event.done === true}
                                         className="shrink-0"
                                       />
-                                      <span className={`truncate ${isBusy ? 'text-muted-foreground' : ''}`}>{event.title}</span>
+                                      <span
+                                        className={`truncate ${isBusy || event.done ? 'text-muted-foreground' : ''} ${event.done ? 'line-through' : ''}`}
+                                      >
+                                        {event.title}
+                                      </span>
                                       {event.module_id !== null && (
                                         <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
                                       )}
@@ -256,9 +286,18 @@ export function Overview() {
                                         </p>
                                         {event.location && <p>{event.location}</p>}
                                         {isBusy && <p>Personal event (Settings → Calendars)</p>}
+                                        {event.kind === 'revision' && (
+                                          <label className="flex w-fit cursor-pointer items-center gap-1.5 text-foreground">
+                                            <Checkbox
+                                              checked={event.done === true}
+                                              onCheckedChange={(checked) => setRevisionDone(event.id, checked === true)}
+                                            />
+                                            Done
+                                          </label>
+                                        )}
                                         {event.url && (
                                           <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                            {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
+                                            {EVENT_LINK_LABEL[event.kind]} &rarr;
                                           </Link>
                                         )}
                                       </motion.div>
