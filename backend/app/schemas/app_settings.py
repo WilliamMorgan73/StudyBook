@@ -1,6 +1,12 @@
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.services.ai import resolve_api_key
+from app.services.ai_models import AI_MODEL_IDS, DEFAULT_AI_MODEL
+
+if TYPE_CHECKING:
+    from app.models.app_settings import AppSettings
 
 ThemeMode = Literal["light", "dark", "system"]
 Skin = Literal["default", "slate", "sepia"]
@@ -8,6 +14,9 @@ TableAlignment = Literal["left", "center"]
 
 
 class AppSettingsRead(BaseModel):
+    """Never carries `anthropic_api_key`; build it with `from_row`, which reports
+    `has_api_key`/`ai_enabled` instead."""
+
     model_config = ConfigDict(from_attributes=True)
 
     max_credits: int | None = None
@@ -19,6 +28,18 @@ class AppSettingsRead(BaseModel):
     keybind_italic: str = "Mod-i"
     keybind_code: str = "Mod-e"
     keybind_wikilink: str = "Mod-Shift-k"
+    ai_model: str = DEFAULT_AI_MODEL
+    # A key is saved in the settings row.
+    has_api_key: bool = False
+    # A key is available from the settings row or the backend environment, so AI actions work.
+    ai_enabled: bool = False
+
+    @classmethod
+    def from_row(cls, row: "AppSettings") -> "AppSettingsRead":
+        read = cls.model_validate(row)
+        read.has_api_key = bool(row.anthropic_api_key)
+        read.ai_enabled = resolve_api_key(row.anthropic_api_key) is not None
+        return read
 
 
 class AppSettingsUpdate(BaseModel):
@@ -31,3 +52,32 @@ class AppSettingsUpdate(BaseModel):
     keybind_italic: str | None = Field(default=None, min_length=1, max_length=20)
     keybind_code: str | None = Field(default=None, min_length=1, max_length=20)
     keybind_wikilink: str | None = Field(default=None, min_length=1, max_length=20)
+    # Write-only. A non-empty string sets the key; null or "" clears it; omit to leave it unchanged.
+    anthropic_api_key: str | None = Field(default=None, max_length=500)
+    ai_model: str | None = None
+
+    @field_validator("anthropic_api_key")
+    @classmethod
+    def _blank_key_clears(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+    @field_validator("ai_model")
+    @classmethod
+    def _known_model(cls, value: str | None) -> str | None:
+        if value is not None and value not in AI_MODEL_IDS:
+            raise ValueError(f"Unknown model {value!r}")
+        return value
+
+
+class AIModelRead(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
+class AIConnectionResult(BaseModel):
+    ok: bool
+    model: str

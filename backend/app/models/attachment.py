@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String
+from sqlalchemy import Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -19,6 +19,9 @@ class Attachment(Base):
     filename: Mapped[str] = mapped_column(String(300))
     file_path: Mapped[str] = mapped_column(String(500))
     uploaded_at: Mapped[datetime] = mapped_column(server_default="now()")
+    # Cache of the local PDF/PPTX -> markdown conversion (app/crud/attachment_text.py); None = not converted yet.
+    # Deferred so Attachment lists in submodule/assignment payloads don't load it.
+    extracted_markdown: Mapped[str | None] = mapped_column(Text, deferred=True)
 
     submodule: Mapped["Submodule | None"] = relationship(back_populates="attachments")  # noqa: F821
     assignment: Mapped["Assignment | None"] = relationship(back_populates="attachments")  # noqa: F821
@@ -26,3 +29,9 @@ class Attachment(Base):
     @property
     def url(self) -> str:
         return f"/{self.file_path}"
+
+    @property
+    def text_extractable(self) -> bool:
+        from app.crud.attachment_text import is_extractable
+
+        return is_extractable(self.kind, self.filename)

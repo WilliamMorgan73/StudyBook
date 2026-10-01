@@ -7,7 +7,7 @@ Agreed design (2026-09-28) for StudyBook's AI features and the non-AI groundwork
 - **AI is optional.** Backend exposes `ai_enabled`; without a key, AI buttons are disabled with a tooltip pointing to Settings → AI Integration. Nothing else depends on AI.
 - **All calls run in the backend** through one stubbable `services/ai.py` wrapping the `anthropic` Python SDK.
 - **API key**: new `AppSettings.anthropic_api_key` column (edited in the AI Integration tab), `.env` fallback. Write-only over the API — GET returns only `has_api_key: bool`.
-- **Model**: single `AppSettings.ai_model` setting, default `claude-sonnet-5`.
+- **Model**: single `AppSettings.ai_model` setting, default `claude-sonnet-5-5` (the list lives in `backend/app/services/ai_models.py`).
 - **Budget**: no spend tracking. Show an estimated input size before large requests (whole attachments, raw PDFs).
 - **Privacy**: notes may be sent. Lecture files are converted to markdown locally first; raw PDFs are only sent after explicit confirmation.
 - **Semantic search**: on hold (Anthropic has no embeddings API; would need a second provider).

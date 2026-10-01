@@ -2,6 +2,7 @@ import { CalendarDays, Database, Keyboard, Palette, SlidersHorizontal, Sparkles 
 import { motion } from 'motion/react'
 import { useState } from 'react'
 
+import { AISettingsPanel, type AISettingsState } from '@/components/AISettingsPanel'
 import { KeybindInput } from '@/components/KeybindInput'
 import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
 import { SettingsNav } from '@/components/SettingsNav'
@@ -60,6 +61,14 @@ export function AppSettingsDialog({
     code: settings.keybind_code,
     wikilink: settings.keybind_wikilink,
   }
+  // Like appearance, AI settings stay local (seeded from the prop) instead of going through
+  // `onChanged`, so saving a key doesn't remount the dialog. Unlike appearance it isn't re-seeded
+  // on open (the prop is stale after a save); the panel keeps it current from each PATCH response.
+  const [aiSettings, setAISettings] = useState<AISettingsState>({
+    has_api_key: settings.has_api_key,
+    ai_enabled: settings.ai_enabled,
+    ai_model: settings.ai_model,
+  })
 
   // Reset the category and drafts each time the dialog opens (not on every settings refetch,
   // which would discard an in-progress edit or jump back to Appearance).
@@ -252,15 +261,7 @@ export function AppSettingsDialog({
 
             {category === 'calendars' && <PersonalEventsSettings onChanged={() => onCalendarChanged?.()} />}
 
-            {category === 'ai' && (
-              <div className="space-y-1.5">
-                <p className="text-sm font-medium">AI integration is coming soon</p>
-                <p className="text-sm text-muted-foreground">
-                  Note summarization, note-to-flashcard generation, revision scheduling, and semantic note search
-                  using the Anthropic API are planned but not yet available.
-                </p>
-              </div>
-            )}
+            {category === 'ai' && <AISettingsPanel settings={aiSettings} onSaved={setAISettings} />}
 
             {category === 'data' && (
               <div className="space-y-1.5">

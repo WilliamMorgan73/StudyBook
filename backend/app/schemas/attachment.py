@@ -16,3 +16,11 @@ class AttachmentRead(BaseModel):
     file_path: str
     url: str
     uploaded_at: datetime
+    text_extractable: bool
+
+
+class AttachmentExtractedText(BaseModel):
+    attachment_id: int
+    kind: AttachmentKind
+    markdown: str
+    near_empty: bool
