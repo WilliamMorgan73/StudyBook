@@ -8,6 +8,7 @@
   - `grades.py::compute_current_grade`: weighted average over graded assignments (by `weight_percent`, else unweighted mean). Computed on read.
   - `grades.py::compute_completion_progress`: `completed_fraction` sums `weight_percent` of `submitted`/`graded` assignments out of the module's full 100%; `achieved_fraction` additionally scales each graded one by `grade_earned/grade_max`. `assignment_progress` (graded/in_progress/not_started counts) is separate, for textual breakdowns.
   - `spaced_repetition.py::apply_review`: SM-2; mutates a `Flashcard`'s `ease_factor`/`interval_days`/`repetitions`/`due_at` in place from a 0–5 quality rating.
+  - `spaced_repetition.py::review_card`: `apply_review` plus a new `FlashcardReview` history row (returned for the caller to `db.add`). `POST /flashcards/{id}/review` goes through it, so every review is logged.
 - `api/routes/`: one router per resource, all included in `main.py`.
   - `calendar.py` is read-only and table-less: merges `Lecture` and `Assignment` due dates into sorted `CalendarEvent`s (lectures also carry `ends_at` from `duration_minutes`, and `location`; both `None` for assignment events).
   - `quick_todos.py` / `quick_note.py` back the Overview to-do list and notepad: app-wide, unrelated to per-assignment `AssignmentTodo`/`notes_markdown`.
@@ -15,7 +16,7 @@
 
 ## Data model
 
-`Module` (a course) is the root. `Lecture`, `Assignment`, `Submodule` (a topic with one `content_markdown` body) and `Flashcard` belong to a `Module`; a `Flashcard` optionally also belongs to a `Submodule`. `ModuleLink` stores "related modules" as two directed rows, one per direction.
+`Module` (a course) is the root. `Lecture`, `Assignment`, `Submodule` (a topic with one `content_markdown` body) and `Flashcard` belong to a `Module`; a `Flashcard` optionally also belongs to a `Submodule`. `FlashcardReview` is an append-only log of every rating (`quality`, `reviewed_at`), cascade-deleted with its card; the revision planner's weakness scoring will read it. `ModuleLink` stores "related modules" as two directed rows, one per direction.
 
 `Assignment`: `weight_percent` is required, and a module's weights are capped at 100% in `api/routes/assignments.py` (not a DB constraint). It also has `notes_markdown`, ordered `todos` (`AssignmentTodo`) and `attachments`. Status `in_progress` is a valid enum value the UI no longer sets.
 

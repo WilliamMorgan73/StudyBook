@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { AttachmentList } from '@/components/AttachmentList'
 import { MarkdownEditor } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
+import { StudySession } from '@/components/StudySession'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -222,6 +223,7 @@ export function SubmodulePage() {
         }
         right={
           <>
+            <StudySession scope={{ submoduleId: id }} title={submodule.title} />
             <Button
               variant={sourceMode ? 'secondary' : 'ghost'}
               size="sm"

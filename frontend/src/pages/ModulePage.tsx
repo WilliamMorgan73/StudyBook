@@ -9,6 +9,7 @@ import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { ModuleWeekCalendar } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
+import { StudySession } from '@/components/StudySession'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -196,7 +197,10 @@ export function ModulePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Flashcards</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Flashcards</CardTitle>
+                <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
+              </div>
             </CardHeader>
             <CardContent>
               {module.flashcards.length === 0 ? (

@@ -24,3 +24,19 @@ class Flashcard(Base):
 
     module: Mapped["Module"] = relationship(back_populates="flashcards")  # noqa: F821
     submodule: Mapped["Submodule | None"] = relationship(back_populates="flashcards")  # noqa: F821
+    reviews: Mapped[list["FlashcardReview"]] = relationship(
+        back_populates="flashcard", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class FlashcardReview(Base):
+    """One recall attempt on a Flashcard: an append-only log, so review history survives rescheduling."""
+
+    __tablename__ = "flashcard_reviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    flashcard_id: Mapped[int] = mapped_column(ForeignKey("flashcards.id", ondelete="CASCADE"), index=True)
+    quality: Mapped[int]
+    reviewed_at: Mapped[datetime]
+
+    flashcard: Mapped["Flashcard"] = relationship(back_populates="reviews")

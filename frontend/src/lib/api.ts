@@ -344,6 +344,18 @@ export function listFlashcards(filter: { moduleId?: number; submoduleId?: number
   return request<Flashcard[]>(`/flashcards?${params}`)
 }
 
+export function listDueFlashcards(scope: { moduleId?: number; submoduleId?: number }) {
+  const params = new URLSearchParams()
+  if (scope.moduleId !== undefined) params.set('module_id', String(scope.moduleId))
+  if (scope.submoduleId !== undefined) params.set('submodule_id', String(scope.submoduleId))
+  return request<Flashcard[]>(`/flashcards/due?${params}`)
+}
+
+/** `quality` is SM-2's 0–5 recall rating; >=3 counts as correct. */
+export function reviewFlashcard(id: number, quality: number) {
+  return postJson<Flashcard>(`/flashcards/${id}/review`, { quality })
+}
+
 export function createFlashcard(input: FlashcardCreateInput) {
   return postJson<Flashcard>('/flashcards', input)
 }

@@ -1,7 +1,7 @@
 from app.models.app_settings import AppSettings
 from app.models.assignment import Assignment
 from app.models.attachment import Attachment
-from app.models.flashcard import Flashcard
+from app.models.flashcard import Flashcard, FlashcardReview
 from app.models.lecture import Lecture
 from app.models.module import Module, ModuleLink
 from app.models.quick_note import QuickNote
@@ -15,6 +15,7 @@ __all__ = [
     "AssignmentTodo",
     "Attachment",
     "Flashcard",
+    "FlashcardReview",
     "Lecture",
     "Module",
     "ModuleLink",

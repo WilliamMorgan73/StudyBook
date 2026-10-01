@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FlashcardBase(BaseModel):
@@ -25,7 +25,7 @@ class FlashcardRead(FlashcardBase):
     last_reviewed_at: datetime | None
 
 
-class FlashcardReview(BaseModel):
+class FlashcardReviewCreate(BaseModel):
     """Grade of the last recall attempt, SM-2 scale 0-5 (>=3 counts as correct)."""
 
-    quality: int
+    quality: int = Field(ge=0, le=5)
