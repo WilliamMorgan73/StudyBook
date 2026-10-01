@@ -1,4 +1,5 @@
 import { Settings as SettingsIcon, Trash2, ArrowLeft} from 'lucide-react'
+import { motion } from 'motion/react'
 import { useState, type FormEvent } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Link, useParams } from 'react-router-dom'
@@ -108,7 +109,7 @@ export function AssignmentPage() {
   const [savingNotes, setSavingNotes] = useState(false)
   const [notes, setNotes] = useState('')
 
-  if (loading) {
+  if (loading && !assignment) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
@@ -188,14 +189,15 @@ export function AssignmentPage() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-8 text-right">
-            <div>
+            {/* Slides over as the completion controls beside it change width. */}
+            <motion.div layout="position" transition={{ duration: 0.2 }}>
               <Countdown
                 target={assignment.due_at}
                 noneLabel="No due date"
                 arrivedLabel={isExam ? 'Exam started' : 'Due now'}
               />
               <p className="mt-0.5 text-sm text-muted-foreground">{assignment.weight_percent}% of grade</p>
-            </div>
+            </motion.div>
             <AssignmentCompletion assignment={assignment} onChanged={refetch} />
           </div>
         </div>

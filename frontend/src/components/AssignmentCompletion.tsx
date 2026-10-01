@@ -1,9 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 
+import { CompletionTick } from '@/components/CompletionTick'
+import { AnimatedNumber } from '@/components/RadialProgress'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { updateAssignment, type Assignment } from '@/lib/api'
+
+function GradeNumber({ value }: { value: number }) {
+  return <AnimatedNumber value={value} decimals={Number.isInteger(value) ? 0 : 1} />
+}
 
 export function AssignmentCompletion({
   assignment,
@@ -16,11 +23,22 @@ export function AssignmentCompletion({
   const [gradeEarned, setGradeEarned] = useState('')
   const [gradeMax, setGradeMax] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // Bumped to pop the centre-screen tick.
+  const [celebrations, setCelebrations] = useState(0)
+
+  // After saving a grade the form stays up until the refetched assignment arrives, so the view
+  // swaps once (form → score) rather than flashing the stale "submitted" buttons in between.
+  const [savedFrom, setSavedFrom] = useState<Assignment | null>(null)
+  if (savedFrom && savedFrom !== assignment) {
+    setSavedFrom(null)
+    setEntering(false)
+  }
 
   async function markComplete() {
     setSubmitting(true)
     try {
       await updateAssignment(assignment.id, { status: 'submitted' })
+      setCelebrations((c) => c + 1)
       onChanged()
     } finally {
       setSubmitting(false)
@@ -53,15 +71,21 @@ export function AssignmentCompletion({
         grade_earned: gradeEarned ? Number(gradeEarned) : null,
         grade_max: gradeMax ? Number(gradeMax) : null,
       })
-      setEntering(false)
+      // Only the first grading celebrates; editing an existing grade doesn't.
+      if (assignment.status !== 'graded') setCelebrations((c) => c + 1)
+      setSavedFrom(assignment)
       onChanged()
     } finally {
       setSubmitting(false)
     }
   }
 
+  let view: string
+  let content: ReactNode
+
   if (entering) {
-    return (
+    view = 'grading'
+    content = (
       <form onSubmit={saveGrade} className="flex items-end gap-2">
         <div className="space-y-1">
           <Label htmlFor="grade-earned" className="text-xs">
@@ -85,20 +109,31 @@ export function AssignmentCompletion({
         <Button type="submit" size="sm" disabled={submitting}>
           Save
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setEntering(false)}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setSavedFrom(null)
+            setEntering(false)
+          }}
+        >
           Cancel
         </Button>
       </form>
     )
-  }
-
-  if (assignment.status === 'graded') {
-    return (
+  } else if (assignment.status === 'graded') {
+    view = 'graded'
+    content = (
       <div className="text-right">
         <p className="text-3xl font-semibold tabular-nums">
-          {assignment.grade_earned !== null && assignment.grade_max !== null
-            ? `${assignment.grade_earned}/${assignment.grade_max}`
-            : 'Graded'}
+          {assignment.grade_earned !== null && assignment.grade_max !== null ? (
+            <>
+              <GradeNumber value={assignment.grade_earned} />/{assignment.grade_max}
+            </>
+          ) : (
+            'Graded'
+          )}
         </p>
         <div className="mt-1 flex justify-end gap-3">
           <button type="button" onClick={startGrading} className="text-sm text-muted-foreground hover:text-foreground">
@@ -110,10 +145,9 @@ export function AssignmentCompletion({
         </div>
       </div>
     )
-  }
-
-  if (assignment.status === 'submitted') {
-    return (
+  } else if (assignment.status === 'submitted') {
+    view = 'submitted'
+    content = (
       <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={markUncomplete} disabled={submitting}>
           Uncomplete
@@ -123,11 +157,29 @@ export function AssignmentCompletion({
         </Button>
       </div>
     )
+  } else {
+    view = 'todo'
+    content = (
+      <Button size="sm" onClick={markComplete} disabled={submitting}>
+        Mark complete
+      </Button>
+    )
   }
 
   return (
-    <Button size="sm" onClick={markComplete} disabled={submitting}>
-      Mark complete
-    </Button>
+    <>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.15 }}
+        >
+          {content}
+        </motion.div>
+      </AnimatePresence>
+      <CompletionTick trigger={celebrations} />
+    </>
   )
 }
