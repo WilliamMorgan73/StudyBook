@@ -3,7 +3,12 @@ from typing import TYPE_CHECKING, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.services.ai import resolve_api_key
-from app.services.ai_models import AI_MODEL_IDS, DEFAULT_AI_MODEL
+from app.services.ai_models import (
+    AI_MODEL_IDS,
+    DEFAULT_AI_MODEL,
+    AIProvider,
+    provider_of,
+)
 
 if TYPE_CHECKING:
     from app.models.app_settings import AppSettings
@@ -14,8 +19,8 @@ TableAlignment = Literal["left", "center"]
 
 
 class AppSettingsRead(BaseModel):
-    """Never carries `anthropic_api_key`; build it with `from_row`, which reports
-    `has_api_key`/`ai_enabled` instead."""
+    """Never carries the API keys; build it with `from_row`, which reports `has_*_api_key`,
+    `ai_provider` and `ai_enabled` instead."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,16 +34,23 @@ class AppSettingsRead(BaseModel):
     keybind_code: str = "Mod-e"
     keybind_wikilink: str = "Mod-Shift-k"
     ai_model: str = DEFAULT_AI_MODEL
-    # A key is saved in the settings row.
-    has_api_key: bool = False
-    # A key is available from the settings row or the backend environment, so AI actions work.
+    # Derived from `ai_model`.
+    ai_provider: AIProvider = "anthropic"
+    # A key for that provider is saved in the settings row.
+    has_anthropic_api_key: bool = False
+    has_gemini_api_key: bool = False
+    # The selected provider has a key, saved or from the backend environment, so AI actions work.
     ai_enabled: bool = False
 
     @classmethod
     def from_row(cls, row: "AppSettings") -> "AppSettingsRead":
         read = cls.model_validate(row)
-        read.has_api_key = bool(row.anthropic_api_key)
-        read.ai_enabled = resolve_api_key(row.anthropic_api_key) is not None
+        provider = provider_of(row.ai_model).id
+        saved = {"anthropic": row.anthropic_api_key, "gemini": row.gemini_api_key}
+        read.ai_provider = provider
+        read.has_anthropic_api_key = bool(row.anthropic_api_key)
+        read.has_gemini_api_key = bool(row.gemini_api_key)
+        read.ai_enabled = resolve_api_key(provider, saved[provider]) is not None
         return read
 
 
@@ -54,9 +66,10 @@ class AppSettingsUpdate(BaseModel):
     keybind_wikilink: str | None = Field(default=None, min_length=1, max_length=20)
     # Write-only. A non-empty string sets the key; null or "" clears it; omit to leave it unchanged.
     anthropic_api_key: str | None = Field(default=None, max_length=500)
+    gemini_api_key: str | None = Field(default=None, max_length=500)
     ai_model: str | None = None
 
-    @field_validator("anthropic_api_key")
+    @field_validator("anthropic_api_key", "gemini_api_key")
     @classmethod
     def _blank_key_clears(cls, value: str | None) -> str | None:
         if value is None:
@@ -76,6 +89,7 @@ class AIModelRead(BaseModel):
     id: str
     label: str
     description: str
+    provider: AIProvider
 
 
 class AIConnectionResult(BaseModel):

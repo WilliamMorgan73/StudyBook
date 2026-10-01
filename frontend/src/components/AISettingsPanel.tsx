@@ -5,17 +5,53 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { aiErrorMessage } from '@/lib/ai'
-import { listAIModels, testAIConnection, updateAppSettings, type AppSettings } from '@/lib/api'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { aiErrorMessage, pickAISettings, type AISettingsState } from '@/lib/ai'
+import {
+  listAIModels,
+  testAIConnection,
+  updateAppSettings,
+  type AIProvider,
+  type AppSettingsUpdate,
+} from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
-export type AISettingsState = Pick<AppSettings, 'has_api_key' | 'ai_enabled' | 'ai_model'>
+const PROVIDERS: Record<
+  AIProvider,
+  {
+    tab: string
+    keyLabel: string
+    keyField: 'anthropic_api_key' | 'gemini_api_key'
+    hasKey: 'has_anthropic_api_key' | 'has_gemini_api_key'
+    placeholder: string
+    envVar: string
+  }
+> = {
+  anthropic: {
+    tab: 'Claude',
+    keyLabel: 'Anthropic API key',
+    keyField: 'anthropic_api_key',
+    hasKey: 'has_anthropic_api_key',
+    placeholder: 'sk-ant-…',
+    envVar: 'ANTHROPIC_API_KEY',
+  },
+  gemini: {
+    tab: 'Gemini',
+    keyLabel: 'Gemini API key',
+    keyField: 'gemini_api_key',
+    hasKey: 'has_gemini_api_key',
+    placeholder: 'AIza…',
+    envVar: 'GEMINI_API_KEY',
+  },
+}
 
 type TestState = { status: 'idle' } | { status: 'testing' } | { status: 'ok'; message: string } | { status: 'error'; message: string }
 
 /**
- * Settings → AI Integration. The key input is write-only: the backend never returns the key,
- * only `has_api_key`, so the field always starts empty and saving replaces whatever is stored.
+ * Settings → AI Integration. The provider follows the selected model: switching provider selects
+ * that provider's first (recommended) model. Each provider keeps its own key, so switching back
+ * and forth needs no re-entry. Key inputs are write-only: the backend never returns a key, only
+ * `has_*_api_key`, so the field always starts empty and saving replaces whatever is stored.
  */
 export function AISettingsPanel({
   settings,
@@ -30,13 +66,16 @@ export function AISettingsPanel({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [test, setTest] = useState<TestState>({ status: 'idle' })
 
-  async function save(update: Parameters<typeof updateAppSettings>[0]) {
+  const provider = PROVIDERS[settings.ai_provider]
+  const hasKey = settings[provider.hasKey]
+  const providerModels = models.data?.filter((m) => m.provider === settings.ai_provider)
+
+  async function save(update: AppSettingsUpdate) {
     setSaving(true)
     setSaveError(null)
     setTest({ status: 'idle' })
     try {
-      const next = await updateAppSettings(update)
-      onSaved({ has_api_key: next.has_api_key, ai_enabled: next.ai_enabled, ai_model: next.ai_model })
+      onSaved(pickAISettings(await updateAppSettings(update)))
       return true
     } catch (error) {
       setSaveError(aiErrorMessage(error))
@@ -46,10 +85,17 @@ export function AISettingsPanel({
     }
   }
 
+  function handleProvider(next: AIProvider) {
+    const model = models.data?.find((m) => m.provider === next)
+    if (!model || next === settings.ai_provider) return
+    setKeyDraft('')
+    void save({ ai_model: model.id })
+  }
+
   async function handleSaveKey(event: FormEvent) {
     event.preventDefault()
     if (!keyDraft.trim()) return
-    if (await save({ anthropic_api_key: keyDraft.trim() })) setKeyDraft('')
+    if (await save({ [provider.keyField]: keyDraft.trim() })) setKeyDraft('')
   }
 
   async function handleTest() {
@@ -63,42 +109,59 @@ export function AISettingsPanel({
     }
   }
 
-  const keyStatus = settings.has_api_key
+  const keyStatus = hasKey
     ? 'A key is saved.'
     : settings.ai_enabled
-      ? 'Using the key from the backend environment (ANTHROPIC_API_KEY). A key saved here takes precedence.'
+      ? `Using the key from the backend environment (${provider.envVar}). A key saved here takes precedence.`
       : 'No key set. AI features are turned off until you add one.'
 
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        AI features (flashcard generation, summaries, revision guidance) call Claude through your own Anthropic API
+        AI features (flashcard generation, summaries, revision guidance) call Claude or Gemini through your own API
         key. Everything else works without one.
       </p>
 
+      <div className="space-y-1.5">
+        <Label>Provider</Label>
+        <Tabs value={settings.ai_provider} onValueChange={(v) => handleProvider(v as AIProvider)}>
+          <TabsList>
+            {(Object.keys(PROVIDERS) as AIProvider[]).map((id) => (
+              <TabsTrigger key={id} value={id} disabled={saving || !models.data}>
+                {PROVIDERS[id].tab}
+                {settings[PROVIDERS[id].hasKey] && (
+                  <KeyRound className="size-3.5 text-muted-foreground" aria-label="key saved" />
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        <p className="text-xs text-muted-foreground">Each provider keeps its own key, so you can switch freely.</p>
+      </div>
+
       <form onSubmit={handleSaveKey} className="space-y-1.5">
-        <Label htmlFor="anthropic-api-key">Anthropic API key</Label>
+        <Label htmlFor="ai-api-key">{provider.keyLabel}</Label>
         <div className="flex items-center gap-2">
           <Input
-            id="anthropic-api-key"
+            id="ai-api-key"
             type="password"
             autoComplete="off"
             spellCheck={false}
             value={keyDraft}
             onChange={(e) => setKeyDraft(e.target.value)}
-            placeholder={settings.has_api_key ? '•••••••••••• (paste to replace)' : 'sk-ant-…'}
+            placeholder={hasKey ? '•••••••••••• (paste to replace)' : provider.placeholder}
             className="font-mono"
           />
           <Button type="submit" size="sm" disabled={saving || !keyDraft.trim()}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
-          {settings.has_api_key && (
+          {hasKey && (
             <Button
               type="button"
               size="sm"
               variant="outline"
               disabled={saving}
-              onClick={() => save({ anthropic_api_key: null })}
+              onClick={() => save({ [provider.keyField]: null })}
             >
               Remove
             </Button>
@@ -125,7 +188,7 @@ export function AISettingsPanel({
             <SelectValue placeholder="Loading models…" />
           </SelectTrigger>
           <SelectContent>
-            {models.data?.map((m) => (
+            {providerModels?.map((m) => (
               <SelectItem key={m.id} value={m.id}>
                 {m.label}
               </SelectItem>

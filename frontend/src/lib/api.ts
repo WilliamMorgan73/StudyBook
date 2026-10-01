@@ -619,15 +619,21 @@ export interface AppSettings {
   keybind_code: string
   keybind_wikilink: string
   ai_model: string
-  /** A key is saved in settings. The key itself is write-only and never sent back. */
-  has_api_key: boolean
-  /** A key is available (saved, or set in the backend environment), so AI actions work. */
+  /** Derived from `ai_model`. */
+  ai_provider: AIProvider
+  /** A key is saved in settings. The keys themselves are write-only and never sent back. */
+  has_anthropic_api_key: boolean
+  has_gemini_api_key: boolean
+  /** The selected provider has a key (saved, or set in the backend environment), so AI actions work. */
   ai_enabled: boolean
 }
 
-export type AppSettingsUpdate = Partial<Omit<AppSettings, 'has_api_key' | 'ai_enabled'>> & {
+export type AppSettingsUpdate = Partial<
+  Omit<AppSettings, 'ai_provider' | 'has_anthropic_api_key' | 'has_gemini_api_key' | 'ai_enabled'>
+> & {
   /** Write-only: a string sets the key, `null` clears it, omitted leaves it unchanged. */
   anthropic_api_key?: string | null
+  gemini_api_key?: string | null
 }
 
 export function getAppSettings() {
@@ -638,10 +644,13 @@ export function updateAppSettings(input: AppSettingsUpdate) {
   return patchJson<AppSettings>('/settings', input)
 }
 
+export type AIProvider = 'anthropic' | 'gemini'
+
 export interface AIModelOption {
   id: string
   label: string
   description: string
+  provider: AIProvider
 }
 
 export function listAIModels() {

@@ -41,7 +41,7 @@ interface Target {
 
 /**
  * The "Generate cards" action and its dialog: pick a count, check what will be sent
- * (`SubmoduleSourcePanel`), then review Claude's proposals one by one. Nothing is saved until a
+ * (`SubmoduleSourcePanel`), then review the AI's proposals one by one. Nothing is saved until a
  * card is accepted, and each accepted card is created right away with `source: 'ai'`.
  * `beforeOpen` lets the page flush unsaved note edits first; `onSaved` runs on close if any
  * card was saved.
@@ -87,7 +87,7 @@ export function GenerateFlashcardsDialog({
           <DialogHeader>
             <DialogTitle>Generate flashcards · {submodule.title}</DialogTitle>
             <DialogDescription>
-              Claude proposes cards from your note and lecture files. Nothing is saved until you accept a card.
+              The AI proposes cards from your note and lecture files. Nothing is saved until you accept a card.
             </DialogDescription>
           </DialogHeader>
           {/* Mounted only while open, so each run starts fresh and re-reads the material. */}
@@ -197,7 +197,7 @@ function GenerateBody({ submodule, onSaved, onClose }: { submodule: Target; onSa
       <div className="min-w-0 space-y-3">
         {items.length === 0 ? (
           <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            Claude didn't propose any new cards. Your existing cards may already cover this material.
+            The AI didn't propose any new cards. Your existing cards may already cover this material.
           </p>
         ) : (
           <p className="text-sm text-muted-foreground tabular-nums">

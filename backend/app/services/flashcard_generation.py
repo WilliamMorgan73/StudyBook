@@ -35,7 +35,7 @@ class CardProposal(BaseModel):
 
 
 class CardProposals(BaseModel):
-    """The structured-output schema Claude fills in."""
+    """The structured-output schema the AI fills in."""
 
     cards: list[CardProposal]
 
@@ -86,7 +86,7 @@ def generate_flashcards(
     *,
     read_pdf: Callable[[str], bytes] = lambda path: Path(path).read_bytes(),
 ) -> list[CardProposal]:
-    """Ask Claude for up to `count` new cards. Raises `ValueError` for a count outside 1..MAX,
+    """Ask the AI for up to `count` new cards. Raises `ValueError` for a count outside 1..MAX,
     `AIError` for failed or unreadable replies."""
     if not 1 <= count <= MAX_CARD_COUNT:
         raise ValueError(f"Card count must be between 1 and {MAX_CARD_COUNT}.")

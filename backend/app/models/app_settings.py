@@ -22,7 +22,9 @@ class AppSettings(Base):
     keybind_italic: Mapped[str] = mapped_column(String(20), default="Mod-i")
     keybind_code: Mapped[str] = mapped_column(String(20), default="Mod-e")
     keybind_wikilink: Mapped[str] = mapped_column(String(20), default="Mod-Shift-k")
-    # Write-only over the API: never serialised back, only reported as `has_api_key`.
-    # Stored in plain text; this is a local single-user database.
+    # Write-only over the API: never serialised back, only reported as `has_anthropic_api_key` /
+    # `has_gemini_api_key`. Stored in plain text; this is a local single-user database.
     anthropic_api_key: Mapped[str | None] = mapped_column(Text)
+    gemini_api_key: Mapped[str | None] = mapped_column(Text)
+    # Also decides the provider (`services/ai_models.py::provider_of`).
     ai_model: Mapped[str] = mapped_column(String(64), default=DEFAULT_AI_MODEL)

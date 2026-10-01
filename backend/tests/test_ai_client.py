@@ -1,13 +1,22 @@
-"""The real `AnthropicAIClient` against a mocked HTTP transport (no network): requests are
+"""The real `AnthropicAIClient` and `GeminiAIClient` against mocked HTTP transports (no network): requests are
 shaped as expected and SDK failures become readable `AIError`s."""
 
 import json
 
+import httpx
 import httpx2
 import pytest
+from google.genai import types as genai_types
 from pydantic import BaseModel
 
-from app.services.ai import AIDocument, AIError, AnthropicAIClient, FakeAIClient
+from app.services.ai import (
+    GEMINI_THINKING_ALLOWANCE,
+    AIDocument,
+    AIError,
+    AnthropicAIClient,
+    FakeAIClient,
+    GeminiAIClient,
+)
 
 
 def make_client(handler) -> AnthropicAIClient:
@@ -173,3 +182,151 @@ def test_fake_client_can_raise_queued_errors():
         fake.complete("x")
 
     assert excinfo.value.kind == "rate_limit"
+
+
+# --- GeminiAIClient (google-genai uses plain httpx, not httpx2) ---
+
+
+def make_gemini_client(handler) -> GeminiAIClient:
+    return GeminiAIClient(
+        api_key="AIza-test",
+        model="gemini-3.8-flash",
+        http_options=genai_types.HttpOptions(httpx_client=httpx.Client(transport=httpx.MockTransport(handler))),
+    )
+
+
+def gemini_body(text: str | None, finish_reason: str = "STOP", **extra) -> dict:
+    parts = [] if text is None else [{"text": text}]
+    return {"candidates": [{"content": {"role": "model", "parts": parts}, "finishReason": finish_reason}], **extra}
+
+
+def gemini_error(status: int, grpc_status: str, message: str = "nope", details: list | None = None) -> httpx.Response:
+    error = {"code": status, "message": message, "status": grpc_status}
+    if details is not None:
+        error["details"] = details
+    return httpx.Response(status, json={"error": error})
+
+
+def test_gemini_ping_looks_up_the_selected_model_with_the_key():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"name": "models/gemini-3.8-flash"})
+
+    make_gemini_client(handler).ping()
+
+    assert seen[0].method == "GET"
+    assert seen[0].url.path.endswith("/models/gemini-3.8-flash")
+    assert seen[0].headers["x-goog-api-key"] == "AIza-test"
+
+
+def test_gemini_complete_sends_prompt_system_and_a_thinking_allowance():
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json=gemini_body("Hello!"))
+
+    reply = make_gemini_client(handler).complete("Say hi", system="Be brief", max_tokens=100)
+
+    assert reply == "Hello!"
+    assert sent["contents"] == [{"role": "user", "parts": [{"text": "Say hi"}]}]
+    assert sent["systemInstruction"]["parts"] == [{"text": "Be brief"}]
+    assert sent["generationConfig"]["maxOutputTokens"] == 100 + GEMINI_THINKING_ALLOWANCE
+
+
+def test_gemini_complete_structured_sends_the_schema_and_validates_the_reply():
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json=gemini_body('{"front": "Q", "back": "A"}'))
+
+    card = make_gemini_client(handler).complete_structured("Make a card", Card)
+
+    assert card == Card(front="Q", back="A")
+    assert sent["generationConfig"]["responseMimeType"] == "application/json"
+    assert sent["generationConfig"]["responseJsonSchema"] == Card.model_json_schema()
+
+
+@pytest.mark.parametrize("text", ['{"front": "Q"}', '{"front": "Q", "ba', None])
+def test_gemini_reply_that_does_not_fit_the_schema_is_unknown(text):
+    client = make_gemini_client(lambda request: httpx.Response(200, json=gemini_body(text, "MAX_TOKENS")))
+
+    with pytest.raises(AIError) as excinfo:
+        client.complete_structured("Make a card", Card)
+
+    assert excinfo.value.kind == "unknown"
+
+
+def test_gemini_documents_are_sent_inline_before_the_prompt():
+    sent = {}
+
+    def handler(request):
+        sent.update(json.loads(request.content))
+        return httpx.Response(200, json=gemini_body("ok"))
+
+    make_gemini_client(handler).complete("Summarise", documents=[AIDocument(title="slides.pdf", data=b"%PDF-1.4")])
+
+    parts = sent["contents"][0]["parts"]
+    assert parts[0]["inlineData"]["data"] == "JVBERi0xLjQ="
+    assert "application/pdf" in parts[0]["inlineData"].values()
+    assert parts[1] == {"text": "Summarise"}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        gemini_body(None, "SAFETY"),
+        gemini_body(None, "PROHIBITED_CONTENT"),
+        {"promptFeedback": {"blockReason": "SAFETY"}},
+    ],
+)
+def test_gemini_blocked_replies_are_refusals(body):
+    client = make_gemini_client(lambda request: httpx.Response(200, json=body))
+
+    with pytest.raises(AIError) as excinfo:
+        client.complete("x")
+
+    assert excinfo.value.kind == "refusal"
+
+
+@pytest.mark.parametrize(
+    ("response", "kind"),
+    [
+        (
+            gemini_error(
+                400,
+                "INVALID_ARGUMENT",
+                "API key not valid. Please pass a valid API key.",
+                [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "API_KEY_INVALID"}],
+            ),
+            "auth",
+        ),
+        (gemini_error(403, "PERMISSION_DENIED"), "auth"),
+        (gemini_error(429, "RESOURCE_EXHAUSTED"), "rate_limit"),
+        (gemini_error(404, "NOT_FOUND"), "bad_model"),
+        (gemini_error(503, "UNAVAILABLE"), "unavailable"),
+        (gemini_error(400, "INVALID_ARGUMENT", "Request too large"), "bad_request"),
+    ],
+)
+def test_gemini_http_errors_map_to_readable_kinds(response, kind):
+    client = make_gemini_client(lambda request: response)
+
+    with pytest.raises(AIError) as excinfo:
+        client.ping()
+
+    assert excinfo.value.kind == kind
+    assert excinfo.value.message
+
+
+@pytest.mark.parametrize("error", [httpx.ConnectError, httpx.ReadTimeout])
+def test_gemini_network_failure_maps_to_network(error):
+    def handler(request):
+        raise error("no route to host", request=request)
+
+    with pytest.raises(AIError) as excinfo:
+        make_gemini_client(handler).complete("x")
+
+    assert excinfo.value.kind == "network"

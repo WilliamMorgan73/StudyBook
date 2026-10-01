@@ -74,7 +74,7 @@ export function SubmoduleSourcePanel({ source }: { source: SubmoduleSourceState 
                       checked={source.rawPdfIds.includes(a.attachment_id)}
                       onCheckedChange={(checked) => source.setRawPdf(a.attachment_id, checked === true)}
                     />
-                    Send the original PDF to Anthropic instead
+                    Send the original PDF instead
                     {a.raw_pdf_estimated_tokens !== null && ` (${formatTokenEstimate(a.raw_pdf_estimated_tokens)})`}
                   </label>
                 </div>
