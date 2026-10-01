@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 
+import { CoveredSubmodulesPicker } from '@/components/CoveredSubmodulesPicker'
 import { ExamFields } from '@/components/ExamFields'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,15 +14,17 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createAssignment, toNaiveDateTime, type Assignment } from '@/lib/api'
-import { examFieldsPayload, type ExamFormState } from '@/lib/exam'
+import { coveredAfterExamToggle, examFieldsPayload, type ExamFormState } from '@/lib/exam'
 
 const NO_EXAM: ExamFormState = { isExam: false, duration: '', location: '' }
 
 export function AddAssignmentDialog({
   moduleId,
+  submodules,
   onCreated,
 }: {
   moduleId: number
+  submodules: { id: number; title: string }[]
   onCreated: (assignment: Assignment) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -29,6 +32,7 @@ export function AddAssignmentDialog({
   const [dueAt, setDueAt] = useState('')
   const [weight, setWeight] = useState('')
   const [exam, setExam] = useState<ExamFormState>(NO_EXAM)
+  const [covered, setCovered] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,7 +41,20 @@ export function AddAssignmentDialog({
     setDueAt('')
     setWeight('')
     setExam(NO_EXAM)
+    setCovered([])
     setError(null)
+  }
+
+  function handleExamChange(next: ExamFormState) {
+    setCovered((c) =>
+      coveredAfterExamToggle(
+        exam.isExam,
+        next.isExam,
+        c,
+        submodules.map((s) => s.id),
+      ),
+    )
+    setExam(next)
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -65,6 +82,7 @@ export function AddAssignmentDialog({
         due_at: dueAt ? toNaiveDateTime(new Date(dueAt)) : null,
         weight_percent: weightValue,
         ...examFields,
+        covered_submodule_ids: covered,
       })
       onCreated(created)
       setOpen(false)
@@ -132,7 +150,9 @@ export function AddAssignmentDialog({
               </div>
             </div>
 
-            <ExamFields value={exam} onChange={setExam} />
+            <ExamFields value={exam} onChange={handleExamChange} />
+
+            <CoveredSubmodulesPicker submodules={submodules} value={covered} onChange={setCovered} />
 
             {error && <p className="text-sm text-destructive">{error}</p>}
           </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { examEndsAt, examFieldsPayload } from './exam'
+import { coveredAfterExamToggle, examEndsAt, examFieldsPayload } from './exam'
 
 describe('examFieldsPayload', () => {
   it('clears exam-only fields for coursework even if inputs are filled', () => {
@@ -41,5 +41,25 @@ describe('examEndsAt', () => {
 
   it('is null without a duration', () => {
     expect(examEndsAt('2026-06-01T09:00:00', null)).toBeNull()
+  })
+})
+
+describe('coveredAfterExamToggle', () => {
+  const all = [1, 2, 3]
+
+  it('pre-fills every Submodule when switching to an exam with none selected', () => {
+    expect(coveredAfterExamToggle(false, true, [], all)).toEqual(all)
+  })
+
+  it('keeps an existing selection when switching to an exam', () => {
+    expect(coveredAfterExamToggle(false, true, [2], all)).toEqual([2])
+  })
+
+  it('leaves the selection alone when switching back to coursework', () => {
+    expect(coveredAfterExamToggle(true, false, all, all)).toEqual(all)
+  })
+
+  it('does nothing when the toggle did not change', () => {
+    expect(coveredAfterExamToggle(true, true, [], all)).toEqual([])
   })
 })

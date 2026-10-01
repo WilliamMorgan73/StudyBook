@@ -243,6 +243,24 @@ export function AssignmentPage() {
           )}
         </section>
 
+        {assignment.covered_submodules.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-lg font-medium">Covers</h2>
+            <ul className="flex flex-wrap gap-2">
+              {assignment.covered_submodules.map((s) => (
+                <li key={s.id}>
+                  <Link
+                    to={`/modules/${moduleId}/submodules/${s.id}`}
+                    className="inline-block rounded-lg border px-2.5 py-1 text-sm transition-colors hover:bg-muted"
+                  >
+                    {s.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <AttachmentList
           title="Files"
           attachments={assignment.attachments}
@@ -268,6 +286,7 @@ export function AssignmentPage() {
       <AssignmentSettingsDialog
         moduleId={Number(moduleId)}
         assignment={assignment}
+        submodules={module?.submodules ?? []}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         onChanged={refetch}

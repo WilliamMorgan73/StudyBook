@@ -33,3 +33,11 @@ export function examFieldsPayload(form: ExamFormState): ExamFieldsPayload | { er
 export function examEndsAt(startsAt: string, durationMinutes: number | null): Date | null {
   return durationMinutes ? new Date(new Date(startsAt).getTime() + durationMinutes * 60_000) : null
 }
+
+/**
+ * Covered Submodules after the exam toggle changes. Exams cover the whole Module unless told otherwise,
+ * so switching an Assignment to an exam with nothing selected pre-fills every Submodule.
+ */
+export function coveredAfterExamToggle(wasExam: boolean, isExam: boolean, covered: number[], allSubmoduleIds: number[]) {
+  return !wasExam && isExam && covered.length === 0 ? allSubmoduleIds : covered
+}

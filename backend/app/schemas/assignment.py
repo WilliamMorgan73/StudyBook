@@ -21,8 +21,17 @@ class AssignmentBase(BaseModel):
     location: str | None = None
 
 
+class CoveredSubmodule(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+
+
 class AssignmentCreate(AssignmentBase):
     module_id: int
+    # None means "use the default": all of the Module's Submodules for an exam, none for coursework.
+    covered_submodule_ids: list[int] | None = None
 
 
 class AssignmentUpdate(BaseModel):
@@ -37,6 +46,7 @@ class AssignmentUpdate(BaseModel):
     kind: AssignmentKind | None = None
     duration_minutes: int | None = Field(default=None, gt=0)
     location: str | None = None
+    covered_submodule_ids: list[int] | None = None
 
 
 class AssignmentRead(AssignmentBase):
@@ -46,3 +56,4 @@ class AssignmentRead(AssignmentBase):
     module_id: int
     attachments: list[AttachmentRead] = []
     todos: list[TodoRead] = []
+    covered_submodules: list[CoveredSubmodule] = []

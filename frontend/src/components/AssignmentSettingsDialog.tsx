@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import { CoveredSubmodulesPicker } from '@/components/CoveredSubmodulesPicker'
 import { ExamFields } from '@/components/ExamFields'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -8,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteAssignment, toNaiveDateTime, updateAssignment, type Assignment } from '@/lib/api'
-import { examFieldsPayload, type ExamFormState } from '@/lib/exam'
+import { coveredAfterExamToggle, examFieldsPayload, type ExamFormState } from '@/lib/exam'
 
 function examFormState(
   kind: Assignment['kind'],
@@ -27,12 +28,14 @@ function toLocalInput(iso: string) {
 export function AssignmentSettingsDialog({
   moduleId,
   assignment,
+  submodules,
   open,
   onOpenChange,
   onChanged,
 }: {
   moduleId: number
   assignment: Assignment
+  submodules: { id: number; title: string }[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onChanged: () => void
@@ -45,6 +48,8 @@ export function AssignmentSettingsDialog({
   const [exam, setExam] = useState(() =>
     examFormState(assignment.kind, assignment.duration_minutes, assignment.location),
   )
+  const coveredIds = assignment.covered_submodules.map((s) => s.id).join(',')
+  const [covered, setCovered] = useState(() => assignment.covered_submodules.map((s) => s.id))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,6 +60,7 @@ export function AssignmentSettingsDialog({
       setWeight(String(assignment.weight_percent))
       setDescription(assignment.description ?? '')
       setExam(examFormState(assignment.kind, assignment.duration_minutes, assignment.location))
+      setCovered(coveredIds ? coveredIds.split(',').map(Number) : [])
       setError(null)
     }
   }, [
@@ -66,7 +72,20 @@ export function AssignmentSettingsDialog({
     assignment.kind,
     assignment.duration_minutes,
     assignment.location,
+    coveredIds,
   ])
+
+  function handleExamChange(next: ExamFormState) {
+    setCovered((c) =>
+      coveredAfterExamToggle(
+        exam.isExam,
+        next.isExam,
+        c,
+        submodules.map((s) => s.id),
+      ),
+    )
+    setExam(next)
+  }
 
   async function handleSave() {
     const weightValue = Number(weight)
@@ -88,6 +107,7 @@ export function AssignmentSettingsDialog({
         weight_percent: weightValue,
         description: description.trim() || null,
         ...examFields,
+        covered_submodule_ids: covered,
       })
       onOpenChange(false)
       onChanged()
@@ -136,7 +156,9 @@ export function AssignmentSettingsDialog({
             </div>
           </div>
 
-          <ExamFields value={exam} onChange={setExam} />
+          <ExamFields value={exam} onChange={handleExamChange} />
+
+          <CoveredSubmodulesPicker submodules={submodules} value={covered} onChange={setCovered} />
 
           <div className="space-y-1.5">
             <Label htmlFor="assignment-description">Description</Label>

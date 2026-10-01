@@ -186,7 +186,7 @@ export function ModulePage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Assignments</CardTitle>
-                <AddAssignmentDialog moduleId={module.id} onCreated={refetch} />
+                <AddAssignmentDialog moduleId={module.id} submodules={module.submodules} onCreated={refetch} />
               </div>
             </CardHeader>
             <CardContent>

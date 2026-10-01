@@ -83,6 +83,7 @@ export interface Assignment {
   location: string | null
   attachments: Attachment[]
   todos: Todo[]
+  covered_submodules: { id: number; title: string }[]
 }
 
 export interface CalendarEvent {
@@ -174,6 +175,8 @@ export interface AssignmentCreateInput {
   kind?: AssignmentKind
   duration_minutes?: number | null
   location?: string | null
+  /** Omit on create for the default: every Submodule for an exam, none for coursework. */
+  covered_submodule_ids?: number[]
 }
 
 export type AssignmentUpdateInput = Partial<Omit<AssignmentCreateInput, 'module_id'>> & {
