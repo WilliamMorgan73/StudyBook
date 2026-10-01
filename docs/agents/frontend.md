@@ -20,6 +20,7 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 
 **Overview.** Top row (`lg:grid-cols-4`): Calendar, then two 2-card columns (Upcoming assignments + To-do; Progress + Notepad).
 - Calendar fetch uses `keepPreviousData`, so the previous month stays on screen while the next loads; skeleton only on first load.
+- Busy time (`kind="busy"`, from personal events) shows as a muted dash marker (`EventMarker`, which ignores `color` for it), always after other markers in a day cell (`busyLast`). The legend's "Busy" button hides/shows it (`visibleCalendarEvents`), remembered in `localStorage`. Busy events repeat their `id`, so event keys use `calendarEventKey` (kind + id + start). `ModuleWeekCalendar` never shows busy time: it reads `module.lectures`/assignments, not `/calendar`.
 - Day list: click a day to list its events, click an event to toggle inline details (tracked by `expandedEventKey`, reset on day change). The list is fixed-height (`h-24`) and scrolls, because the grid row stretches and a taller card would stretch every card in the row.
 - Progress ring: `RadialProgress` with one achieved+shortfall pair per module in its own color, sized by credit share (`m.credits ?? 1` fallback). Hover swaps the center label for a breakdown layer via `group-hover/card:` (`Card` has `group/card` built in).
 
@@ -38,7 +39,7 @@ There is no backend recurrence rule. `ModuleSettingsDialog`'s Lectures tab creat
 Both use the same category-sidebar shell.
 
 - `ModuleSettingsDialog` (General, Lectures). The credits field is validated client-side against `max_credits` minus every other module's credits (its own `useAsync` calls); `AddModuleDialog` has no such check.
-- `AppSettingsDialog` (Appearance, General, Keybinds, AI Integration, Data; the last two are placeholders). Appearance: theme/skin/`table_alignment` apply live on click; `note_font_size` (10–32) commits on blur. Keybinds: one `KeybindInput` per `KEYBIND_ACTIONS` entry; click to record, Escape cancels, `captureKeybind` emits `Mod-Shift-Alt-key` order; shows "Also used by X" on conflicts and a reset button when not default.
+- `AppSettingsDialog` (Appearance, General, Keybinds, Calendars, AI Integration, Data; the last two are placeholders). Calendars is `PersonalEventsSettings`: add/edit/delete personal events (form logic in `lib/busyTime.ts`); after each change it refetches its own list and calls `onCalendarChanged`, which Overview wires to `calendar.refetch`. Appearance: theme/skin/`table_alignment` apply live on click; `note_font_size` (10–32) commits on blur. Keybinds: one `KeybindInput` per `KEYBIND_ACTIONS` entry; click to record, Escape cancels, `captureKeybind` emits `Mod-Shift-Alt-key` order; shows "Also used by X" on conflicts and a reset button when not default.
 - Every `AppSettingsDialog` save calls `onChanged`, which refetches Overview's app settings in place (the dialog stays mounted). Controls read straight from the `settings` prop; only `max_credits` and `note_font_size` keep local drafts, reset each time the dialog opens.
 
 ## Theming

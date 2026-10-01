@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
+import { busyLast, calendarEventKey } from '@/lib/busyTime'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -126,9 +127,9 @@ export function MonthCalendar({
                 {day.getDate()}
               </span>
               {dayEvents.length > 0 && (
-                <div className="flex flex-wrap gap-0.5">
-                  {dayEvents.slice(0, 4).map((event) => (
-                    <EventMarker key={`${event.kind}-${event.id}`} kind={event.kind} color={eventColor(event)} />
+                <div className="flex flex-wrap items-center gap-0.5">
+                  {busyLast(dayEvents).slice(0, 4).map((event) => (
+                    <EventMarker key={calendarEventKey(event)} kind={event.kind} color={eventColor(event)} />
                   ))}
                 </div>
               )}
