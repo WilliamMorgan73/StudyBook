@@ -17,6 +17,7 @@ from app.api.routes import (
     personal_events,
     quick_note,
     quick_todos,
+    revision,
     submodule_ai,
     submodules,
 )
@@ -51,6 +52,7 @@ app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)
 app.include_router(personal_events.router)
+app.include_router(revision.router)
 app.include_router(quick_todos.router)
 app.include_router(quick_note.router)
 

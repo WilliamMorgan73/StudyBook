@@ -7,6 +7,7 @@ from app.models.module import Module, ModuleLink
 from app.models.personal_event import PersonalEvent
 from app.models.quick_note import QuickNote
 from app.models.quick_todo import QuickTodo
+from app.models.revision_session import RevisionSession
 from app.models.submodule import Submodule
 from app.models.todo import AssignmentTodo
 
@@ -23,5 +24,6 @@ __all__ = [
     "PersonalEvent",
     "QuickNote",
     "QuickTodo",
+    "RevisionSession",
     "Submodule",
 ]

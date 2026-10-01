@@ -42,6 +42,9 @@ class Assignment(Base):
     covered_submodules: Mapped[list["Submodule"]] = relationship(  # noqa: F821
         secondary=assignment_submodules, order_by="Submodule.title", passive_deletes=True
     )
+    revision_sessions: Mapped[list["RevisionSession"]] = relationship(  # noqa: F821
+        back_populates="assignment", cascade="all, delete-orphan", passive_deletes=True, order_by="RevisionSession.starts_at"
+    )
     todos: Mapped[list["AssignmentTodo"]] = relationship(  # noqa: F821
         back_populates="assignment", cascade="all, delete-orphan", order_by="AssignmentTodo.id"
     )

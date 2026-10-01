@@ -5,9 +5,10 @@ from pydantic import BaseModel
 
 
 class CalendarEvent(BaseModel):
-    kind: Literal["lecture", "assignment_due", "exam", "busy"]
+    kind: Literal["lecture", "assignment_due", "exam", "busy", "revision"]
     """`busy` is one occurrence of a PersonalEvent: no module or link, and `id` is the
-    PersonalEvent's, so it repeats across occurrences."""
+    PersonalEvent's, so it repeats across occurrences. `revision` is a RevisionSession; its
+    `module_id` is its exam's."""
     id: int
     module_id: int | None
     title: str
@@ -15,3 +16,5 @@ class CalendarEvent(BaseModel):
     ends_at: datetime | None = None
     location: str | None = None
     url: str | None
+    done: bool | None = None
+    """Set only for `revision`."""
