@@ -1,7 +1,7 @@
 """add anthropic_api_key and ai_model to app_settings
 
 Revision ID: f08dfd5eb566
-Revises: bef0a2651fd3
+Revises: 1dcbb2054c35
 Create Date: 2026-10-01 15:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = 'f08dfd5eb566'
-down_revision: str | Sequence[str] | None = 'bef0a2651fd3'
+down_revision: str | Sequence[str] | None = '1dcbb2054c35'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
