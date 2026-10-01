@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     # Fallback Anthropic key (env var ANTHROPIC_API_KEY or .env), used when the key saved in
     # AppSettings is empty. The saved key wins.
     anthropic_api_key: str | None = None
+    # Same for Gemini (env var GEMINI_API_KEY).
+    gemini_api_key: str | None = None
 
 
 settings = Settings()

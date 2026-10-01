@@ -10,7 +10,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 
 @router.get("/models", response_model=list[AIModelRead])
 def list_models() -> list[AIModelRead]:
-    return [AIModelRead(id=m.id, label=m.label, description=m.description) for m in AI_MODELS]
+    return [AIModelRead(id=m.id, label=m.label, description=m.description, provider=m.provider) for m in AI_MODELS]
 
 
 @router.post("/test", response_model=AIConnectionResult)

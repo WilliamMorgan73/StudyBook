@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AI_SETTINGS_HINT, useAIEnabled } from '@/lib/ai'
 
 /**
- * The shared treatment for any action that calls Claude: a normal `Button` when AI is enabled,
+ * The shared treatment for any action that calls the AI: a normal `Button` when AI is enabled,
  * otherwise disabled with a tooltip pointing to Settings → AI Integration. Pass `aiEnabled` when
  * the page already knows it; otherwise the button reads it from settings itself.
  */

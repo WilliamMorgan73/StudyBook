@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_ai_client
 from app.core.database import get_db
+from app.crud.app_settings import get_or_create_settings
 from app.models.submodule import Submodule
 from app.schemas.ai_source import SubmoduleSourceEstimate
 from app.schemas.flashcard import (
@@ -16,6 +17,7 @@ from app.schemas.flashcard import (
 )
 from app.schemas.submodule import SubmoduleDetail, SubmoduleSummaryRequest
 from app.services.ai import AIClient
+from app.services.ai_models import provider_of
 from app.services.flashcard_generation import generate_flashcards
 from app.services.submodule_source import (
     RawPdfNotAllowedError,
@@ -34,7 +36,8 @@ def load_submodule_source(db: Session, submodule_id: int, raw_pdf_ids: list[int]
     if submodule is None:
         raise HTTPException(404, "Submodule not found")
     try:
-        source = gather_submodule_source(submodule, raw_pdf_ids=raw_pdf_ids)
+        pdf_tokens_per_page = provider_of(get_or_create_settings(db).ai_model).pdf_tokens_per_page
+        source = gather_submodule_source(submodule, raw_pdf_ids=raw_pdf_ids, pdf_tokens_per_page=pdf_tokens_per_page)
     except RawPdfNotAllowedError as exc:
         raise HTTPException(422, str(exc)) from exc
     finally:

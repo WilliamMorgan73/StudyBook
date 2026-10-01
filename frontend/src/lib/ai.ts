@@ -1,8 +1,8 @@
-import { ApiError, getAppSettings } from '@/lib/api'
+import { ApiError, getAppSettings, type AppSettings } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 
 /** Where AI actions point the student when no key is set. */
-export const AI_SETTINGS_HINT = 'Add an Anthropic API key in Settings → AI Integration to use this.'
+export const AI_SETTINGS_HINT = 'Add an API key in Settings → AI Integration to use this.'
 
 /**
  * The backend reports AI failures as `{ detail, kind }`, with `detail` already readable
@@ -22,4 +22,15 @@ export function useAIEnabled(): boolean | null {
   const { data, error } = useAsync(() => getAppSettings(), [])
   if (error) return false
   return data ? data.ai_enabled : null
+}
+
+/** The AI slice of settings that Settings → AI Integration edits. */
+export type AISettingsState = Pick<
+  AppSettings,
+  'ai_provider' | 'has_anthropic_api_key' | 'has_gemini_api_key' | 'ai_enabled' | 'ai_model'
+>
+
+export function pickAISettings(settings: AppSettings): AISettingsState {
+  const { ai_provider, has_anthropic_api_key, has_gemini_api_key, ai_enabled, ai_model } = settings
+  return { ai_provider, has_anthropic_api_key, has_gemini_api_key, ai_enabled, ai_model }
 }

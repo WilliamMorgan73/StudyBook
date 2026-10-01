@@ -19,6 +19,7 @@ from app.services.ai import AIError, FakeAIClient
 from app.services.ai_models import AI_MODEL_IDS, DEFAULT_AI_MODEL
 
 SECRET = "sk-ant-test-0123456789abcdef"
+GEMINI_SECRET = "AIza-test-0123456789abcdef"
 
 
 @pytest.fixture
@@ -38,16 +39,20 @@ def client(db: Session) -> Iterator[TestClient]:
 
 
 def assert_secret_absent(response) -> None:
-    assert SECRET not in response.text
+    for secret in (SECRET, GEMINI_SECRET):
+        assert secret not in response.text
     assert "anthropic_api_key" not in response.json()
+    assert "gemini_api_key" not in response.json()
 
 
 def test_defaults_report_no_key_and_current_sonnet(client):
     body = client.get("/settings").json()
 
-    assert body["has_api_key"] is False
+    assert body["has_anthropic_api_key"] is False
+    assert body["has_gemini_api_key"] is False
     assert body["ai_enabled"] is False
     assert body["ai_model"] == DEFAULT_AI_MODEL == "claude-sonnet-5-5"
+    assert body["ai_provider"] == "anthropic"
     assert DEFAULT_AI_MODEL in AI_MODEL_IDS
 
 
@@ -58,7 +63,7 @@ def test_saved_key_is_never_returned(client, db):
     for response in (patched, fetched):
         assert response.status_code == 200
         assert_secret_absent(response)
-        assert response.json()["has_api_key"] is True
+        assert response.json()["has_anthropic_api_key"] is True
         assert response.json()["ai_enabled"] is True
     assert db.get(AppSettings, 1).anthropic_api_key == SECRET
 
@@ -68,7 +73,7 @@ def test_unrelated_patch_leaves_key_alone(client, db):
 
     response = client.patch("/settings", json={"theme_mode": "dark"})
 
-    assert response.json()["has_api_key"] is True
+    assert response.json()["has_anthropic_api_key"] is True
     assert db.get(AppSettings, 1).anthropic_api_key == SECRET
 
 
@@ -78,7 +83,7 @@ def test_key_can_be_cleared(client, db, cleared):
 
     body = client.patch("/settings", json={"anthropic_api_key": cleared}).json()
 
-    assert body["has_api_key"] is False
+    assert body["has_anthropic_api_key"] is False
     assert body["ai_enabled"] is False
     assert db.get(AppSettings, 1).anthropic_api_key is None
 
@@ -94,7 +99,7 @@ def test_env_key_enables_ai_without_a_saved_key(client, monkeypatch):
 
     body = client.get("/settings").json()
 
-    assert body["has_api_key"] is False
+    assert body["has_anthropic_api_key"] is False
     assert body["ai_enabled"] is True
     assert "sk-ant-from-env" not in client.get("/settings").text
 
@@ -102,25 +107,78 @@ def test_env_key_enables_ai_without_a_saved_key(client, monkeypatch):
 def test_saved_key_wins_over_env_key(monkeypatch):
     monkeypatch.setattr(ai.env_settings, "anthropic_api_key", "sk-ant-from-env")
 
-    assert ai.resolve_api_key(SECRET) == SECRET
-    assert ai.resolve_api_key(None) == "sk-ant-from-env"
-    assert ai.resolve_api_key("") == "sk-ant-from-env"
+    assert ai.resolve_api_key("anthropic", SECRET) == SECRET
+    assert ai.resolve_api_key("anthropic", None) == "sk-ant-from-env"
+    assert ai.resolve_api_key("anthropic", "") == "sk-ant-from-env"
+    # Each provider only falls back to its own environment key.
+    assert ai.resolve_api_key("gemini", None) is None
 
 
 def test_build_ai_client_uses_env_fallback(monkeypatch):
     monkeypatch.setattr(ai.env_settings, "anthropic_api_key", "sk-ant-from-env")
 
-    client = ai.build_ai_client(None, "claude-opus-5-5")
+    client = ai.build_ai_client("claude-opus-5-5", anthropic_api_key=None, gemini_api_key=None)
 
+    assert isinstance(client, ai.AnthropicAIClient)
     assert client.model == "claude-opus-5-5"
     assert client._client.api_key == "sk-ant-from-env"
 
 
 def test_build_ai_client_without_any_key_is_not_configured():
     with pytest.raises(AIError) as excinfo:
-        ai.build_ai_client(None, DEFAULT_AI_MODEL)
+        ai.build_ai_client(DEFAULT_AI_MODEL, anthropic_api_key=None, gemini_api_key=None)
 
     assert excinfo.value.kind == "not_configured"
+
+
+def test_build_ai_client_picks_the_provider_from_the_model(monkeypatch):
+    monkeypatch.setattr(ai.env_settings, "gemini_api_key", "AIza-from-env")
+
+    gemini = ai.build_ai_client("gemini-3.8-flash", anthropic_api_key=SECRET, gemini_api_key=GEMINI_SECRET)
+    from_env = ai.build_ai_client("gemini-3.8-flash", anthropic_api_key=SECRET, gemini_api_key=None)
+
+    assert isinstance(gemini, ai.GeminiAIClient)
+    assert gemini.model == "gemini-3.8-flash"
+    assert gemini._client._api_client.api_key == GEMINI_SECRET
+    assert from_env._client._api_client.api_key == "AIza-from-env"
+
+
+def test_gemini_model_without_a_gemini_key_is_not_configured():
+    # A saved Anthropic key doesn't count for a Gemini model.
+    with pytest.raises(AIError) as excinfo:
+        ai.build_ai_client("gemini-3.8-flash", anthropic_api_key=SECRET, gemini_api_key=None)
+
+    assert excinfo.value.kind == "not_configured"
+    assert "Gemini" in excinfo.value.message
+
+
+def test_both_keys_are_kept_and_ai_enabled_follows_the_selected_provider(client, db):
+    client.patch("/settings", json={"anthropic_api_key": SECRET})
+
+    gemini_no_key = client.patch("/settings", json={"ai_model": "gemini-3.8-flash"}).json()
+    gemini_keyed = client.patch("/settings", json={"gemini_api_key": f" {GEMINI_SECRET} "})
+    back_to_claude = client.patch("/settings", json={"ai_model": "claude-haiku-4-5"}).json()
+
+    assert gemini_no_key["ai_provider"] == "gemini"
+    assert gemini_no_key["ai_enabled"] is False
+    assert gemini_keyed.json()["ai_enabled"] is True
+    assert gemini_keyed.json()["has_anthropic_api_key"] is True
+    assert gemini_keyed.json()["has_gemini_api_key"] is True
+    assert_secret_absent(gemini_keyed)
+    assert back_to_claude["ai_provider"] == "anthropic"
+    assert back_to_claude["ai_enabled"] is True
+    row = db.get(AppSettings, 1)
+    assert (row.anthropic_api_key, row.gemini_api_key) == (SECRET, GEMINI_SECRET)
+
+
+def test_gemini_key_can_be_cleared_without_touching_the_anthropic_key(client, db):
+    client.patch("/settings", json={"anthropic_api_key": SECRET, "gemini_api_key": GEMINI_SECRET})
+
+    body = client.patch("/settings", json={"gemini_api_key": None}).json()
+
+    assert body["has_gemini_api_key"] is False
+    assert body["has_anthropic_api_key"] is True
+    assert db.get(AppSettings, 1).gemini_api_key is None
 
 
 def test_model_can_be_changed_but_must_be_known(client):
@@ -135,6 +193,7 @@ def test_models_endpoint_lists_the_model_options(client):
 
     assert {m["id"] for m in models} == AI_MODEL_IDS
     assert models[0]["id"] == DEFAULT_AI_MODEL
+    assert {m["provider"] for m in models} == {"anthropic", "gemini"}
 
 
 def test_test_connection_without_key_is_not_configured(client):
@@ -173,14 +232,17 @@ def test_test_connection_reports_readable_errors(client, kind, status):
 def test_test_connection_uses_saved_key_and_model(client, monkeypatch):
     built = {}
 
-    def fake_build(saved_key, model):
-        built.update(saved_key=saved_key, model=model)
+    def fake_build(model, *, anthropic_api_key, gemini_api_key):
+        built.update(model=model, anthropic_api_key=anthropic_api_key, gemini_api_key=gemini_api_key)
         return FakeAIClient(model=model)
 
     monkeypatch.setattr("app.api.deps.build_ai_client", fake_build)
-    client.patch("/settings", json={"anthropic_api_key": SECRET, "ai_model": "claude-haiku-4-5"})
+    client.patch(
+        "/settings",
+        json={"anthropic_api_key": SECRET, "gemini_api_key": GEMINI_SECRET, "ai_model": "gemini-3.5-flash-lite"},
+    )
 
     response = client.post("/ai/test")
 
-    assert response.json() == {"ok": True, "model": "claude-haiku-4-5"}
-    assert built == {"saved_key": SECRET, "model": "claude-haiku-4-5"}
+    assert response.json() == {"ok": True, "model": "gemini-3.5-flash-lite"}
+    assert built == {"model": "gemini-3.5-flash-lite", "anthropic_api_key": SECRET, "gemini_api_key": GEMINI_SECRET}

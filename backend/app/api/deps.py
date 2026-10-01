@@ -7,8 +7,9 @@ from app.services.ai import AIClient, build_ai_client
 
 
 def get_ai_client(db: Session = Depends(get_db)) -> AIClient:
-    """FastAPI dependency for routes that call Claude. Raises `AIError("not_configured")`
-    when no key is saved or set in the environment. Tests override this with a `FakeAIClient`.
+    """FastAPI dependency for routes that call the AI. Raises `AIError("not_configured")` when the
+    selected model's provider has no key saved or set in the environment. Tests override this with
+    a `FakeAIClient`.
     """
     row = get_or_create_settings(db)
-    return build_ai_client(row.anthropic_api_key, row.ai_model)
+    return build_ai_client(row.ai_model, anthropic_api_key=row.anthropic_api_key, gemini_api_key=row.gemini_api_key)

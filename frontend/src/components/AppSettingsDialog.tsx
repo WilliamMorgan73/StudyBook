@@ -2,7 +2,7 @@ import { CalendarDays, Database, Keyboard, Palette, SlidersHorizontal, Sparkles 
 import { motion } from 'motion/react'
 import { useState } from 'react'
 
-import { AISettingsPanel, type AISettingsState } from '@/components/AISettingsPanel'
+import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { KeybindInput } from '@/components/KeybindInput'
 import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
 import { SettingsNav } from '@/components/SettingsNav'
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { pickAISettings, type AISettingsState } from '@/lib/ai'
 import { updateAppSettings, type AppSettings, type Skin, type TableAlignment, type ThemeMode } from '@/lib/api'
 import { DEFAULT_KEYBINDS, KEYBIND_ACTIONS, type EditorKeybinds } from '@/lib/keybinds'
 import { applyTheme, SKINS } from '@/lib/theme'
@@ -64,11 +65,7 @@ export function AppSettingsDialog({
   // Like appearance, AI settings stay local (seeded from the prop) instead of going through
   // `onChanged`, so saving a key doesn't remount the dialog. Unlike appearance it isn't re-seeded
   // on open (the prop is stale after a save); the panel keeps it current from each PATCH response.
-  const [aiSettings, setAISettings] = useState<AISettingsState>({
-    has_api_key: settings.has_api_key,
-    ai_enabled: settings.ai_enabled,
-    ai_model: settings.ai_model,
-  })
+  const [aiSettings, setAISettings] = useState<AISettingsState>(() => pickAISettings(settings))
 
   // Reset the category and drafts each time the dialog opens (not on every settings refetch,
   // which would discard an in-progress edit or jump back to Appearance).

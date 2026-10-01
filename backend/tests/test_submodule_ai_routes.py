@@ -22,6 +22,7 @@ from app.models.module import Module
 from app.models.submodule import Submodule
 from app.schemas.flashcard import FlashcardCreate
 from app.services.ai import AIError, FakeAIClient
+from app.services.ai_models import AI_PROVIDERS
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC).replace(tzinfo=None)
 SLIDES_TEXT = "Dijkstra's algorithm relaxes edges in order of distance using a priority queue. " * 3
@@ -69,6 +70,16 @@ def test_estimate_lists_extractable_attachments_and_near_empty_pdfs(client):
     assert scan["near_empty"] and not scan["send_raw_pdf"] and scan["raw_pdf_estimated_tokens"] > 0
     assert body["estimated_tokens"] == body["note_estimated_tokens"] + slides["estimated_tokens"]
     assert body["large"] is False
+
+
+def test_raw_pdf_estimate_follows_the_selected_provider(client):
+    # scan.pdf isn't on disk, so it counts as one page.
+    claude = client.get("/submodules/1/ai-source").json()["attachments"][1]
+    client.patch("/settings", json={"ai_model": "gemini-3.8-flash"})
+    gemini = client.get("/submodules/1/ai-source").json()["attachments"][1]
+
+    assert claude["raw_pdf_estimated_tokens"] == AI_PROVIDERS["anthropic"].pdf_tokens_per_page
+    assert gemini["raw_pdf_estimated_tokens"] == AI_PROVIDERS["gemini"].pdf_tokens_per_page
 
 
 def test_estimate_with_raw_pdf_opt_in(client):

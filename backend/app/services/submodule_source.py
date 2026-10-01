@@ -1,6 +1,6 @@
 """A Submodule's source material for AI features: its note plus its PDF/PPTX Attachments' text.
 
-Shared by every feature that sends "this topic" to Claude (flashcard generation, summaries), so
+Shared by every feature that sends "this topic" to the AI (flashcard generation, summaries), so
 they all send the same thing, estimate its size the same way, and treat near-empty PDFs the same:
 
 - `gather_submodule_source(submodule, raw_pdf_ids=...)` extracts each Attachment's text through
@@ -11,7 +11,7 @@ they all send the same thing, estimate its size the same way, and treat near-emp
 - A near-empty PDF's original file is only sent when its id is passed in `raw_pdf_ids`, i.e. after
   the student explicitly opted in. It then replaces the (thin) extracted text, as an `AIDocument`.
 
-Nothing here calls Claude. Extraction and page counting are injectable so tests need no files.
+Nothing here calls the AI. Extraction and page counting are injectable so tests need no files.
 """
 
 import math
@@ -29,11 +29,12 @@ from app.models.attachment import Attachment
 from app.models.enums import AttachmentKind
 from app.models.submodule import Submodule
 from app.services.ai import AIDocument
+from app.services.ai_models import AI_PROVIDERS
 
 # Rough English-text ratio; good enough for a "this is big" warning, not for billing.
 CHARS_PER_TOKEN = 4
-# Claude reads a raw PDF page as both text and an image: roughly 1,500-3,000 tokens per page.
-PDF_TOKENS_PER_PAGE = 2_000
+# Per raw PDF page; depends on the provider (`AIProviderInfo.pdf_tokens_per_page`).
+PDF_TOKENS_PER_PAGE = AI_PROVIDERS["anthropic"].pdf_tokens_per_page
 # Above this estimate the UI asks for confirmation before sending.
 LARGE_REQUEST_TOKENS = 20_000
 
@@ -140,12 +141,14 @@ def gather_submodule_source(
     raw_pdf_ids: Collection[int] = (),
     extract: Callable[[Attachment], ExtractedText] = get_extracted_text,
     count_pages: Callable[[str], int | None] = pdf_page_count,
+    pdf_tokens_per_page: int = PDF_TOKENS_PER_PAGE,
 ) -> SubmoduleSource:
     """Collect `submodule`'s note and the text of its extractable Attachments.
 
     May convert Attachments and set their `extracted_markdown` cache; the caller commits.
     Raises `RawPdfNotAllowedError` if `raw_pdf_ids` names anything other than one of this
-    Submodule's near-empty PDFs.
+    Submodule's near-empty PDFs. `pdf_tokens_per_page` sizes the raw-PDF estimates for the
+    selected provider.
     """
     raw_requested = set(raw_pdf_ids)
     attachments: list[SourceAttachment] = []
@@ -169,7 +172,7 @@ def gather_submodule_source(
         raw_tokens = None
         if extracted.near_empty:
             raw_allowed.add(attachment.id)
-            raw_tokens = (count_pages(attachment.file_path) or 1) * PDF_TOKENS_PER_PAGE
+            raw_tokens = (count_pages(attachment.file_path) or 1) * pdf_tokens_per_page
         attachments.append(
             SourceAttachment(
                 **base,

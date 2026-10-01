@@ -1,6 +1,6 @@
 """AI Submodule summaries: one markdown summary of a Submodule's source material, stored on the row.
 
-- `summarize(ai, source)` asks Claude for the summary text; the route stores it in
+- `summarize(ai, source)` asks the AI for the summary text; the route stores it in
   `Submodule.summary_markdown` together with `source_hash(source)`.
 - `source_hash` is a pure function of the material (note plus each extractable Attachment's
   text), so the stale flag is just "the hash now differs from the stored one". It ignores the
@@ -73,7 +73,7 @@ def summarize(
     *,
     read_pdf: Callable[[str], bytes] = lambda path: Path(path).read_bytes(),
 ) -> str:
-    """Ask Claude for a markdown summary. Raises `AIError` for failed or empty replies and
+    """Ask the AI for a markdown summary. Raises `AIError` for failed or empty replies and
     `OSError` if an opted-in PDF can't be read."""
     reply = ai.complete(
         build_prompt(source),
@@ -82,7 +82,7 @@ def summarize(
         documents=source.documents(read_pdf),
     ).strip()
     if not reply:
-        raise AIError("unknown", "Claude returned an empty summary. Try again.")
+        raise AIError("unknown", "The AI returned an empty summary. Try again.")
     return reply
 
 

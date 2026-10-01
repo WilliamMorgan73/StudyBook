@@ -1,4 +1,6 @@
-"""The AI service seam: every call StudyBook makes to Claude goes through an `AIClient`.
+"""The AI service seam: every call StudyBook makes to an AI model goes through an `AIClient`,
+backed by Anthropic (`AnthropicAIClient`) or Google Gemini (`GeminiAIClient`). The selected model
+picks the provider (`ai_models.provider_of`); each provider has its own saved key.
 
 Feature functions (flashcard generation, summaries, session guidance) take an `AIClient` as a
 parameter and never construct the SDK client themselves. Routes get one from the
@@ -9,7 +11,7 @@ The interface is deliberately small:
 
 - `complete(prompt, system=..., max_tokens=...) -> str` for free text (summaries, guidance).
 - `complete_structured(prompt, schema, ...) -> schema instance` for validated JSON
-  (card proposals), via the SDK's structured-output support. A reply that doesn't fit the
+  (card proposals), via each SDK's structured-output support. A reply that doesn't fit the
   schema raises `AIError("unknown")`, never a raw validation error.
 - Both take optional `documents` (`AIDocument`: raw PDF bytes), sent ahead of the prompt. Only
   used once the student has confirmed sending an original PDF (see `submodule_source`).
@@ -26,9 +28,14 @@ from dataclasses import dataclass, field
 from typing import Literal, Protocol, TypeVar
 
 import anthropic
+import httpx
+from google import genai
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 from pydantic import BaseModel, ValidationError
 
 from app.core.config import settings as env_settings
+from app.services.ai_models import AIProvider, provider_of
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -50,7 +57,7 @@ _HTTP_STATUS: dict[str, int] = {
 
 SETTINGS_HINT = "Settings → AI Integration"
 
-UNREADABLE_REPLY = "Claude's reply couldn't be read. Try again."
+UNREADABLE_REPLY = "The AI's reply couldn't be read. Try again."
 
 
 class AIError(Exception):
@@ -99,19 +106,27 @@ class AIClient(Protocol):
     ) -> T: ...
 
 
-def resolve_api_key(saved_key: str | None) -> str | None:
-    """The key saved in AppSettings wins; otherwise fall back to the backend environment."""
-    for key in (saved_key, env_settings.anthropic_api_key):
+def resolve_api_key(provider: AIProvider, saved_key: str | None) -> str | None:
+    """The provider's key saved in AppSettings wins; otherwise fall back to the backend environment
+    (`ANTHROPIC_API_KEY` / `GEMINI_API_KEY`)."""
+    env_key = env_settings.anthropic_api_key if provider == "anthropic" else env_settings.gemini_api_key
+    for key in (saved_key, env_key):
         if key and key.strip():
             return key.strip()
     return None
 
 
-def build_ai_client(saved_key: str | None, model: str) -> "AnthropicAIClient":
-    """The one place the real client is constructed. Raises `not_configured` with no key."""
-    api_key = resolve_api_key(saved_key)
+def build_ai_client(model: str, *, anthropic_api_key: str | None, gemini_api_key: str | None) -> AIClient:
+    """The one place a real client is constructed, for the provider serving `model`, given the
+    saved keys. Raises `not_configured` when that provider has no key."""
+    provider = provider_of(model)
+    saved_key = anthropic_api_key if provider.id == "anthropic" else gemini_api_key
+    api_key = resolve_api_key(provider.id, saved_key)
     if api_key is None:
-        raise AIError("not_configured", f"No Anthropic API key is set. Add one in {SETTINGS_HINT}.")
+        name = "Anthropic" if provider.id == "anthropic" else "Gemini"
+        raise AIError("not_configured", f"No {name} API key is set. Add one in {SETTINGS_HINT}.")
+    if provider.id == "gemini":
+        return GeminiAIClient(api_key=api_key, model=model)
     return AnthropicAIClient(api_key=api_key, model=model)
 
 
@@ -226,6 +241,129 @@ def _map_sdk_error(exc: anthropic.AnthropicError) -> AIError:
             return AIError("bad_request", "Anthropic refused the request: check your account's credit balance.")
         return AIError("bad_request", f"Anthropic rejected the request: {exc.message}")
     return AIError("unknown", f"The AI request failed: {exc}")
+
+
+# Gemini 3 models always think, and thinking counts against `max_output_tokens`. Callers size
+# `max_tokens` for the answer alone (as Claude counts it), so Gemini gets this much on top.
+# Unused allowance costs nothing.
+GEMINI_THINKING_ALLOWANCE = 16_000
+
+# Finish reasons meaning Gemini withheld the reply over its content policies.
+_GEMINI_BLOCKED = frozenset(
+    {
+        genai_types.FinishReason.SAFETY,
+        genai_types.FinishReason.PROHIBITED_CONTENT,
+        genai_types.FinishReason.BLOCKLIST,
+        genai_types.FinishReason.SPII,
+        genai_types.FinishReason.RECITATION,
+    }
+)
+
+
+class GeminiAIClient:
+    """`AIClient` backed by the `google-genai` SDK (Gemini Developer API, not Vertex AI)."""
+
+    def __init__(self, api_key: str, model: str, http_options: genai_types.HttpOptions | None = None):
+        # Pass the key and `vertexai=False` explicitly so stray GOOGLE_* env vars can't redirect it.
+        self.model = model
+        self._client = genai.Client(api_key=api_key, vertexai=False, http_options=http_options)
+
+    def ping(self) -> None:
+        # Looking the model up checks the key and the model ID without spending tokens.
+        with _gemini_errors():
+            self._client.models.get(model=self.model)
+
+    def complete(
+        self,
+        prompt: str,
+        *,
+        system: str | None = None,
+        max_tokens: int = 4096,
+        documents: Sequence[AIDocument] = (),
+    ) -> str:
+        response = self._generate(prompt, system, max_tokens, documents)
+        return response.text or ""
+
+    def complete_structured(
+        self,
+        prompt: str,
+        schema: type[T],
+        *,
+        system: str | None = None,
+        max_tokens: int = 16000,
+        documents: Sequence[AIDocument] = (),
+    ) -> T:
+        response = self._generate(
+            prompt,
+            system,
+            max_tokens,
+            documents,
+            response_mime_type="application/json",
+            response_json_schema=schema.model_json_schema(),
+        )
+        try:
+            return schema.model_validate_json(response.text or "")
+        except ValidationError as exc:
+            # Not valid for the schema (e.g. cut off at the token limit).
+            raise AIError("unknown", UNREADABLE_REPLY) from exc
+
+    def _generate(
+        self, prompt: str, system: str | None, max_tokens: int, documents: Sequence[AIDocument], **config
+    ) -> genai_types.GenerateContentResponse:
+        contents: list = [genai_types.Part.from_bytes(data=doc.data, mime_type="application/pdf") for doc in documents]
+        contents.append(prompt)
+        with _gemini_errors():
+            response = self._client.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=genai_types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens + GEMINI_THINKING_ALLOWANCE,
+                    automatic_function_calling=genai_types.AutomaticFunctionCallingConfig(disable=True),
+                    **config,
+                ),
+            )
+        _check_gemini_blocked(response)
+        return response
+
+
+def _check_gemini_blocked(response: genai_types.GenerateContentResponse) -> None:
+    feedback = response.prompt_feedback
+    finish = response.candidates[0].finish_reason if response.candidates else None
+    if (feedback is not None and feedback.block_reason is not None) or finish in _GEMINI_BLOCKED:
+        raise AIError("refusal", "Gemini declined this request. Try rewording or trimming the content sent.")
+    if not response.candidates:
+        raise AIError("unknown", UNREADABLE_REPLY)
+
+
+@contextmanager
+def _gemini_errors() -> Iterator[None]:
+    """Translate google-genai failures into `AIError`s. Connection failures surface as raw httpx
+    errors (the SDK doesn't wrap them)."""
+    try:
+        yield
+    except httpx.TimeoutException as exc:
+        raise AIError("network", "The request to Google timed out. Check your connection and try again.") from exc
+    except httpx.TransportError as exc:
+        raise AIError("network", "Couldn't reach Google. Check your internet connection and try again.") from exc
+    except genai_errors.APIError as exc:
+        raise _map_gemini_error(exc) from exc
+
+
+def _map_gemini_error(exc: genai_errors.APIError) -> AIError:
+    message = exc.message or exc.status or "unknown error"
+    # An invalid key comes back as 400 INVALID_ARGUMENT with reason API_KEY_INVALID.
+    if exc.code in (401, 403) or "API_KEY_INVALID" in str(exc.details) or "API key not valid" in message:
+        return AIError("auth", f"Google rejected the Gemini API key. Check it in {SETTINGS_HINT}.")
+    if exc.code == 429:
+        return AIError(
+            "rate_limit", "Gemini's rate limit or quota was hit. Wait a minute, or check your plan, and try again."
+        )
+    if exc.code == 404:
+        return AIError("bad_model", f"The selected model isn't available to this key. Pick another in {SETTINGS_HINT}.")
+    if exc.code >= 500:
+        return AIError("unavailable", "Gemini is overloaded or unavailable right now. Try again shortly.")
+    return AIError("bad_request", f"Google rejected the request: {message}")
 
 
 @dataclass

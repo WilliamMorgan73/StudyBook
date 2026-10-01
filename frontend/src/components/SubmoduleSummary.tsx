@@ -121,7 +121,7 @@ export function SummarizeDialog({
             {regenerating ? 'Regenerate summary' : 'Summarize'} · {submodule.title}
           </DialogTitle>
           <DialogDescription>
-            Claude summarises your note and lecture files.
+            The AI summarises your note and lecture files.
             {regenerating && ' The new summary replaces the current one.'}
           </DialogDescription>
         </DialogHeader>
