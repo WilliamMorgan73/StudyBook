@@ -28,6 +28,8 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 
 **AssignmentPage.** `AssignmentSettingsDialog` holds title/due date/weighting/description/delete. `AssignmentCompletion` owns status as a state machine on `assignment.status`: not_started/in_progress → "Mark complete" (`submitted`) → "Uncomplete" (back to `not_started`, grade cleared) or "Enter grade" (`graded`) → grade display with "Edit grade"/"Uncomplete". `Countdown` is shared with ModulePage via `noneLabel`/`arrivedLabel`.
 
+**Revision plan.** Exam Assignment pages only show `RevisionPlan`: "Plan revision" (`PlanRevisionDialog`: start date, weekday toggles, Radix session-length `Select`; form checks in `lib/revision.ts`, the backend's not-enough-time `detail` shown as-is) until a plan exists, then the sessions with done ticks and "Clear plan". `?session=<id>` opens `RevisionSessionDialog` (done tick, topics with a Weak/Fair/Strong label, weakest cards, and `guidance_markdown` once #13 writes it); calendars link there via `revisionSessionUrl`. Sessions are a ring `EventMarker` (filled when done) on the Overview calendar (tick in the expanded day-list row) and on `ModuleWeekCalendar`, which gets them from `GET /revision-sessions` for `weekCalendarRange` since it doesn't read `/calendar`.
+
 **SubmodulePage.** Title edits inline in `PageHeader` (Enter/blur saves, Escape cancels); the settings dialog holds only delete.
 
 ## Lectures

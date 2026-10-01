@@ -1,6 +1,6 @@
 import { Settings, ArrowLeft } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
@@ -9,14 +9,21 @@ import { Countdown } from '@/components/Countdown'
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { AnimatedNumber } from '@/components/RadialProgress'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
-import { ModuleWeekCalendar } from '@/components/ModuleWeekCalendar'
+import { ModuleWeekCalendar, weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { StudySession } from '@/components/StudySession'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ASSIGNMENT_STATUS_LABEL, getModule, type Assignment, type Submodule } from '@/lib/api'
+import {
+  ASSIGNMENT_STATUS_LABEL,
+  getModule,
+  listRevisionSessions,
+  updateRevisionSession,
+  type Assignment,
+  type Submodule,
+} from '@/lib/api'
 import { enter, fadeUpAt } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
 
@@ -74,6 +81,11 @@ export function ModulePage() {
   const id = Number(moduleId)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
+  const weekRange = useMemo(() => weekCalendarRange(new Date()), [])
+  const revisionSessions = useAsync(
+    () => listRevisionSessions({ moduleId: id, start: weekRange.start, end: weekRange.end }),
+    [id, weekRange],
+  )
   const slotProps = (i: number) => ({ variants: fadeUpAt, custom: i })
 
   if (loading && !module) {
@@ -166,6 +178,11 @@ export function ModulePage() {
             <ModuleWeekCalendar
               lectures={module.lectures}
               exams={module.assignments.filter((a) => a.kind === 'exam')}
+              revisionSessions={revisionSessions.data ?? []}
+              onRevisionDone={async (session, done) => {
+                await updateRevisionSession(session.id, { done })
+                await revisionSessions.refetch()
+              }}
               color={module.color}
             />
           </CardContent>

@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom'
 
 import { DaySwap, PopIn, SelectionRing } from '@/components/CalendarEffects'
 import { EventMarker } from '@/components/EventMarker'
-import type { Assignment, Lecture } from '@/lib/api'
+import { Checkbox } from '@/components/ui/checkbox'
+import type { Assignment, Lecture, RevisionSession } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
+import { revisionSessionUrl } from '@/lib/revision'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -33,14 +35,27 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
-/** A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures and exams. */
+/** The two weeks `ModuleWeekCalendar` shows: Monday this week to Monday the week after next. */
+export function weekCalendarRange(today: Date) {
+  const start = startOfWeek(today)
+  return { start, end: addDays(start, 14) }
+}
+
+/**
+ * A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures, exams and
+ * revision sessions. Sessions can be ticked done here; `onRevisionDone` saves the tick.
+ */
 export function ModuleWeekCalendar({
   lectures,
   exams,
+  revisionSessions,
+  onRevisionDone,
   color,
 }: {
   lectures: Lecture[]
   exams: Assignment[]
+  revisionSessions: RevisionSession[]
+  onRevisionDone: (session: RevisionSession, done: boolean) => void
   color: string
 }) {
   const today = useState(() => new Date())[0]
@@ -59,8 +74,14 @@ export function ModuleWeekCalendar({
       .filter((e) => e.due_at !== null && isSameDay(new Date(e.due_at), day))
       .sort((a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime())
 
+  const sessionsByDay = (day: Date) =>
+    revisionSessions
+      .filter((s) => isSameDay(new Date(s.starts_at), day))
+      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+
   const selectedLectures = lecturesByDay(selected)
   const selectedExams = examsByDay(selected)
+  const selectedSessions = sessionsByDay(selected)
 
   return (
     <div>
@@ -75,6 +96,7 @@ export function ModuleWeekCalendar({
         {days.map((day) => {
           const dayLectures = lecturesByDay(day)
           const dayExams = examsByDay(day)
+          const daySessions = sessionsByDay(day)
           const isToday = isSameDay(day, today)
           const isSelected = isSameDay(day, selected)
 
@@ -93,7 +115,7 @@ export function ModuleWeekCalendar({
               >
                 {day.getDate()}
               </span>
-              {(dayLectures.length > 0 || dayExams.length > 0) && (
+              {(dayLectures.length > 0 || dayExams.length > 0 || daySessions.length > 0) && (
                 <span className="flex items-center gap-1">
                   {dayLectures.length > 0 && (
                     <PopIn>
@@ -103,6 +125,11 @@ export function ModuleWeekCalendar({
                   {dayExams.length > 0 && (
                     <PopIn>
                       <EventMarker kind="exam" color={color} />
+                    </PopIn>
+                  )}
+                  {daySessions.length > 0 && (
+                    <PopIn>
+                      <EventMarker kind="revision" color={color} done={daySessions.every((s) => s.done)} />
                     </PopIn>
                   )}
                 </span>
@@ -117,7 +144,7 @@ export function ModuleWeekCalendar({
           {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
         <DaySwap dayKey={selected.toDateString()}>
-          {selectedLectures.length === 0 && selectedExams.length === 0 ? (
+          {selectedLectures.length === 0 && selectedExams.length === 0 && selectedSessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
           ) : (
             <ul className="space-y-1">
@@ -154,6 +181,26 @@ export function ModuleWeekCalendar({
                   </li>
                 )
               })}
+              {selectedSessions.map((s) => (
+                <li key={`revision-${s.id}`} className="flex items-center justify-between gap-3 text-sm">
+                  <span className="flex min-w-0 items-center gap-2">
+                    <Checkbox
+                      checked={s.done}
+                      aria-label={s.done ? 'Mark not done' : 'Mark done'}
+                      onCheckedChange={(checked) => onRevisionDone(s, checked === true)}
+                    />
+                    <Link
+                      to={revisionSessionUrl(s)}
+                      className={`truncate font-medium hover:underline ${s.done ? 'text-muted-foreground line-through' : ''}`}
+                    >
+                      Revise: {s.submodules.map((t) => t.title).join(', ')}
+                    </Link>
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {formatTime(new Date(s.starts_at))} – {formatTime(new Date(s.ends_at))}
+                  </span>
+                </li>
+              ))}
             </ul>
           )}
         </DaySwap>

@@ -98,8 +98,11 @@ export interface Assignment {
 }
 
 export interface CalendarEvent {
-  /** `busy` = one occurrence of a PersonalEvent; its `id` repeats across occurrences. */
-  kind: 'lecture' | 'assignment_due' | 'exam' | 'busy'
+  /**
+   * `busy` = one occurrence of a PersonalEvent; its `id` repeats across occurrences.
+   * `revision` = a RevisionSession; `module_id` is its exam's.
+   */
+  kind: 'lecture' | 'assignment_due' | 'exam' | 'busy' | 'revision'
   id: number
   /** Null only for `busy`. */
   module_id: number | null
@@ -109,6 +112,8 @@ export interface CalendarEvent {
   location: string | null
   /** Null only for `busy`. */
   url: string | null
+  /** Set only for `revision`. */
+  done: boolean | null
 }
 
 /** A weekly busy-time rule; expanded into occurrences on read, not stored per occurrence. */
@@ -128,6 +133,43 @@ export interface PersonalEvent {
 }
 
 export type PersonalEventInput = Omit<PersonalEvent, 'id' | 'created_at'>
+
+export interface RevisionPlanInput {
+  /** "YYYY-MM-DD". */
+  start_date: string
+  /** 0 = Monday ... 6 = Sunday. */
+  weekdays: number[]
+  session_minutes: number
+}
+
+/** A planned block of revision for an exam. */
+export interface RevisionSession {
+  id: number
+  assignment_id: number
+  module_id: number
+  exam_title: string
+  starts_at: string
+  ends_at: string
+  duration_minutes: number
+  done: boolean
+  /** AI guidance, written when the session is first opened with AI enabled. Null until then. */
+  guidance_markdown: string | null
+  submodules: { id: number; title: string }[]
+}
+
+export interface RevisionSessionDetail extends RevisionSession {
+  /** `weakness`: 0 (never lapses) to 1 (always lapses); 0.5 with no review data. */
+  topics: { id: number; title: string; weakness: number }[]
+  /** Reviewed cards in the session's topics, highest recent lapse rate first. */
+  weakest_cards: {
+    id: number
+    submodule_id: number | null
+    front: string
+    back: string
+    lapse_rate: number
+    review_count: number
+  }[]
+}
 
 export interface QuickTodo {
   id: number
@@ -518,6 +560,32 @@ export function getCalendar(start: Date, end: Date) {
     end: toNaiveDateTime(end),
   })
   return request<CalendarEvent[]>(`/calendar?${params}`)
+}
+
+/** Rejects with an `ApiError` whose message explains when there isn't enough time. */
+export function createRevisionPlan(assignmentId: number, input: RevisionPlanInput) {
+  return postJson<RevisionSession[]>(`/assignments/${assignmentId}/revision-plan`, input)
+}
+
+export function deleteRevisionPlan(assignmentId: number) {
+  return request<void>(`/assignments/${assignmentId}/revision-plan`, { method: 'DELETE' })
+}
+
+export function listRevisionSessions(filter: { assignmentId?: number; moduleId?: number; start?: Date; end?: Date }) {
+  const params = new URLSearchParams()
+  if (filter.assignmentId !== undefined) params.set('assignment_id', String(filter.assignmentId))
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  if (filter.start) params.set('start', toNaiveDateTime(filter.start))
+  if (filter.end) params.set('end', toNaiveDateTime(filter.end))
+  return request<RevisionSession[]>(`/revision-sessions?${params}`)
+}
+
+export function getRevisionSession(id: number) {
+  return request<RevisionSessionDetail>(`/revision-sessions/${id}`)
+}
+
+export function updateRevisionSession(id: number, input: { done?: boolean }) {
+  return patchJson<RevisionSession>(`/revision-sessions/${id}`, input)
 }
 
 export function listPersonalEvents() {

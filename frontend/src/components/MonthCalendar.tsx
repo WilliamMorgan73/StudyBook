@@ -150,7 +150,7 @@ export function MonthCalendar({
                 <div className="flex flex-wrap items-center gap-0.5">
                   {busyLast(dayEvents).slice(0, 4).map((event) => (
                     <PopIn key={calendarEventKey(event)}>
-                      <EventMarker kind={event.kind} color={eventColor(event)} />
+                      <EventMarker kind={event.kind} color={eventColor(event)} done={event.done === true} />
                     </PopIn>
                   ))}
                 </div>
