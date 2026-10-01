@@ -59,6 +59,8 @@ export function Overview() {
   })
   const [selected, setSelected] = useState(() => new Date())
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>(null)
+  // The module highlighted on the Progress ring, from hovering its arc or its legend row.
+  const [activeModuleId, setActiveModuleId] = useState<number | null>(null)
   const [showBusy, setShowBusy] = useState(readShowBusy)
 
   function toggleShowBusy() {
@@ -108,7 +110,7 @@ export function Overview() {
     if (totalWeight === 0) return []
     return (modules.data ?? []).flatMap((m) => {
       const share = (m.credits ?? 1) / totalWeight
-      return progressRingSegments(m.completion_progress, m.color, share)
+      return progressRingSegments(m.completion_progress, m.color, share).map((s) => ({ ...s, id: m.id }))
     })
   }, [modules.data, totalWeight])
 
@@ -126,6 +128,9 @@ export function Overview() {
     )
     return { achieved: totals.achieved / totalWeight, completed: totals.completed / totalWeight }
   }, [modules.data, totalWeight])
+
+  const legendModules = (modules.data ?? []).filter((m) => m.assignment_progress.total > 0)
+  const activeModule = legendModules.find((m) => m.id === activeModuleId) ?? null
 
   return (
     <div className="min-h-full">
@@ -329,51 +334,96 @@ export function Overview() {
                   skeleton={<Skeleton className="size-32 rounded-full" />}
                 >
                   {modules.data && (
-                    <div className="relative flex items-center justify-center">
-                      <RadialProgress segments={progressSegments} size={136} strokeWidth={13} />
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="relative flex items-center justify-center">
+                        <RadialProgress
+                          segments={progressSegments}
+                          size={136}
+                          strokeWidth={13}
+                          activeId={activeModuleId}
+                          onActiveChange={(id) => setActiveModuleId(id as number | null)}
+                        />
 
-                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity group-hover/card:opacity-0">
-                        <p className="text-3xl font-semibold tabular-nums">
-                          {totalWeight === 0 ? (
-                            '—'
-                          ) : (
-                            <>
-                              <AnimatedNumber value={Math.round(overallCompletion.achieved * 100)} />%
-                            </>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">achieved</p>
+                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+                          <p className="text-3xl font-semibold tabular-nums">
+                            {totalWeight === 0 ? (
+                              '—'
+                            ) : (
+                              <>
+                                <AnimatedNumber
+                                  value={Math.round(
+                                    (activeModule?.completion_progress.achieved_fraction ?? overallCompletion.achieved) * 100,
+                                  )}
+                                />
+                                %
+                              </>
+                            )}
+                          </p>
+                          <AnimatePresence mode="wait" initial={false}>
+                            <motion.div
+                              key={activeModule?.id ?? 'overall'}
+                              initial={{ opacity: 0, y: 3 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -3 }}
+                              transition={{ duration: 0.12 }}
+                              className="w-full text-xs"
+                            >
+                              {activeModule ? (
+                                <>
+                                  <p className="truncate font-medium" style={{ color: activeModule.color }}>
+                                    {activeModule.name}
+                                  </p>
+                                  <p className="text-muted-foreground">
+                                    {Math.round(activeModule.completion_progress.completed_fraction * 100)}% submitted
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-muted-foreground">achieved</p>
+                                  {totalWeight > 0 && (
+                                    <p className="text-muted-foreground/70">
+                                      {Math.round(overallCompletion.completed * 100)}% submitted
+                                    </p>
+                                  )}
+                                </>
+                              )}
+                            </motion.div>
+                          </AnimatePresence>
+                        </div>
                       </div>
 
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-card/95 p-4 text-center opacity-0 transition-opacity group-hover/card:opacity-100">
-                        {totalWeight === 0 ? (
-                          <p className="text-xs text-muted-foreground">No modules yet.</p>
-                        ) : (
-                          <>
-                            <div>
-                              <p className="text-sm font-medium">{Math.round(overallCompletion.achieved * 100)}% achieved</p>
-                              <p className="text-xs text-muted-foreground">
-                                {Math.round(overallCompletion.completed * 100)}% of grade submitted
-                              </p>
-                            </div>
-                            <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                              {modules.data
-                                .filter((m) => m.assignment_progress.total > 0)
-                                .map((m) => (
-                                  <li key={m.id} className="flex items-center gap-1">
-                                    <span
-                                      className="size-1.5 shrink-0 rounded-full"
-                                      style={{ backgroundColor: m.color }}
-                                      aria-hidden
-                                    />
-                                    <span className="text-foreground">{m.name}</span>
-                                    <span>{Math.round(m.completion_progress.achieved_fraction * 100)}%</span>
-                                  </li>
-                                ))}
-                            </ul>
-                          </>
-                        )}
-                      </div>
+                      {totalWeight === 0 ? (
+                        <p className="text-xs text-muted-foreground">No modules yet.</p>
+                      ) : (
+                        <ul
+                          className="flex flex-wrap justify-center gap-x-1 gap-y-0.5 text-xs"
+                          onPointerLeave={() => setActiveModuleId(null)}
+                        >
+                          {legendModules.map((m) => (
+                            <li key={m.id}>
+                              <button
+                                type="button"
+                                onPointerEnter={() => setActiveModuleId(m.id)}
+                                onFocus={() => setActiveModuleId(m.id)}
+                                onBlur={() => setActiveModuleId(null)}
+                                className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-opacity ${
+                                  activeModuleId !== null && activeModuleId !== m.id ? 'opacity-40' : ''
+                                }`}
+                              >
+                                <span
+                                  className="size-2 shrink-0 rounded-full"
+                                  style={{ backgroundColor: m.color }}
+                                  aria-hidden
+                                />
+                                <span>{m.name}</span>
+                                <span className="text-muted-foreground tabular-nums">
+                                  {Math.round(m.completion_progress.achieved_fraction * 100)}%
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                   )}
                 </LoadSwap>
