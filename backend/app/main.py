@@ -17,6 +17,7 @@ from app.api.routes import (
     personal_events,
     quick_note,
     quick_todos,
+    submodule_ai,
     submodules,
 )
 from app.core.config import settings
@@ -44,6 +45,7 @@ app.include_router(ai.router)
 app.include_router(modules.router)
 app.include_router(assignments.router)
 app.include_router(submodules.router)
+app.include_router(submodule_ai.router)
 app.include_router(attachments.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)

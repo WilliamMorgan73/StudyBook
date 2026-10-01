@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Numeric
+from sqlalchemy import Enum, ForeignKey, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.enums import FlashcardSource
 
 
 class Flashcard(Base):
@@ -16,6 +17,9 @@ class Flashcard(Base):
     submodule_id: Mapped[int | None] = mapped_column(ForeignKey("submodules.id", ondelete="SET NULL"))
     front: Mapped[str]
     back: Mapped[str]
+    source: Mapped[FlashcardSource] = mapped_column(
+        Enum(FlashcardSource, native_enum=False), default=FlashcardSource.manual, server_default="manual"
+    )
     ease_factor: Mapped[float] = mapped_column(Numeric(4, 2), default=2.5)
     interval_days: Mapped[int] = mapped_column(default=0)
     repetitions: Mapped[int] = mapped_column(default=0)
