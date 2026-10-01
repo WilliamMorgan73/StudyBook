@@ -34,6 +34,12 @@
 
 `[[Title]]` / `[[Title|Alias]]` links between submodules are resolved on demand, never stored, and are one-directional by design (a `SubmoduleLink` table plus backlinks panel was built and deliberately removed). `crud/submodule_links.py::resolve_wikilink` supports `"Module Title/Submodule Title"` disambiguation, else prefers a same-module match, else the first match anywhere. `GET /submodules/resolve?title=&module_id=` wraps it and 404s when unresolved. `GET /submodules` is a lightweight cross-module index (`SubmoduleIndexEntry`, optional `search`) for a future link picker.
 
+## AI service
+
+Every Claude call goes through `services/ai.py`'s `AIClient` protocol: `ping()` (Models API lookup, no tokens; backs `POST /ai/test`), `complete(prompt, system=, max_tokens=) -> str`, and `complete_structured(prompt, schema, ...) -> schema instance` (SDK `messages.parse` structured output). Feature functions take an `AIClient` parameter; routes get one from `api/deps.py::get_ai_client`, which reads AppSettings and calls `build_ai_client`, the only place the SDK client is constructed. SDK failures become `AIError(kind, message)` with a readable message; `main.py`'s handler returns them as `{"detail", "kind"}` (`not_configured` 409, `rate_limit` 429, `network`/`unavailable` 503, others 502). Tests use `FakeAIClient` (queued replies, recorded `requests`) or override `get_ai_client`; `tests/conftest.py` blanks the env key for every test.
+
+`AppSettings.anthropic_api_key` is write-only: `AppSettingsRead.from_row` reports `has_api_key` (saved in the row) and `ai_enabled` (saved or `ANTHROPIC_API_KEY` in `core/config.py`, saved wins). PATCH sets it (trimmed), clears it with `null`/`""`, or leaves it alone when omitted. `ai_model` is validated against `services/ai_models.py::AI_MODELS`, the one model list, also served at `GET /ai/models`.
+
 ## Alembic
 
 `alembic/env.py` imports `app.models` and reads the URL from `settings.database_url`, not `alembic.ini`. Run migrations from `backend/` with `uv run alembic ...`.
