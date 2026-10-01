@@ -24,8 +24,8 @@ export function QuickNotepad() {
       onChange={(e) => setContent(e.target.value)}
       onBlur={handleBlur}
       placeholder="Jot something down…"
-      // Grows with its text up to max-h-64 on narrow screens; at lg it fills the card and scrolls.
-      className="max-h-64 min-h-32 w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 lg:max-h-none lg:min-h-0 lg:[field-sizing:fixed]"
+      // Fills its dashboard widget however big that is, and scrolls inside it.
+      className="min-h-0 w-full flex-1 resize-none overflow-y-auto border-0 bg-transparent p-0 text-sm shadow-none [field-sizing:fixed] focus-visible:ring-0"
     />
   )
 }

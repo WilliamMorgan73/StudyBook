@@ -75,7 +75,7 @@ export function QuickTodoList() {
       </form>
       {todos.data?.length === 0 && <p className="text-sm text-muted-foreground">Nothing on your list.</p>}
       {todos.data && todos.data.length > 0 && (
-        <ul className="max-h-64 min-h-0 flex-1 divide-y overflow-y-auto lg:max-h-none">
+        <ul className="min-h-0 flex-1 divide-y overflow-y-auto">
           <AnimatePresence initial={false}>
             {todos.data.map((todo) => (
               <TodoRow key={todo.id} todo={todo} onChanged={todos.refetch} />

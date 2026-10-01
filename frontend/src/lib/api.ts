@@ -608,6 +608,15 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export type Skin = 'default' | 'slate' | 'sepia'
 export type TableAlignment = 'left' | 'center'
 
+/** One Overview widget on the 12-column grid. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
+export interface DashboardLayoutItem {
+  i: string
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface AppSettings {
   max_credits: number | null
   theme_mode: ThemeMode
@@ -619,6 +628,8 @@ export interface AppSettings {
   keybind_code: string
   keybind_wikilink: string
   ai_model: string
+  /** Null: the default Overview layout. */
+  dashboard_layout: DashboardLayoutItem[] | null
   /** Derived from `ai_model`. */
   ai_provider: AIProvider
   /** A key is saved in settings. The keys themselves are write-only and never sent back. */

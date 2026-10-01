@@ -251,3 +251,40 @@
     margin: 0;
     }
 }
+
+/* Overview dashboard (react-grid-layout). Unlayered, and one class more specific than the
+   library's own unlayered stylesheet, so these win whatever order the two load in. */
+.dashboard-grid .react-grid-item.react-grid-placeholder {
+  background: var(--primary);
+  opacity: 0.12;
+  border-radius: var(--radius-xl);
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle {
+  z-index: 1;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle::after {
+  border-color: var(--muted-foreground);
+}
+/* The edge handles span the whole edge (the library makes them a 20px square in the middle). */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  top: 12px;
+  bottom: 12px;
+  height: auto;
+  margin-top: 0;
+  width: 10px;
+  right: -5px;
+  transform: none;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: 12px;
+  right: 12px;
+  width: auto;
+  margin-left: 0;
+  height: 10px;
+  bottom: -5px;
+  transform: none;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
+  display: none;
+}

@@ -7,6 +7,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
 import { busyLast, calendarEventKey } from '@/lib/busyTime'
+import { useElementSize } from '@/lib/useElementSize'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -38,6 +39,49 @@ export function calendarGridRange(month: Date) {
   return { start, end: addDays(start, 42) }
 }
 
+/** Below this cell width (px) event titles don't fit, so cells keep their marker dots. */
+const MIN_TITLE_CELL_WIDTH = 96
+/** Room a cell needs for its day number and padding, and the height of one title line (px). */
+const CELL_CHROME = 32
+const TITLE_LINE = 15
+
+/** How many title lines fit in a day cell of this size; 0 means show marker dots instead. */
+function titleLines(cellWidth: number, cellHeight: number) {
+  if (cellWidth < MIN_TITLE_CELL_WIDTH) return 0
+  return Math.max(0, Math.floor((cellHeight - CELL_CHROME) / TITLE_LINE))
+}
+
+/** A large calendar's day cell content: as many event titles as fit, then "+N more". */
+function DayTitles({
+  events,
+  lines,
+  eventColor,
+}: {
+  events: CalendarEvent[]
+  lines: number
+  eventColor: (event: CalendarEvent) => string
+}) {
+  // The "+N more" line takes the place of a title when they don't all fit.
+  const shown = events.length <= lines ? events : events.slice(0, lines - 1)
+  const more = events.length - shown.length
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-0.5">
+      {shown.map((event) => (
+        <span
+          key={calendarEventKey(event)}
+          className={`flex min-w-0 items-center gap-1 text-[11px] leading-tight ${
+            event.kind === 'busy' || event.done ? 'text-muted-foreground' : ''
+          } ${event.done ? 'line-through' : ''}`}
+        >
+          <EventMarker kind={event.kind} color={eventColor(event)} done={event.done === true} className="shrink-0" />
+          <span className="truncate">{event.title}</span>
+        </span>
+      ))}
+      {more > 0 && <span className="text-[11px] leading-tight text-muted-foreground">+{more} more</span>}
+    </div>
+  )
+}
+
 export function MonthCalendar({
   month,
   onMonthChange,
@@ -45,6 +89,7 @@ export function MonthCalendar({
   selected,
   onSelect,
   eventColor,
+  fill = false,
 }: {
   month: Date
   onMonthChange: (month: Date) => void
@@ -52,6 +97,11 @@ export function MonthCalendar({
   selected: Date | null
   onSelect: (date: Date) => void
   eventColor: (event: CalendarEvent) => string
+  /**
+   * Stretch the weeks to the parent's height (a dashboard widget). Once day cells are big enough
+   * they list event titles instead of marker dots.
+   */
+  fill?: boolean
 }) {
   const days = useMemo(() => {
     const gridStart = startOfCalendarGrid(startOfMonth(month))
@@ -73,6 +123,9 @@ export function MonthCalendar({
 
   const uid = useId()
 
+  const [gridRef, gridSize] = useElementSize<HTMLDivElement>()
+  const lines = fill ? titleLines(gridSize.width / 7, gridSize.height / 6) : 0
+
   // Which way the last month change went (0 before any), so the new grid slides in from that side.
   const [shownMonth, setShownMonth] = useState(month)
   const [direction, setDirection] = useState(0)
@@ -82,7 +135,7 @@ export function MonthCalendar({
   }
 
   return (
-    <div>
+    <div className={fill ? 'flex flex-1 flex-col' : undefined}>
       <div className="mb-3 flex items-center justify-between">
         <p className="font-medium">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p>
         <div className="flex items-center gap-1">
@@ -116,12 +169,16 @@ export function MonthCalendar({
         ))}
       </div>
       <motion.div
+        ref={gridRef}
         // Remounting per month is what lets the new grid slide in.
         key={month.toISOString()}
         initial={direction !== 0 ? { opacity: 0, x: direction * 12 } : false}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.2 }}
-        className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border"
+        className={`grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border ${
+          // Rows share the height but never shrink below a day cell's own minimum.
+          fill ? 'flex-1 grid-rows-[repeat(6,minmax(2.75rem,1fr))]' : ''
+        }`}
       >
         {days.map((day) => {
           const inMonth = day.getMonth() === month.getMonth()
@@ -134,7 +191,7 @@ export function MonthCalendar({
               key={day.toISOString()}
               type="button"
               onClick={() => onSelect(day)}
-              className={`relative flex min-h-11 flex-col items-start gap-1 bg-card p-1.5 text-left transition-colors hover:bg-muted ${
+              className={`relative flex min-h-11 min-w-0 flex-col items-start gap-1 overflow-hidden bg-card p-1.5 text-left transition-colors hover:bg-muted ${
                 inMonth ? '' : 'opacity-40'
               }`}
             >
@@ -146,7 +203,10 @@ export function MonthCalendar({
               >
                 {day.getDate()}
               </span>
-              {dayEvents.length > 0 && (
+              {lines > 0 && dayEvents.length > 0 && (
+                <DayTitles events={busyLast(dayEvents)} lines={lines} eventColor={eventColor} />
+              )}
+              {lines === 0 && dayEvents.length > 0 && (
                 <div className="flex flex-wrap items-center gap-0.5">
                   {busyLast(dayEvents).slice(0, 4).map((event) => (
                     <PopIn key={calendarEventKey(event)}>
