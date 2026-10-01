@@ -1,7 +1,8 @@
-import { Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { CalendarDays, Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 import { KeybindInput } from '@/components/KeybindInput'
+import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -11,12 +12,13 @@ import { updateAppSettings, type AppSettings, type Skin, type TableAlignment, ty
 import { DEFAULT_KEYBINDS, KEYBIND_ACTIONS, type EditorKeybinds } from '@/lib/keybinds'
 import { applyTheme, SKINS } from '@/lib/theme'
 
-type Category = 'appearance' | 'general' | 'keybinds' | 'ai' | 'data'
+type Category = 'appearance' | 'general' | 'keybinds' | 'calendars' | 'ai' | 'data'
 
 const CATEGORIES: { id: Category; label: string; icon: typeof Palette }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'general', label: 'General', icon: SlidersHorizontal },
   { id: 'keybinds', label: 'Keybinds', icon: Keyboard },
+  { id: 'calendars', label: 'Calendars', icon: CalendarDays },
   { id: 'ai', label: 'AI Integration', icon: Sparkles },
   { id: 'data', label: 'Data', icon: Database },
 ]
@@ -29,11 +31,15 @@ export function AppSettingsDialog({
   open,
   onOpenChange,
   onChanged,
+  onCalendarChanged,
 }: {
   settings: AppSettings
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** App settings changed. */
   onChanged: () => void
+  /** Personal events changed, so calendars showing busy time should refetch. */
+  onCalendarChanged?: () => void
 }) {
   const [category, setCategory] = useState<Category>('appearance')
   // Drafts for the fields that commit on save/blur rather than on click. Everything else reads
@@ -251,6 +257,8 @@ export function AppSettingsDialog({
                 })}
               </div>
             )}
+
+            {category === 'calendars' && <PersonalEventsSettings onChanged={() => onCalendarChanged?.()} />}
 
             {category === 'ai' && (
               <div className="space-y-1.5">
