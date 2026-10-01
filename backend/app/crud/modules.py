@@ -1,5 +1,4 @@
-from datetime import UTC, datetime
-
+from app.core.clock import local_now
 from app.crud.grades import (
     compute_assignment_progress,
     compute_completion_progress,
@@ -10,7 +9,7 @@ from app.schemas.module import ModuleRead, ModuleSummary
 
 
 def _next_lecture_at(module: Module) -> str | None:
-    upcoming = [lec for lec in module.lectures if lec.scheduled_at >= datetime.now(UTC).replace(tzinfo=None)]
+    upcoming = [lec for lec in module.lectures if lec.scheduled_at >= local_now()]
     if not upcoming:
         return None
     return min(upcoming, key=lambda lec: lec.scheduled_at).scheduled_at.isoformat()

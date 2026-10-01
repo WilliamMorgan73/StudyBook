@@ -24,6 +24,8 @@
 
 `PersonalEvent` (busy time: work shifts, training) stores a weekly rule, not one row per occurrence (unlike `Lecture`): `weekdays` (Postgres int array, 0 = Monday, Python `weekday()` numbering), naive `start_time`/`end_time` (an end before the start runs past midnight), inclusive `valid_from` and nullable `valid_until` (open-ended). It's expanded on read by `crud/busy_time.py`. Not tied to any Module.
 
+Datetimes are naive. Student-entered ones (lecture times, due dates, revision sessions) are local wall-clock time, written by the frontend's `toNaiveDateTime`; compare them against `core/clock.py::local_now()`, never `datetime.now(UTC)`. Server-generated ones (DB `now()` defaults, flashcard scheduling) are UTC.
+
 `AppSettings` and `QuickNote` are single-row get-or-create tables (`id=1`), kept separate because one is configuration and the other user content. `AppSettings` fields are flat scalar columns with Python defaults, including the four `keybind_*` columns, each a raw CodeMirror keymap string (`"Mod-b"`, `"Mod-Shift-k"`). `QuickTodo` is a plain multi-row table.
 
 ### Attachments

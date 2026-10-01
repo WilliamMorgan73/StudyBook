@@ -1,9 +1,10 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.clock import local_now
 from app.core.database import get_db
 from app.crud.revision_planner import NotEnoughTime, weakest_cards
 from app.crud.revision_plans import plan_exam_revision, submodule_weakness
@@ -67,8 +68,7 @@ def create_revision_plan(
         start_date=payload.start_date,
         weekdays=weekdays,
         session_minutes=payload.session_minutes,
-        # Local wall-clock time, like the stored (naive) datetimes the student entered.
-        now=datetime.now(UTC).astimezone().replace(tzinfo=None),
+        now=local_now(),
     )
     if isinstance(result, NotEnoughTime):
         raise HTTPException(422, result.message)
