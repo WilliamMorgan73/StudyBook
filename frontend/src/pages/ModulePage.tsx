@@ -1,4 +1,5 @@
 import { Settings, ArrowLeft } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
@@ -6,6 +7,7 @@ import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { Countdown } from '@/components/Countdown'
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
+import { AnimatedNumber } from '@/components/RadialProgress'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { ModuleWeekCalendar } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
@@ -15,7 +17,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ASSIGNMENT_STATUS_LABEL, getModule, type Assignment, type Submodule } from '@/lib/api'
-import { useAsync } from '@/lib/useAsync'
+import { enter, fadeUpAt } from '@/lib/motion'
+import { useAsync, useLastLoaded } from '@/lib/useAsync'
+
+const MotionCard = motion.create(Card)
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -69,10 +74,14 @@ export function ModulePage() {
   const id = Number(moduleId)
   const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { data: module, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
+  const { data, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
+  // Kept through refetches (closing settings or a study session) so the page doesn't drop back
+  // to its skeleton and replay its entrance.
+  const module = useLastLoaded(data, id)
   const refetch = () => setReloadKey((k) => k + 1)
+  const slotProps = (i: number) => ({ variants: fadeUpAt, custom: i })
 
-  if (loading) {
+  if (loading && !module) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
@@ -101,7 +110,7 @@ export function ModulePage() {
   })
 
   return (
-    <div className="min-h-full">
+    <motion.div className="min-h-full" {...enter}>
       <PageHeader
         left={
           <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -116,7 +125,7 @@ export function ModulePage() {
         }
       />
 
-      <div className="border-b" style={{ backgroundColor: `${module.color}1f` }}>
+      <motion.div className="border-b" style={{ backgroundColor: `${module.color}1f` }} {...slotProps(0)}>
         <div className="flex items-center gap-6 px-8 py-12">
           <ModuleProgressRing progress={module.completion_progress} color={module.color} size={100} strokeWidth={10} />
           <div className="min-w-0 flex-1">
@@ -132,7 +141,13 @@ export function ModulePage() {
           <div className="flex shrink-0 gap-8 text-right">
             <div>
               <p className="text-4xl font-semibold tabular-nums">
-                {module.current_grade !== null ? `${module.current_grade.toFixed(1)}%` : '—'}
+                {module.current_grade !== null ? (
+                  <>
+                    <AnimatedNumber value={module.current_grade} decimals={1} />%
+                  </>
+                ) : (
+                  '—'
+                )}
               </p>
               <p className="text-sm text-muted-foreground">Current grade</p>
             </div>
@@ -144,10 +159,10 @@ export function ModulePage() {
             </div>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       <div className="space-y-8 px-8 py-8">
-        <Card>
+        <MotionCard {...slotProps(1)}>
           <CardHeader>
             <CardTitle>Schedule</CardTitle>
           </CardHeader>
@@ -158,11 +173,10 @@ export function ModulePage() {
               color={module.color}
             />
           </CardContent>
-        </Card>
+        </MotionCard>
 
         <div className="grid gap-6 lg:grid-cols-3">
-
-          <Card>
+          <MotionCard {...slotProps(2)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Submodules</CardTitle>
@@ -180,9 +194,9 @@ export function ModulePage() {
                 </ul>
               )}
             </CardContent>
-          </Card>
+          </MotionCard>
 
-          <Card>
+          <MotionCard {...slotProps(3)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Assignments</CardTitle>
@@ -200,9 +214,9 @@ export function ModulePage() {
                 </ul>
               )}
             </CardContent>
-          </Card>
+          </MotionCard>
 
-          <Card>
+          <MotionCard {...slotProps(4)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Flashcards</CardTitle>
@@ -219,11 +233,11 @@ export function ModulePage() {
                 </p>
               )}
             </CardContent>
-          </Card>
+          </MotionCard>
         </div>
 
         {module.related_modules.length > 0 && (
-          <Card>
+          <MotionCard {...slotProps(5)}>
             <CardHeader>
               <CardTitle>Related modules</CardTitle>
             </CardHeader>
@@ -236,7 +250,7 @@ export function ModulePage() {
                 ))}
               </div>
             </CardContent>
-          </Card>
+          </MotionCard>
         )}
       </div>
 
@@ -249,6 +263,6 @@ export function ModulePage() {
           refetch()
         }}
       />
-    </div>
+    </motion.div>
   )
 }

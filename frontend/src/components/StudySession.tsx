@@ -1,13 +1,18 @@
 import { CheckCircle2, GraduationCap } from 'lucide-react'
+import { AnimatePresence, motion, type Variants } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 
 import { MarkdownView } from '@/components/MarkdownView'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
-import { listDueFlashcards, reviewFlashcard } from '@/lib/api'
+import { listDueFlashcards, reviewFlashcard, type Flashcard } from '@/lib/api'
 import { RATINGS, studyKeyAction } from '@/lib/study'
 import { useAsync } from '@/lib/useAsync'
+
+const AGAIN = RATINGS.find((r) => r.rating === 'again')!.quality
+
+const MotionButton = motion.create(Button)
 
 export interface StudyScope {
   moduleId?: number
@@ -72,22 +77,39 @@ function SessionBody({ scope, onReviewed, onDone }: { scope: StudyScope; onRevie
   const [revealed, setRevealed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  // The quality being saved (drives the button press) and the last one saved (picks the exit).
+  const [pressed, setPressed] = useState<number | null>(null)
+  const [lastQuality, setLastQuality] = useState<number | null>(null)
 
   const card = queue?.[index] ?? null
+
+  // Read by AnimatePresence through `custom`, since an exiting card's own props are frozen.
+  const cardVariants: Variants = {
+    enter: { opacity: 0, x: 24 },
+    center: { opacity: 1, x: 0, transition: { duration: 0.18 } },
+    // "Again" shakes the card before it slides away.
+    exit: (quality: number | null) =>
+      quality === AGAIN
+        ? { x: [0, -8, 8, -5, 5, 0, -24], opacity: [1, 1, 1, 1, 1, 1, 0], transition: { duration: 0.45 } }
+        : { opacity: 0, x: -24, transition: { duration: 0.18 } },
+  }
 
   async function rate(quality: number) {
     if (!card || submitting) return
     setSubmitting(true)
+    setPressed(quality)
     setReviewError(null)
     try {
       await reviewFlashcard(card.id, quality)
       onReviewed()
+      setLastQuality(quality)
       setIndex((i) => i + 1)
       setRevealed(false)
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : 'Could not save that review.')
     } finally {
       setSubmitting(false)
+      setPressed(null)
     }
   }
 
@@ -122,15 +144,25 @@ function SessionBody({ scope, onReviewed, onDone }: { scope: StudyScope; onRevie
   if (!card) {
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-center">
-        <CheckCircle2 className="size-10 text-primary" />
-        <div>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.6 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+        >
+          <CheckCircle2 className="size-10 text-primary" />
+        </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
           <p className="text-lg font-medium">All caught up</p>
           <p className="text-sm text-muted-foreground">
             {queue.length === 0
               ? 'Nothing is due for review right now.'
               : `You reviewed ${queue.length} card${queue.length === 1 ? '' : 's'}.`}
           </p>
-        </div>
+        </motion.div>
         <Button size="sm" onClick={onDone}>
           Done
         </Button>
@@ -140,42 +172,96 @@ function SessionBody({ scope, onReviewed, onDone }: { scope: StudyScope; onRevie
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground tabular-nums">
-        Card {index + 1} of {queue.length}
-      </p>
-
-      <div className="min-h-48 space-y-4 rounded-xl border bg-muted/30 p-6">
-        <MarkdownView>{card.front}</MarkdownView>
-        {revealed && (
-          <>
-            <hr />
-            <MarkdownView>{card.back}</MarkdownView>
-          </>
-        )}
+      <div className="space-y-1.5">
+        <p className="text-sm text-muted-foreground tabular-nums">
+          Card {index + 1} of {queue.length}
+        </p>
+        <div className="h-1 overflow-hidden rounded-full bg-muted">
+          <motion.div
+            className="h-full rounded-full bg-primary"
+            initial={false}
+            animate={{ width: `${(index / queue.length) * 100}%` }}
+          />
+        </div>
       </div>
 
+      {/* mode="wait" lets the rated card leave before the next one arrives, unflipped. */}
+      <AnimatePresence mode="wait" initial={false} custom={lastQuality}>
+        <motion.div key={card.id} variants={cardVariants} initial="enter" animate="center" exit="exit">
+          <FlipCard card={card} revealed={revealed} />
+        </motion.div>
+      </AnimatePresence>
+
+      <AnimatePresence mode="wait" initial={false}>
       {revealed ? (
-        <div className="grid grid-cols-4 gap-2">
+        <motion.div
+          key="ratings"
+          className="grid grid-cols-4 gap-2"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
           {RATINGS.map((r) => (
-            <Button
+            <MotionButton
               key={r.rating}
               variant={r.rating === 'again' ? 'destructive' : r.rating === 'good' ? 'default' : 'secondary'}
               disabled={submitting}
               onClick={() => rate(r.quality)}
+              // Driven by state rather than whileTap so 1–4 on the keyboard press the button too.
+              animate={{ scale: pressed === r.quality ? 0.94 : 1 }}
+              transition={{ type: 'spring', stiffness: 600, damping: 30 }}
             >
               {r.label}
               <kbd className="ml-1 text-xs opacity-60">{r.key}</kbd>
-            </Button>
+            </MotionButton>
           ))}
-        </div>
+        </motion.div>
       ) : (
-        <Button className="w-full" onClick={() => setRevealed(true)}>
-          Show answer
-          <kbd className="ml-1 text-xs opacity-60">Space</kbd>
-        </Button>
+        <motion.div
+          key="reveal"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+        >
+          <MotionButton className="w-full" onClick={() => setRevealed(true)} whileTap={{ scale: 0.98 }}>
+            Show answer
+            <kbd className="ml-1 text-xs opacity-60">Space</kbd>
+          </MotionButton>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {reviewError && <p className="text-sm text-destructive">{reviewError}</p>}
+    </div>
+  )
+}
+
+/**
+ * Both faces share one grid cell, so the card is as tall as its taller face without measuring.
+ * The back repeats the question small above the answer, since flipping hides the front.
+ */
+function FlipCard({ card, revealed }: { card: Flashcard; revealed: boolean }) {
+  const face = 'min-h-48 rounded-xl border bg-card p-6 [backface-visibility:hidden] [grid-area:1/1]'
+  return (
+    <div style={{ perspective: 1200 }}>
+      <motion.div
+        className="grid"
+        style={{ transformStyle: 'preserve-3d' }}
+        initial={false}
+        animate={{ rotateY: revealed ? 180 : 0 }}
+        transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+      >
+        <div className={face} aria-hidden={revealed}>
+          <MarkdownView>{card.front}</MarkdownView>
+        </div>
+        <div className={`${face} space-y-4 [transform:rotateY(180deg)]`} aria-hidden={!revealed}>
+          <MarkdownView className="prose-sm opacity-60">{card.front}</MarkdownView>
+          <hr />
+          <MarkdownView>{card.back}</MarkdownView>
+        </div>
+      </motion.div>
     </div>
   )
 }

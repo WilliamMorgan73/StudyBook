@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { DaySwap, PopIn, SelectionRing } from '@/components/CalendarEffects'
 import { EventMarker } from '@/components/EventMarker'
 import type { Assignment, Lecture } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
@@ -46,6 +47,7 @@ export function ModuleWeekCalendar({
   const weekStart = startOfWeek(today)
   const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i))
   const [selected, setSelected] = useState(today)
+  const uid = useId()
 
   const lecturesByDay = (day: Date) =>
     lectures
@@ -81,10 +83,9 @@ export function ModuleWeekCalendar({
               key={day.toISOString()}
               type="button"
               onClick={() => setSelected(day)}
-              className={`flex min-h-16 flex-col items-center justify-center gap-1 bg-card p-1.5 transition-colors hover:bg-muted ${
-                isSelected ? 'ring-2 ring-inset ring-foreground' : ''
-              }`}
+              className="relative flex min-h-16 flex-col items-center justify-center gap-1 bg-card p-1.5 transition-colors hover:bg-muted"
             >
+              {isSelected && <SelectionRing layoutId={`${uid}-selection`} />}
               <span
                 className={`flex size-6 items-center justify-center rounded-full text-xs ${
                   isToday ? 'bg-foreground text-background' : ''
@@ -94,8 +95,16 @@ export function ModuleWeekCalendar({
               </span>
               {(dayLectures.length > 0 || dayExams.length > 0) && (
                 <span className="flex items-center gap-1">
-                  {dayLectures.length > 0 && <EventMarker kind="lecture" color={color} />}
-                  {dayExams.length > 0 && <EventMarker kind="exam" color={color} />}
+                  {dayLectures.length > 0 && (
+                    <PopIn>
+                      <EventMarker kind="lecture" color={color} />
+                    </PopIn>
+                  )}
+                  {dayExams.length > 0 && (
+                    <PopIn>
+                      <EventMarker kind="exam" color={color} />
+                    </PopIn>
+                  )}
                 </span>
               )}
             </button>
@@ -107,45 +116,47 @@ export function ModuleWeekCalendar({
         <p className="mb-1.5 text-sm font-medium">
           {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
-        {selectedLectures.length === 0 && selectedExams.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
-        ) : (
-          <ul className="space-y-1">
-            {selectedLectures.map((l) => {
-              const start = new Date(l.scheduled_at)
-              return (
-                <li key={l.id} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate font-medium">{l.title}</span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {formatTime(start)}
-                    {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
-                    {l.location && ` · ${l.location}`}
-                  </span>
-                </li>
-              )
-            })}
-            {selectedExams.map((exam) => {
-              const start = new Date(exam.due_at!)
-              const end = examEndsAt(exam.due_at!, exam.duration_minutes)
-              return (
-                <li key={`exam-${exam.id}`} className="flex items-center justify-between gap-3 text-sm">
-                  <Link
-                    to={`/modules/${exam.module_id}/assignments/${exam.id}`}
-                    className="flex min-w-0 items-center gap-2 font-medium hover:underline"
-                  >
-                    <EventMarker kind="exam" color={color} className="shrink-0" />
-                    <span className="truncate">{exam.title}</span>
-                  </Link>
-                  <span className="shrink-0 text-muted-foreground">
-                    {formatTime(start)}
-                    {end && ` – ${formatTime(end)}`}
-                    {exam.location && ` · ${exam.location}`}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <DaySwap dayKey={selected.toDateString()}>
+          {selectedLectures.length === 0 && selectedExams.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
+          ) : (
+            <ul className="space-y-1">
+              {selectedLectures.map((l) => {
+                const start = new Date(l.scheduled_at)
+                return (
+                  <li key={l.id} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="min-w-0 truncate font-medium">{l.title}</span>
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatTime(start)}
+                      {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
+                      {l.location && ` · ${l.location}`}
+                    </span>
+                  </li>
+                )
+              })}
+              {selectedExams.map((exam) => {
+                const start = new Date(exam.due_at!)
+                const end = examEndsAt(exam.due_at!, exam.duration_minutes)
+                return (
+                  <li key={`exam-${exam.id}`} className="flex items-center justify-between gap-3 text-sm">
+                    <Link
+                      to={`/modules/${exam.module_id}/assignments/${exam.id}`}
+                      className="flex min-w-0 items-center gap-2 font-medium hover:underline"
+                    >
+                      <EventMarker kind="exam" color={color} className="shrink-0" />
+                      <span className="truncate">{exam.title}</span>
+                    </Link>
+                    <span className="shrink-0 text-muted-foreground">
+                      {formatTime(start)}
+                      {end && ` – ${formatTime(end)}`}
+                      {exam.location && ` · ${exam.location}`}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </DaySwap>
       </div>
     </div>
   )

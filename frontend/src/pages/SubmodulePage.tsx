@@ -1,4 +1,5 @@
 import { ArrowLeft, Code2, FileText, Layers, Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -25,7 +26,8 @@ import {
   type Flashcard,
 } from '@/lib/api'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
-import { useAsync } from '@/lib/useAsync'
+import { listItem } from '@/lib/motion'
+import { useAsync, useLastLoaded } from '@/lib/useAsync'
 
 function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: number; submoduleId: number; onCreated: () => void }) {
   const [front, setFront] = useState('')
@@ -73,23 +75,26 @@ function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: numb
 
 function FlashcardRow({ card, onDeleted }: { card: Flashcard; onDeleted: () => void }) {
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
-      <div className="min-w-0">
-        <p className="truncate font-medium">{card.front}</p>
-        <p className="truncate text-sm text-muted-foreground">{card.back}</p>
+    // Padding lives on the inner row so the exit can collapse the <li> all the way to zero.
+    <motion.li variants={listItem} initial="hidden" animate="shown" exit="exit">
+      <div className="flex items-center justify-between gap-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate font-medium">{card.front}</p>
+          <p className="truncate text-sm text-muted-foreground">{card.back}</p>
+        </div>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Delete flashcard"
+          onClick={async () => {
+            await deleteFlashcard(card.id)
+            onDeleted()
+          }}
+        >
+          <Trash2 />
+        </Button>
       </div>
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="Delete flashcard"
-        onClick={async () => {
-          await deleteFlashcard(card.id)
-          onDeleted()
-        }}
-      >
-        <Trash2 />
-      </Button>
-    </li>
+    </motion.li>
   )
 }
 
@@ -102,7 +107,14 @@ export function SubmodulePage() {
 
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
   const { data: submodule, loading, error } = useAsync(() => getSubmodule(id), [id, reloadKey])
-  const { data: flashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey])
+  // Flashcards reload on their own key: bumping `reloadKey` puts the whole page back in its loading
+  // state, which would unmount the open dialog and replay the list's animations.
+  const [flashcardsKey, setFlashcardsKey] = useState(0)
+  const refetchFlashcards = () => setFlashcardsKey((k) => k + 1)
+  const flashcards = useLastLoaded(
+    useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey, flashcardsKey]).data,
+    id,
+  )
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
 
   const [content, setContent] = useState('')
@@ -317,13 +329,15 @@ export function SubmodulePage() {
             <DialogTitle>Flashcards</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <NewFlashcardForm moduleId={submodule.module_id} submoduleId={id} onCreated={refetch} />
+            <NewFlashcardForm moduleId={submodule.module_id} submoduleId={id} onCreated={refetchFlashcards} />
             {flashcards?.length === 0 && <p className="text-sm text-muted-foreground">No flashcards yet.</p>}
             {flashcards && flashcards.length > 0 && (
               <ul className="max-h-80 divide-y overflow-y-auto">
-                {flashcards.map((card) => (
-                  <FlashcardRow key={card.id} card={card} onDeleted={refetch} />
-                ))}
+                <AnimatePresence initial={false}>
+                  {flashcards.map((card) => (
+                    <FlashcardRow key={card.id} card={card} onDeleted={refetchFlashcards} />
+                  ))}
+                </AnimatePresence>
               </ul>
             )}
           </div>

@@ -1,7 +1,9 @@
 import { Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 
 import { KeybindInput } from '@/components/KeybindInput'
+import { SettingsNav } from '@/components/SettingsNav'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -129,25 +131,15 @@ export function AppSettingsDialog({
         </DialogHeader>
 
         <div className="flex min-h-[30rem]">
-          <nav className="w-44 shrink-0 space-y-0.5 border-r bg-muted/30 p-2">
-            {CATEGORIES.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCategory(id)}
-                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                  category === id
-                    ? 'bg-background font-medium shadow-sm'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                }`}
-              >
-                <Icon className="size-4 shrink-0" />
-                {label}
-              </button>
-            ))}
-          </nav>
+          <SettingsNav categories={CATEGORIES} value={category} onChange={setCategory} />
 
-          <div className="flex-1 space-y-6 p-5">
+          <motion.div
+            key={category}
+            className="flex-1 space-y-6 p-5"
+            initial={{ opacity: 0, x: 6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.18 }}
+          >
             {category === 'appearance' && (
               <>
                 <div className="space-y-2">
@@ -279,7 +271,7 @@ export function AppSettingsDialog({
                 </p>
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </DialogContent>
     </Dialog>

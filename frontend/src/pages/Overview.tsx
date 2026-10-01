@@ -1,25 +1,40 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { BookOpen, Settings } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 
 import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AddModuleTile } from '@/components/AddModuleTile'
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AssignmentItem } from '@/components/AssignmentItem'
+import { DaySwap } from '@/components/CalendarEffects'
 import { EventMarker } from '@/components/EventMarker'
+import { LoadSwap } from '@/components/LoadSwap'
 import { calendarGridRange, MonthCalendar } from '@/components/MonthCalendar'
 import { ModuleCard } from '@/components/ModuleCard'
 import { PageHeader } from '@/components/PageHeader'
-import { RadialProgress } from '@/components/RadialProgress'
+import { AnimatedNumber, RadialProgress } from '@/components/RadialProgress'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, getCalendar, listModules, listUpcomingAssignments, type CalendarEvent } from '@/lib/api'
+import { enter, fadeUp, fadeUpAt, stagger } from '@/lib/motion'
 import { progressRingSegments } from '@/lib/progress'
-import { useAsync } from '@/lib/useAsync'
+import { useAsync, useLastLoaded } from '@/lib/useAsync'
+
+const MotionCard = motion.create(Card)
+
+/** Height + fade for a panel that opens below its row. */
+const reveal = {
+  initial: { opacity: 0, height: 0 },
+  animate: { opacity: 1, height: 'auto' },
+  exit: { opacity: 0, height: 0 },
+  transition: { duration: 0.2 },
+  style: { overflow: 'hidden' },
+} as const
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -48,17 +63,20 @@ export function Overview() {
   // Keeping the last-loaded month's events on display until the next month's finish loading
   // (stale-while-revalidate) avoids that without changing useAsync's shared behavior, which
   // other pages rely on as-is.
-  const [displayedEvents, setDisplayedEvents] = useState<CalendarEvent[] | null>(null)
-  useEffect(() => {
-    if (calendar.data) setDisplayedEvents(calendar.data)
-  }, [calendar.data])
+  const displayedEvents: CalendarEvent[] | null = useLastLoaded(calendar.data)
+  // Same for modules: the settings dialog bumps `reloadKey`, and the grid shouldn't re-enter.
+  const displayedModules = useLastLoaded(modules.data)
+
+  // The dashboard cards enter one at a time in reading order.
+  const slot = { calendar: 0, upcoming: 1, progress: 2, todo: 3, notepad: 4 }
+  const cardMotion = (i: number) => ({ variants: fadeUpAt, custom: i })
 
   const maxCredits = appSettings.data?.max_credits ?? null
-  const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
+  const usedCredits = (displayedModules ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
   const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
 
-  const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
-  const moduleColor = (id: number) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
+  const moduleName = (id: number) => displayedModules?.find((m) => m.id === id)?.name ?? 'Unknown module'
+  const moduleColor = (id: number) => displayedModules?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
 
   const events = useMemo(() => displayedEvents ?? [], [displayedEvents])
   const selectedDayEvents = useMemo(
@@ -69,19 +87,19 @@ export function Overview() {
   // Credit-weighted (falling back to equal weight when credits aren't set) so the aggregate ring
   // matches each module's own ring: achieved% of grade in the module's own color, the rest of
   // what's been submitted/graded but fell short of full marks in a faded shade of it.
-  const totalWeight = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 1), 0)
+  const totalWeight = (displayedModules ?? []).reduce((sum, m) => sum + (m.credits ?? 1), 0)
 
   const progressSegments = useMemo(() => {
     if (totalWeight === 0) return []
-    return (modules.data ?? []).flatMap((m) => {
+    return (displayedModules ?? []).flatMap((m) => {
       const share = (m.credits ?? 1) / totalWeight
       return progressRingSegments(m.completion_progress, m.color, share)
     })
-  }, [modules.data, totalWeight])
+  }, [displayedModules, totalWeight])
 
   const overallCompletion = useMemo(() => {
     if (totalWeight === 0) return { achieved: 0, completed: 0 }
-    const totals = (modules.data ?? []).reduce(
+    const totals = (displayedModules ?? []).reduce(
       (acc, m) => {
         const weight = m.credits ?? 1
         return {
@@ -92,7 +110,7 @@ export function Overview() {
       { achieved: 0, completed: 0 },
     )
     return { achieved: totals.achieved / totalWeight, completed: totals.completed / totalWeight }
-  }, [modules.data, totalWeight])
+  }, [displayedModules, totalWeight])
 
   return (
     <div className="min-h-full">
@@ -111,225 +129,267 @@ export function Overview() {
       />
 
       <div className="space-y-8 px-8 py-8">
-        <div className="grid gap-6 lg:grid-cols-4">
-          <Card className="lg:col-span-2">
+        <motion.div className="grid gap-6 lg:grid-cols-4" {...enter}>
+          <MotionCard className="lg:col-span-2" {...cardMotion(slot.calendar)}>
             <CardHeader>
               <CardTitle>Calendar</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {calendar.loading && !displayedEvents && <Skeleton className="h-80 w-full" />}
               {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
-              {displayedEvents && (
-                <>
-                  <MonthCalendar
-                    month={month}
-                    onMonthChange={setMonth}
-                    events={events}
-                    selected={selected}
-                    onSelect={(date) => {
-                      setSelected(date)
-                      setExpandedEventKey(null)
-                    }}
-                    eventColor={(event) => moduleColor(event.module_id)}
-                  />
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1.5">
-                      <EventMarker kind="lecture" />
-                      Lecture
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <EventMarker kind="assignment_due" />
-                      Assignment due
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <EventMarker kind="exam" />
-                      Exam
-                    </span>
-                  </div>
-                  <div className="border-t pt-2">
-                    <p className="mb-1.5 text-sm font-medium">
-                      {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </p>
-                    <div className="h-24 overflow-y-auto pr-1">
-                    {selectedDayEvents.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
-                    ) : (
-                      <ul className="space-y-1">
-                        {selectedDayEvents.map((event) => {
-                          const isExpanded = expandedEventKey === `${event.kind}-${event.id}`
-                          return (
-                            <li key={`${event.kind}-${event.id}`}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedEventKey(isExpanded ? null : `${event.kind}-${event.id}`)
-                                }
-                                className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
-                              >
-                                <EventMarker
-                                  kind={event.kind}
-                                  color={moduleColor(event.module_id)}
-                                  className="shrink-0"
-                                />
-                                <span className="truncate">{event.title}</span>
-                                <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
-                                <span className="ml-auto shrink-0 text-muted-foreground">
-                                  {event.kind === 'assignment_due'
-                                    ? 'Due'
-                                    : new Date(event.starts_at).toLocaleTimeString(undefined, {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                      })}
-                                </span>
-                              </button>
-                              {isExpanded && event.kind !== 'assignment_due' && (
-                                <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
-                                  <p>
-                                    {new Date(event.starts_at).toLocaleTimeString(undefined, {
-                                      hour: 'numeric',
-                                      minute: '2-digit',
-                                    })}
-                                    {event.ends_at &&
-                                      ` – ${new Date(event.ends_at).toLocaleTimeString(undefined, {
-                                        hour: 'numeric',
-                                        minute: '2-digit',
-                                      })}`}
-                                  </p>
-                                  {event.location && <p>{event.location}</p>}
-                                  <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                    {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
-                                  </Link>
-                                </div>
-                              )}
-                              {isExpanded && event.kind === 'assignment_due' && (
-                                <div className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
-                                  <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                    Open assignment &rarr;
-                                  </Link>
-                                </div>
-                              )}
-                            </li>
-                          )
-                        })}
-                      </ul>
-                    )}
+              <LoadSwap
+                loading={calendar.loading && !displayedEvents}
+                skeleton={<Skeleton className="h-80 w-full" />}
+                className="space-y-3"
+              >
+                {displayedEvents && (
+                  <>
+                    <MonthCalendar
+                      month={month}
+                      onMonthChange={setMonth}
+                      events={events}
+                      selected={selected}
+                      onSelect={(date) => {
+                        setSelected(date)
+                        setExpandedEventKey(null)
+                      }}
+                      eventColor={(event) => moduleColor(event.module_id)}
+                    />
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        <EventMarker kind="lecture" />
+                        Lecture
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <EventMarker kind="assignment_due" />
+                        Assignment due
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <EventMarker kind="exam" />
+                        Exam
+                      </span>
                     </div>
-                  </div>
-                </>
-              )}
+                    <div className="border-t pt-2">
+                      <p className="mb-1.5 text-sm font-medium">
+                        {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                      </p>
+                      <div className="h-24 overflow-y-auto pr-1">
+                        <DaySwap dayKey={selected.toDateString()}>
+                          {selectedDayEvents.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {selectedDayEvents.map((event) => {
+                                const isExpanded = expandedEventKey === `${event.kind}-${event.id}`
+                                return (
+                                  <li key={`${event.kind}-${event.id}`}>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setExpandedEventKey(isExpanded ? null : `${event.kind}-${event.id}`)
+                                      }
+                                      className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
+                                    >
+                                      <EventMarker
+                                        kind={event.kind}
+                                        color={moduleColor(event.module_id)}
+                                        className="shrink-0"
+                                      />
+                                      <span className="truncate">{event.title}</span>
+                                      <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                      <span className="ml-auto shrink-0 text-muted-foreground">
+                                        {event.kind === 'assignment_due'
+                                          ? 'Due'
+                                          : new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                              hour: 'numeric',
+                                              minute: '2-digit',
+                                            })}
+                                      </span>
+                                    </button>
+                                    <AnimatePresence initial={false}>
+                                    {isExpanded && event.kind !== 'assignment_due' && (
+                                      <motion.div {...reveal} className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
+                                        <p>
+                                          {new Date(event.starts_at).toLocaleTimeString(undefined, {
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                          })}
+                                          {event.ends_at &&
+                                            ` – ${new Date(event.ends_at).toLocaleTimeString(undefined, {
+                                              hour: 'numeric',
+                                              minute: '2-digit',
+                                            })}`}
+                                        </p>
+                                        {event.location && <p>{event.location}</p>}
+                                        <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                          {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
+                                        </Link>
+                                      </motion.div>
+                                    )}
+                                    {isExpanded && event.kind === 'assignment_due' && (
+                                      <motion.div {...reveal} className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
+                                        <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                          Open assignment &rarr;
+                                        </Link>
+                                      </motion.div>
+                                    )}
+                                    </AnimatePresence>
+                                  </li>
+                                )
+                              })}
+                            </ul>
+                          )}
+                        </DaySwap>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </LoadSwap>
             </CardContent>
-          </Card>
+          </MotionCard>
 
-          <div className="flex flex-col gap-6">
-            <Card className="flex-1">
+          {/* At lg the side columns take the row height the Calendar card sets (h-0 keeps their own
+              content out of the row sizing), so long lists scroll inside their cards instead. */}
+          <div className="flex flex-col gap-6 lg:h-0 lg:min-h-full">
+            <MotionCard className="min-h-0 flex-1" {...cardMotion(slot.upcoming)}>
               <CardHeader>
                 <CardTitle>Upcoming assignments</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-1">
-                {assignments.loading && <Skeleton className="h-40 w-full" />}
+              <CardContent className="max-h-64 min-h-0 flex-1 space-y-1 overflow-y-auto lg:max-h-none">
                 {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
-                {assignments.data?.length === 0 && (
-                  <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
-                )}
-                {assignments.data?.map((a) => (
-                  <AssignmentItem key={a.id} assignment={a} moduleName={moduleName(a.module_id)} />
-                ))}
+                <LoadSwap loading={assignments.loading} skeleton={<Skeleton className="h-40 w-full" />}>
+                  {assignments.data?.length === 0 && (
+                    <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
+                  )}
+                  {assignments.data && assignments.data.length > 0 && (
+                    <motion.div className="space-y-1" variants={stagger(0.04)} {...enter}>
+                      {assignments.data.map((a) => (
+                        <motion.div key={a.id} variants={fadeUp}>
+                          <AssignmentItem assignment={a} moduleName={moduleName(a.module_id)} />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  )}
+                </LoadSwap>
               </CardContent>
-            </Card>
+            </MotionCard>
 
-            <Card className="flex-1">
+            <MotionCard className="min-h-0 flex-1" {...cardMotion(slot.todo)}>
               <CardHeader>
                 <CardTitle>To-do</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex min-h-0 flex-1 flex-col">
                 <QuickTodoList />
               </CardContent>
-            </Card>
+            </MotionCard>
           </div>
 
-          <div className="flex flex-col gap-6">
-            <Card className="flex-1">
+          {/* At lg the side columns take the row height the Calendar card sets (h-0 keeps their own
+              content out of the row sizing), so long lists scroll inside their cards instead. */}
+          <div className="flex flex-col gap-6 lg:h-0 lg:min-h-full">
+            <MotionCard className="min-h-0 flex-1" {...cardMotion(slot.progress)}>
               <CardHeader>
                 <CardTitle>Progress</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-1 items-center justify-center">
-                {modules.loading && <Skeleton className="size-32 rounded-full" />}
-                {modules.data && (
-                  <div className="relative flex items-center justify-center">
-                    <RadialProgress segments={progressSegments} size={136} strokeWidth={13} />
+                <LoadSwap
+                  loading={modules.loading && !displayedModules}
+                  skeleton={<Skeleton className="size-32 rounded-full" />}
+                >
+                  {displayedModules && (
+                    <div className="relative flex items-center justify-center">
+                      <RadialProgress segments={progressSegments} size={136} strokeWidth={13} />
 
-                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity group-hover/card:opacity-0">
-                      <p className="text-3xl font-semibold tabular-nums">
-                        {totalWeight === 0 ? '—' : `${Math.round(overallCompletion.achieved * 100)}%`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">achieved</p>
-                    </div>
+                      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center transition-opacity group-hover/card:opacity-0">
+                        <p className="text-3xl font-semibold tabular-nums">
+                          {totalWeight === 0 ? (
+                            '—'
+                          ) : (
+                            <>
+                              <AnimatedNumber value={Math.round(overallCompletion.achieved * 100)} />%
+                            </>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">achieved</p>
+                      </div>
 
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-card/95 p-4 text-center opacity-0 transition-opacity group-hover/card:opacity-100">
-                      {totalWeight === 0 ? (
-                        <p className="text-xs text-muted-foreground">No modules yet.</p>
-                      ) : (
-                        <>
-                          <div>
-                            <p className="text-sm font-medium">{Math.round(overallCompletion.achieved * 100)}% achieved</p>
-                            <p className="text-xs text-muted-foreground">
-                              {Math.round(overallCompletion.completed * 100)}% of grade submitted
-                            </p>
-                          </div>
-                          <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                            {modules.data
-                              .filter((m) => m.assignment_progress.total > 0)
-                              .map((m) => (
-                                <li key={m.id} className="flex items-center gap-1">
-                                  <span
-                                    className="size-1.5 shrink-0 rounded-full"
-                                    style={{ backgroundColor: m.color }}
-                                    aria-hidden
-                                  />
-                                  <span className="text-foreground">{m.name}</span>
-                                  <span>{Math.round(m.completion_progress.achieved_fraction * 100)}%</span>
-                                </li>
-                              ))}
-                          </ul>
-                        </>
-                      )}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-card/95 p-4 text-center opacity-0 transition-opacity group-hover/card:opacity-100">
+                        {totalWeight === 0 ? (
+                          <p className="text-xs text-muted-foreground">No modules yet.</p>
+                        ) : (
+                          <>
+                            <div>
+                              <p className="text-sm font-medium">{Math.round(overallCompletion.achieved * 100)}% achieved</p>
+                              <p className="text-xs text-muted-foreground">
+                                {Math.round(overallCompletion.completed * 100)}% of grade submitted
+                              </p>
+                            </div>
+                            <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                              {displayedModules
+                                .filter((m) => m.assignment_progress.total > 0)
+                                .map((m) => (
+                                  <li key={m.id} className="flex items-center gap-1">
+                                    <span
+                                      className="size-1.5 shrink-0 rounded-full"
+                                      style={{ backgroundColor: m.color }}
+                                      aria-hidden
+                                    />
+                                    <span className="text-foreground">{m.name}</span>
+                                    <span>{Math.round(m.completion_progress.achieved_fraction * 100)}%</span>
+                                  </li>
+                                ))}
+                            </ul>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </LoadSwap>
               </CardContent>
-            </Card>
+            </MotionCard>
 
-            <Card className="flex-1">
+            <MotionCard className="min-h-0 flex-1" {...cardMotion(slot.notepad)}>
               <CardHeader>
                 <CardTitle>Notepad</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex min-h-0 flex-1 flex-col">
                 <QuickNotepad />
               </CardContent>
-            </Card>
+            </MotionCard>
           </div>
-        </div>
+        </motion.div>
 
         <section>
           <h2 className="mb-3 text-lg font-medium">Modules</h2>
-          {modules.loading && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-28 w-full" />
-              ))}
-            </div>
-          )}
           {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
-          {modules.data && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {modules.data.map((m) => (
-                <ModuleCard key={m.id} module={m} maxCredits={maxCredits} />
-              ))}
-              {hasCreditRoom && (
-                <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
-              )}
-            </div>
-          )}
+          <LoadSwap
+            loading={modules.loading && !displayedModules}
+            skeleton={
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <Skeleton key={i} className="h-28 w-full" />
+                  ))}
+                </div>
+              }
+            >
+            {displayedModules && (
+              <motion.div
+                className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                variants={stagger()}
+                {...enter}
+              >
+                {displayedModules.map((m) => (
+                  <motion.div key={m.id} variants={fadeUp} whileHover={{ y: -2 }}>
+                    <ModuleCard module={m} maxCredits={maxCredits} />
+                  </motion.div>
+                ))}
+                {hasCreditRoom && (
+                  <motion.div variants={fadeUp} whileHover={{ y: -2 }}>
+                    <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
+          </LoadSwap>
         </section>
       </div>
 

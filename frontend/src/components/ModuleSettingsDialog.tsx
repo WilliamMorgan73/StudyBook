@@ -1,8 +1,10 @@
 import { CalendarClock, SlidersHorizontal } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
+import { SettingsNav } from '@/components/SettingsNav'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -450,25 +452,15 @@ export function ModuleSettingsDialog({
         </DialogHeader>
 
         <div className="flex min-h-[26rem]">
-          <nav className="w-44 shrink-0 space-y-0.5 border-r bg-muted/30 p-2">
-            {CATEGORIES.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCategory(id)}
-                className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-                  category === id
-                    ? 'bg-background font-medium shadow-sm'
-                    : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
-                }`}
-              >
-                <Icon className="size-4 shrink-0" />
-                {label}
-              </button>
-            ))}
-          </nav>
+          <SettingsNav categories={CATEGORIES} value={category} onChange={setCategory} />
 
-          <div className="max-h-[70vh] flex-1 overflow-y-auto p-5">
+          <motion.div
+            key={category}
+            className="max-h-[70vh] flex-1 overflow-y-auto p-5"
+            initial={{ opacity: 0, x: 6 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.18 }}
+          >
             {category === 'general' && (
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -557,7 +549,7 @@ export function ModuleSettingsDialog({
                 )}
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       </DialogContent>
     </Dialog>
