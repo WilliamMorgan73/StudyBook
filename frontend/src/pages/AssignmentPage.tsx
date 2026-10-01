@@ -25,7 +25,7 @@ import {
   type Todo,
 } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
-import { useAsync, useLastLoaded } from '@/lib/useAsync'
+import { useAsync } from '@/lib/useAsync'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -101,13 +101,7 @@ function TodoRow({ assignmentId, todo, onChanged }: { assignmentId: number; todo
 export function AssignmentPage() {
   const { moduleId, assignmentId } = useParams()
   const id = Number(assignmentId)
-  const [reloadKey, setReloadKey] = useState(0)
-  const refetch = () => setReloadKey((k) => k + 1)
-
-  const { data, loading, error } = useAsync(() => getAssignment(id), [id, reloadKey])
-  // Kept through refetches so marking complete or saving a grade doesn't drop the page back to
-  // its skeleton.
-  const assignment = useLastLoaded(data, id)
+  const { data: assignment, loading, refetch } = useAsync(() => getAssignment(id), [id])
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -125,7 +119,8 @@ export function AssignmentPage() {
     )
   }
 
-  if (error || !assignment) {
+  // Not loading and no data means the first load failed; a failed refresh keeps the data.
+  if (!assignment) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">

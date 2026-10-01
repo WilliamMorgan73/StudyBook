@@ -5,7 +5,11 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 ## Layout
 
 - `lib/api.ts`: typed fetch client with relative paths (`/modules`); Vite proxies `/api/*` (prefix stripped) and `/uploads` to `localhost:8000`.
-- `lib/useAsync.ts`: `{ data, loading, error }` around a fetcher, re-run on deps change. **It nulls `data` the instant deps identity changes.** Several components work around this rather than changing the shared hook (see Overview calendar, settings dialogs below).
+- `lib/useAsync.ts`: `useAsync(fetcher, deps, { keepPreviousData? })` → `{ data, error, loading, refetch }`. Tested in `useAsync.test.ts` (jsdom, `renderHook`).
+  - `loading` means "nothing to show yet", so gating a skeleton on it only blanks a first load.
+  - `refetch()` re-runs the current fetcher and keeps `data` on screen until the response lands; use it after saves instead of a reload counter. Stable identity (safe as `onChanged={refetch}`); resolves (never rejects) once state is updated.
+  - A deps change resets `data` to null (a different resource, e.g. another module id) unless `keepPreviousData: true`, which keeps the old data until the new arrives (Overview calendar months).
+  - Only the latest request's result applies; superseded and post-unmount responses are dropped. A failed refresh sets `error` but keeps `data`, so pages treat "no data and not loading" (not `error`) as the failed-first-load state.
 - `lib/progress.ts::progressRingSegments`: turns `completion_progress` into the two-arc ring (full accent color for `achieved_fraction`, `4d`-alpha shade for `completed_fraction − achieved_fraction`, unfilled remainder = not submitted). Used by `ModuleProgressRing` and the Overview Progress card.
 - `lib/lectureSchedule.ts`: lecture-series helpers for `ModuleSettingsDialog`, including `groupLectures` (see Lectures).
 - `pages/`: `Overview` (`/`), `ModulePage` (`/modules/:moduleId`), `AssignmentPage`, `SubmodulePage`. Module/assignment settings are modal dialogs in `components/`, not routes.
@@ -15,7 +19,8 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 ## Pages
 
 **Overview.** Top row (`lg:grid-cols-4`): Calendar, then two 2-card columns (Upcoming assignments + To-do; Progress + Notepad).
-- Calendar keeps showing the previous month's events while the next loads (`displayedEvents` state, set only when `calendar.data` is non-null); gating on `calendar.data` caused a skeleton blink on every month change. Skeleton only on first load.
+- Calendar fetch uses `keepPreviousData`, so the previous month stays on screen while the next loads; skeleton only on first load.
+- Busy time (`kind="busy"`, from personal events) shows as a muted dash marker (`EventMarker`, which ignores `color` for it), always after other markers in a day cell (`busyLast`). The legend's "Busy" button hides/shows it (`visibleCalendarEvents`), remembered in `localStorage`. Busy events repeat their `id`, so event keys use `calendarEventKey` (kind + id + start). `ModuleWeekCalendar` never shows busy time: it reads `module.lectures`/assignments, not `/calendar`.
 - Day list: click a day to list its events, click an event to toggle inline details (tracked by `expandedEventKey`, reset on day change). The list is fixed-height (`h-24`) and scrolls, because the grid row stretches and a taller card would stretch every card in the row.
 - Progress ring: `RadialProgress` with one achieved+shortfall pair per module in its own color, sized by credit share (`m.credits ?? 1` fallback). Hover swaps the center label for a breakdown layer via `group-hover/card:` (`Card` has `group/card` built in).
 
@@ -34,8 +39,8 @@ There is no backend recurrence rule. `ModuleSettingsDialog`'s Lectures tab creat
 Both use the same category-sidebar shell.
 
 - `ModuleSettingsDialog` (General, Lectures). The credits field is validated client-side against `max_credits` minus every other module's credits (its own `useAsync` calls); `AddModuleDialog` has no such check.
-- `AppSettingsDialog` (Appearance, General, Keybinds, AI Integration, Data; the last two are placeholders). Appearance: theme/skin/`table_alignment` apply live on click; `note_font_size` (10–32) commits on blur. Keybinds: one `KeybindInput` per `KEYBIND_ACTIONS` entry; click to record, Escape cancels, `captureKeybind` emits `Mod-Shift-Alt-key` order; shows "Also used by X" on conflicts and a reset button when not default.
-- **Appearance and keybind changes deliberately skip `onChanged`** and keep local state seeded from the `settings` prop: `onChanged` bumps the Overview `reloadKey`, and `useAsync`'s null-on-deps-change would unmount the dialog mid-edit. Reopening can briefly show a stale value; harmless. `max_credits` does go through `onChanged` since module cards depend on it.
+- `AppSettingsDialog` (Appearance, General, Keybinds, Calendars, AI Integration, Data; the last two are placeholders). Calendars is `PersonalEventsSettings`: add/edit/delete personal events (form logic in `lib/busyTime.ts`); after each change it refetches its own list and calls `onCalendarChanged`, which Overview wires to `calendar.refetch`. Appearance: theme/skin/`table_alignment` apply live on click; `note_font_size` (10–32) commits on blur. Keybinds: one `KeybindInput` per `KEYBIND_ACTIONS` entry; click to record, Escape cancels, `captureKeybind` emits `Mod-Shift-Alt-key` order; shows "Also used by X" on conflicts and a reset button when not default.
+- Every `AppSettingsDialog` save calls `onChanged`, which refetches Overview's app settings in place (the dialog stays mounted). Controls read straight from the `settings` prop; only `max_credits` and `note_font_size` keep local drafts, reset each time the dialog opens.
 
 ## Theming
 

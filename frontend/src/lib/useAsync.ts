@@ -1,42 +1,75 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+interface AsyncOptions {
+  /**
+   * When deps change, keep showing the previous data (with `loading` false) until the new
+   * response arrives, instead of resetting to null. For paging through the same kind of
+   * resource, e.g. calendar months.
+   */
+  keepPreviousData?: boolean
+}
 
 interface AsyncState<T> {
   data: T | null
   error: Error | null
+  /** True only while a fetch is in flight and there's no data to show yet. */
   loading: boolean
+  /**
+   * Re-runs the current fetcher, keeping the current data until the response arrives. Stable
+   * identity across renders; resolves (never rejects) once the fetch settles, after state updates.
+   */
+  refetch: () => Promise<void>
 }
 
-export function useAsync<T>(fetcher: () => Promise<T>, deps: unknown[]): AsyncState<T> {
-  const [state, setState] = useState<AsyncState<T>>({ data: null, error: null, loading: true })
+type LoadState<T> = Omit<AsyncState<T>, 'refetch'>
+
+export function useAsync<T>(
+  fetcher: () => Promise<T>,
+  deps: unknown[],
+  { keepPreviousData = false }: AsyncOptions = {},
+): AsyncState<T> {
+  const [state, setState] = useState<LoadState<T>>({ data: null, error: null, loading: true })
+
+  const fetcherRef = useRef(fetcher)
+  useLayoutEffect(() => {
+    fetcherRef.current = fetcher
+  })
+
+  // Only the latest request may apply its result; bumping this discards everything in flight.
+  const latestRequest = useRef(0)
+
+  const load = useCallback((reset: boolean) => {
+    const id = ++latestRequest.current
+    setState((s) => {
+      // Returning `s` unchanged where possible skips a redundant render (e.g. on mount).
+      if (reset) return s.data === null && s.error === null && s.loading ? s : { data: null, error: null, loading: true }
+      // A refresh with nothing on screen (e.g. after a failed first load) is effectively a first load.
+      return s.data === null && !s.loading ? { ...s, loading: true } : s
+    })
+    return fetcherRef.current().then(
+      (data) => {
+        if (id === latestRequest.current) setState({ data, error: null, loading: false })
+      },
+      (error: Error) => {
+        if (id === latestRequest.current) setState((s) => ({ data: s.data, error, loading: false }))
+      },
+    )
+  }, [])
 
   useEffect(() => {
-    let cancelled = false
-    setState({ data: null, error: null, loading: true })
-    fetcher()
-      .then((data) => {
-        if (!cancelled) setState({ data, error: null, loading: false })
-      })
-      .catch((error: Error) => {
-        if (!cancelled) setState({ data: null, error, loading: false })
-      })
-    return () => {
-      cancelled = true
-    }
+    void load(!keepPreviousData)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 
-  return state
-}
+  useEffect(() => {
+    return () => {
+      // A request counter, not a DOM ref, so reading the latest value at cleanup is the point.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      latestRequest.current++
+    }
+  }, [])
 
-/**
- * The most recent non-null `data`, kept on display while a refetch is in flight. `useAsync` nulls
- * `data` whenever its deps change, which unmounts lists mid-refetch and would replay their
- * enter animations (or drop exit animations) on every add/delete. Changing `resetKey` (e.g. the
- * route's id) drops the kept value, so one record's data never stands in for another's.
- */
-export function useLastLoaded<T>(data: T | null, resetKey?: unknown): T | null {
-  const [last, setLast] = useState<{ key: unknown; data: T | null }>({ key: resetKey, data })
-  // Adjusting state during render (rather than in an effect) avoids rendering the stale value once.
-  if (data !== null && (data !== last.data || resetKey !== last.key)) setLast({ key: resetKey, data })
-  return data ?? (last.key === resetKey ? last.data : null)
+  const refetch = useCallback(() => load(false), [load])
+
+  return { ...state, refetch }
 }

@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ASSIGNMENT_STATUS_LABEL, getModule, type Assignment, type Submodule } from '@/lib/api'
 import { enter, fadeUpAt } from '@/lib/motion'
-import { useAsync, useLastLoaded } from '@/lib/useAsync'
+import { useAsync } from '@/lib/useAsync'
 
 const MotionCard = motion.create(Card)
 
@@ -72,13 +72,8 @@ function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Su
 export function ModulePage() {
   const { moduleId } = useParams()
   const id = Number(moduleId)
-  const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { data, loading, error } = useAsync(() => getModule(id), [id, reloadKey])
-  // Kept through refetches (closing settings or a study session) so the page doesn't drop back
-  // to its skeleton and replay its entrance.
-  const module = useLastLoaded(data, id)
-  const refetch = () => setReloadKey((k) => k + 1)
+  const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
   const slotProps = (i: number) => ({ variants: fadeUpAt, custom: i })
 
   if (loading && !module) {
@@ -91,7 +86,8 @@ export function ModulePage() {
     )
   }
 
-  if (error || !module) {
+  // Not loading and no data means the first load failed; a failed refresh keeps the data.
+  if (!module) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">

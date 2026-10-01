@@ -380,15 +380,13 @@ export function ModuleSettingsDialog({
 }) {
   const navigate = useNavigate()
   const [category, setCategory] = useState<Category>('general')
-  const [reloadKey, setReloadKey] = useState(0)
   const [addingNew, setAddingNew] = useState(false)
-  const refetchLectures = () => setReloadKey((k) => k + 1)
 
-  const { data: lectures, loading } = useAsync(() => listLectures(module.id), [module.id, reloadKey])
+  const { data: lectures, loading, refetch: refetchLectures } = useAsync(() => listLectures(module.id), [module.id])
   const groups = groupLectures(lectures ?? [])
 
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
-  const { data: allModules } = useAsync(() => listModules(), [reloadKey])
+  const { data: allModules } = useAsync(() => listModules(), [])
   const maxCredits = appSettings?.max_credits ?? null
   const otherCredits = (allModules ?? [])
     .filter((m) => m.id !== module.id)

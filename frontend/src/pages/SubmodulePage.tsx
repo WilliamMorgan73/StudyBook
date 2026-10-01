@@ -27,7 +27,7 @@ import {
 } from '@/lib/api'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
 import { listItem } from '@/lib/motion'
-import { useAsync, useLastLoaded } from '@/lib/useAsync'
+import { useAsync } from '@/lib/useAsync'
 
 function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: number; submoduleId: number; onCreated: () => void }) {
   const [front, setFront] = useState('')
@@ -102,19 +102,11 @@ export function SubmodulePage() {
   const { moduleId, submoduleId } = useParams()
   const navigate = useNavigate()
   const id = Number(submoduleId)
-  const [reloadKey, setReloadKey] = useState(0)
-  const refetch = () => setReloadKey((k) => k + 1)
-
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
-  const { data: submodule, loading, error } = useAsync(() => getSubmodule(id), [id, reloadKey])
-  // Flashcards reload on their own key: bumping `reloadKey` puts the whole page back in its loading
-  // state, which would unmount the open dialog and replay the list's animations.
-  const [flashcardsKey, setFlashcardsKey] = useState(0)
-  const refetchFlashcards = () => setFlashcardsKey((k) => k + 1)
-  const flashcards = useLastLoaded(
-    useAsync(() => listFlashcards({ submoduleId: id }), [id, reloadKey, flashcardsKey]).data,
-    id,
-  )
+  const { data: submodule, loading, refetch: refetchSubmodule } = useAsync(() => getSubmodule(id), [id])
+  const { data: flashcards, refetch: refetchFlashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id])
+  // Saves here can touch the note or its flashcards, so refresh both together.
+  const refetch = () => Promise.all([refetchSubmodule(), refetchFlashcards()])
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
 
   const [content, setContent] = useState('')
@@ -142,7 +134,8 @@ export function SubmodulePage() {
     )
   }
 
-  if (error || !submodule) {
+  // Not loading and no data means the first load failed; a failed refresh keeps the data.
+  if (!submodule) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
         <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
@@ -329,13 +322,13 @@ export function SubmodulePage() {
             <DialogTitle>Flashcards</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <NewFlashcardForm moduleId={submodule.module_id} submoduleId={id} onCreated={refetchFlashcards} />
+            <NewFlashcardForm moduleId={submodule.module_id} submoduleId={id} onCreated={refetch} />
             {flashcards?.length === 0 && <p className="text-sm text-muted-foreground">No flashcards yet.</p>}
             {flashcards && flashcards.length > 0 && (
               <ul className="max-h-80 divide-y overflow-y-auto">
                 <AnimatePresence initial={false}>
                   {flashcards.map((card) => (
-                    <FlashcardRow key={card.id} card={card} onDeleted={refetchFlashcards} />
+                    <FlashcardRow key={card.id} card={card} onDeleted={refetch} />
                   ))}
                 </AnimatePresence>
               </ul>

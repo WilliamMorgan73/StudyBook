@@ -6,6 +6,7 @@ import { PopIn, SelectionRing } from '@/components/CalendarEffects'
 import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
+import { busyLast, calendarEventKey } from '@/lib/busyTime'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -146,9 +147,9 @@ export function MonthCalendar({
                 {day.getDate()}
               </span>
               {dayEvents.length > 0 && (
-                <div className="flex flex-wrap gap-0.5">
-                  {dayEvents.slice(0, 4).map((event) => (
-                    <PopIn key={`${event.kind}-${event.id}`}>
+                <div className="flex flex-wrap items-center gap-0.5">
+                  {busyLast(dayEvents).slice(0, 4).map((event) => (
+                    <PopIn key={calendarEventKey(event)}>
                       <EventMarker kind={event.kind} color={eventColor(event)} />
                     </PopIn>
                   ))}

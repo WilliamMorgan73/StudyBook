@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { createQuickTodo, deleteQuickTodo, listQuickTodos, updateQuickTodo, type QuickTodo } from '@/lib/api'
 import { listItem } from '@/lib/motion'
-import { useAsync, useLastLoaded } from '@/lib/useAsync'
+import { useAsync } from '@/lib/useAsync'
 
 function TodoRow({ todo, onChanged }: { todo: QuickTodo; onChanged: () => void }) {
   return (
@@ -48,11 +48,9 @@ function TodoRow({ todo, onChanged }: { todo: QuickTodo; onChanged: () => void }
 }
 
 export function QuickTodoList() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [text, setText] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const todos = useAsync(() => listQuickTodos(), [reloadKey])
-  const items = useLastLoaded(todos.data)
+  const todos = useAsync(() => listQuickTodos(), [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -61,7 +59,7 @@ export function QuickTodoList() {
     try {
       await createQuickTodo(text.trim())
       setText('')
-      setReloadKey((k) => k + 1)
+      todos.refetch()
     } finally {
       setSubmitting(false)
     }
@@ -75,12 +73,12 @@ export function QuickTodoList() {
           Add
         </Button>
       </form>
-      {items?.length === 0 && <p className="text-sm text-muted-foreground">Nothing on your list.</p>}
-      {items && items.length > 0 && (
+      {todos.data?.length === 0 && <p className="text-sm text-muted-foreground">Nothing on your list.</p>}
+      {todos.data && todos.data.length > 0 && (
         <ul className="max-h-64 min-h-0 flex-1 divide-y overflow-y-auto lg:max-h-none">
           <AnimatePresence initial={false}>
-            {items.map((todo) => (
-              <TodoRow key={todo.id} todo={todo} onChanged={() => setReloadKey((k) => k + 1)} />
+            {todos.data.map((todo) => (
+              <TodoRow key={todo.id} todo={todo} onChanged={todos.refetch} />
             ))}
           </AnimatePresence>
         </ul>

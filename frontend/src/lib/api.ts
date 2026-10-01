@@ -87,15 +87,36 @@ export interface Assignment {
 }
 
 export interface CalendarEvent {
-  kind: 'lecture' | 'assignment_due' | 'exam'
+  /** `busy` = one occurrence of a PersonalEvent; its `id` repeats across occurrences. */
+  kind: 'lecture' | 'assignment_due' | 'exam' | 'busy'
   id: number
-  module_id: number
+  /** Null only for `busy`. */
+  module_id: number | null
   title: string
   starts_at: string
   ends_at: string | null
   location: string | null
-  url: string
+  /** Null only for `busy`. */
+  url: string | null
 }
+
+/** A weekly busy-time rule; expanded into occurrences on read, not stored per occurrence. */
+export interface PersonalEvent {
+  id: number
+  title: string
+  /** 0 = Monday ... 6 = Sunday. */
+  weekdays: number[]
+  /** "HH:MM:SS". An end before the start runs past midnight. */
+  start_time: string
+  end_time: string
+  /** "YYYY-MM-DD", inclusive. */
+  valid_from: string
+  /** Null = open-ended. */
+  valid_until: string | null
+  created_at: string
+}
+
+export type PersonalEventInput = Omit<PersonalEvent, 'id' | 'created_at'>
 
 export interface QuickTodo {
   id: number
@@ -398,6 +419,22 @@ export function getCalendar(start: Date, end: Date) {
     end: toNaiveDateTime(end),
   })
   return request<CalendarEvent[]>(`/calendar?${params}`)
+}
+
+export function listPersonalEvents() {
+  return request<PersonalEvent[]>('/personal-events')
+}
+
+export function createPersonalEvent(input: PersonalEventInput) {
+  return postJson<PersonalEvent>('/personal-events', input)
+}
+
+export function updatePersonalEvent(id: number, input: Partial<PersonalEventInput>) {
+  return patchJson<PersonalEvent>(`/personal-events/${id}`, input)
+}
+
+export function deletePersonalEvent(id: number) {
+  return request<void>(`/personal-events/${id}`, { method: 'DELETE' })
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system'

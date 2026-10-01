@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
-import { BookOpen, Settings } from 'lucide-react'
+import { BookOpen, Eye, EyeOff, Settings } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
 import { AddModuleDialog } from '@/components/AddModuleDialog'
@@ -20,10 +20,11 @@ import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getAppSettings, getCalendar, listModules, listUpcomingAssignments, type CalendarEvent } from '@/lib/api'
+import { getAppSettings, getCalendar, listModules, listUpcomingAssignments } from '@/lib/api'
+import { calendarEventKey, visibleCalendarEvents } from '@/lib/busyTime'
 import { enter, fadeUp, fadeUpAt, stagger } from '@/lib/motion'
 import { progressRingSegments } from '@/lib/progress'
-import { useAsync, useLastLoaded } from '@/lib/useAsync'
+import { useAsync } from '@/lib/useAsync'
 
 const MotionCard = motion.create(Card)
 
@@ -36,12 +37,21 @@ const reveal = {
   style: { overflow: 'hidden' },
 } as const
 
+const SHOW_BUSY_KEY = 'studybook.overview.showBusy'
+
+function readShowBusy() {
+  try {
+    return localStorage.getItem(SHOW_BUSY_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
 export function Overview() {
-  const [reloadKey, setReloadKey] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [month, setMonth] = useState(() => {
     const now = new Date()
@@ -49,36 +59,41 @@ export function Overview() {
   })
   const [selected, setSelected] = useState(() => new Date())
   const [expandedEventKey, setExpandedEventKey] = useState<string | null>(null)
+  const [showBusy, setShowBusy] = useState(readShowBusy)
+
+  function toggleShowBusy() {
+    const next = !showBusy
+    setShowBusy(next)
+    try {
+      localStorage.setItem(SHOW_BUSY_KEY, String(next))
+    } catch {
+      // Storage unavailable: the toggle still works for this visit.
+    }
+  }
 
   const gridRange = useMemo(() => calendarGridRange(month), [month])
 
-  const modules = useAsync(() => listModules(), [reloadKey])
+  const modules = useAsync(() => listModules(), [])
   const assignments = useAsync(() => listUpcomingAssignments(6), [])
-  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange])
-  const appSettings = useAsync(() => getAppSettings(), [reloadKey])
-
-  // useAsync nulls `data` the instant `gridRange` changes identity (i.e. on every month
-  // switch), and the calendar card below was gated on `calendar.data` truthiness — so switching
-  // months unmounted the whole card in favor of a skeleton for a moment, a visible "blink".
-  // Keeping the last-loaded month's events on display until the next month's finish loading
-  // (stale-while-revalidate) avoids that without changing useAsync's shared behavior, which
-  // other pages rely on as-is.
-  const displayedEvents: CalendarEvent[] | null = useLastLoaded(calendar.data)
-  // Same for modules: the settings dialog bumps `reloadKey`, and the grid shouldn't re-enter.
-  const displayedModules = useLastLoaded(modules.data)
+  // Keep the current month on screen until the next one loads, so paging doesn't blink.
+  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange], {
+    keepPreviousData: true,
+  })
+  const appSettings = useAsync(() => getAppSettings(), [])
 
   // The dashboard cards enter one at a time in reading order.
   const slot = { calendar: 0, upcoming: 1, progress: 2, todo: 3, notepad: 4 }
   const cardMotion = (i: number) => ({ variants: fadeUpAt, custom: i })
 
   const maxCredits = appSettings.data?.max_credits ?? null
-  const usedCredits = (displayedModules ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
+  const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
   const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
 
-  const moduleName = (id: number) => displayedModules?.find((m) => m.id === id)?.name ?? 'Unknown module'
-  const moduleColor = (id: number) => displayedModules?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
+  const moduleName = (id: number) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module'
+  const moduleColor = (id: number | null) =>
+    modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)'
 
-  const events = useMemo(() => displayedEvents ?? [], [displayedEvents])
+  const events = useMemo(() => visibleCalendarEvents(calendar.data ?? [], showBusy), [calendar.data, showBusy])
   const selectedDayEvents = useMemo(
     () => events.filter((e) => isSameDay(new Date(e.starts_at), selected)),
     [events, selected],
@@ -87,19 +102,19 @@ export function Overview() {
   // Credit-weighted (falling back to equal weight when credits aren't set) so the aggregate ring
   // matches each module's own ring: achieved% of grade in the module's own color, the rest of
   // what's been submitted/graded but fell short of full marks in a faded shade of it.
-  const totalWeight = (displayedModules ?? []).reduce((sum, m) => sum + (m.credits ?? 1), 0)
+  const totalWeight = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 1), 0)
 
   const progressSegments = useMemo(() => {
     if (totalWeight === 0) return []
-    return (displayedModules ?? []).flatMap((m) => {
+    return (modules.data ?? []).flatMap((m) => {
       const share = (m.credits ?? 1) / totalWeight
       return progressRingSegments(m.completion_progress, m.color, share)
     })
-  }, [displayedModules, totalWeight])
+  }, [modules.data, totalWeight])
 
   const overallCompletion = useMemo(() => {
     if (totalWeight === 0) return { achieved: 0, completed: 0 }
-    const totals = (displayedModules ?? []).reduce(
+    const totals = (modules.data ?? []).reduce(
       (acc, m) => {
         const weight = m.credits ?? 1
         return {
@@ -110,7 +125,7 @@ export function Overview() {
       { achieved: 0, completed: 0 },
     )
     return { achieved: totals.achieved / totalWeight, completed: totals.completed / totalWeight }
-  }, [displayedModules, totalWeight])
+  }, [modules.data, totalWeight])
 
   return (
     <div className="min-h-full">
@@ -137,11 +152,11 @@ export function Overview() {
             <CardContent className="space-y-3">
               {calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
               <LoadSwap
-                loading={calendar.loading && !displayedEvents}
+                loading={calendar.loading}
                 skeleton={<Skeleton className="h-80 w-full" />}
                 className="space-y-3"
               >
-                {displayedEvents && (
+                {calendar.data && (
                   <>
                     <MonthCalendar
                       month={month}
@@ -167,6 +182,19 @@ export function Overview() {
                         <EventMarker kind="exam" />
                         Exam
                       </span>
+                      <button
+                        type="button"
+                        onClick={toggleShowBusy}
+                        aria-pressed={showBusy}
+                        title={showBusy ? 'Hide busy time' : 'Show busy time'}
+                        className={`ml-auto flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted hover:text-foreground ${
+                          showBusy ? '' : 'line-through opacity-60'
+                        }`}
+                      >
+                        <EventMarker kind="busy" />
+                        Busy
+                        {showBusy ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                      </button>
                     </div>
                     <div className="border-t pt-2">
                       <p className="mb-1.5 text-sm font-medium">
@@ -179,14 +207,14 @@ export function Overview() {
                           ) : (
                             <ul className="space-y-1">
                               {selectedDayEvents.map((event) => {
-                                const isExpanded = expandedEventKey === `${event.kind}-${event.id}`
+                                const key = calendarEventKey(event)
+                                const isExpanded = expandedEventKey === key
+                                const isBusy = event.kind === 'busy'
                                 return (
-                                  <li key={`${event.kind}-${event.id}`}>
+                                  <li key={key}>
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        setExpandedEventKey(isExpanded ? null : `${event.kind}-${event.id}`)
-                                      }
+                                      onClick={() => setExpandedEventKey(isExpanded ? null : key)}
                                       className="-mx-2 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted"
                                     >
                                       <EventMarker
@@ -194,8 +222,10 @@ export function Overview() {
                                         color={moduleColor(event.module_id)}
                                         className="shrink-0"
                                       />
-                                      <span className="truncate">{event.title}</span>
-                                      <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                      <span className={`truncate ${isBusy ? 'text-muted-foreground' : ''}`}>{event.title}</span>
+                                      {event.module_id !== null && (
+                                        <span className="text-muted-foreground">{moduleName(event.module_id)}</span>
+                                      )}
                                       <span className="ml-auto shrink-0 text-muted-foreground">
                                         {event.kind === 'assignment_due'
                                           ? 'Due'
@@ -220,12 +250,15 @@ export function Overview() {
                                             })}`}
                                         </p>
                                         {event.location && <p>{event.location}</p>}
-                                        <Link to={event.url} className="inline-block text-foreground hover:underline">
-                                          {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
-                                        </Link>
+                                        {isBusy && <p>Personal event (Settings → Calendars)</p>}
+                                        {event.url && (
+                                          <Link to={event.url} className="inline-block text-foreground hover:underline">
+                                            {event.kind === 'exam' ? 'Open exam' : 'Open module'} &rarr;
+                                          </Link>
+                                        )}
                                       </motion.div>
                                     )}
-                                    {isExpanded && event.kind === 'assignment_due' && (
+                                    {isExpanded && event.kind === 'assignment_due' && event.url && (
                                       <motion.div {...reveal} className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
                                         <Link to={event.url} className="inline-block text-foreground hover:underline">
                                           Open assignment &rarr;
@@ -292,10 +325,10 @@ export function Overview() {
               </CardHeader>
               <CardContent className="flex flex-1 items-center justify-center">
                 <LoadSwap
-                  loading={modules.loading && !displayedModules}
+                  loading={modules.loading}
                   skeleton={<Skeleton className="size-32 rounded-full" />}
                 >
-                  {displayedModules && (
+                  {modules.data && (
                     <div className="relative flex items-center justify-center">
                       <RadialProgress segments={progressSegments} size={136} strokeWidth={13} />
 
@@ -324,7 +357,7 @@ export function Overview() {
                               </p>
                             </div>
                             <ul className="flex max-w-28 flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                              {displayedModules
+                              {modules.data
                                 .filter((m) => m.assignment_progress.total > 0)
                                 .map((m) => (
                                   <li key={m.id} className="flex items-center gap-1">
@@ -362,7 +395,7 @@ export function Overview() {
           <h2 className="mb-3 text-lg font-medium">Modules</h2>
           {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
           <LoadSwap
-            loading={modules.loading && !displayedModules}
+            loading={modules.loading}
             skeleton={
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -371,20 +404,20 @@ export function Overview() {
                 </div>
               }
             >
-            {displayedModules && (
+            {modules.data && (
               <motion.div
                 className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
                 variants={stagger()}
                 {...enter}
               >
-                {displayedModules.map((m) => (
+                {modules.data.map((m) => (
                   <motion.div key={m.id} variants={fadeUp} whileHover={{ y: -2 }}>
                     <ModuleCard module={m} maxCredits={maxCredits} />
                   </motion.div>
                 ))}
                 {hasCreditRoom && (
                   <motion.div variants={fadeUp} whileHover={{ y: -2 }}>
-                    <AddModuleDialog onCreated={() => setReloadKey((k) => k + 1)} trigger={<AddModuleTile />} />
+                    <AddModuleDialog onCreated={modules.refetch} trigger={<AddModuleTile />} />
                   </motion.div>
                 )}
               </motion.div>
@@ -398,7 +431,8 @@ export function Overview() {
           settings={appSettings.data}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
-          onChanged={() => setReloadKey((k) => k + 1)}
+          onChanged={appSettings.refetch}
+          onCalendarChanged={calendar.refetch}
         />
       )}
     </div>
