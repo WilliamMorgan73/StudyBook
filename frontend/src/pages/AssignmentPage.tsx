@@ -1,13 +1,13 @@
 import { Settings as SettingsIcon, Trash2, ArrowLeft} from 'lucide-react'
 import { motion } from 'motion/react'
 import { useState, type FormEvent } from 'react'
-import ReactMarkdown from 'react-markdown'
 import { Link, useParams } from 'react-router-dom'
 
 import { AssignmentCompletion } from '@/components/AssignmentCompletion'
 import { AssignmentSettingsDialog } from '@/components/AssignmentSettingsDialog'
 import { AttachmentList } from '@/components/AttachmentList'
 import { Countdown } from '@/components/Countdown'
+import { MarkdownView } from '@/components/MarkdownView'
 import { PageHeader } from '@/components/PageHeader'
 import { RevisionPlan } from '@/components/RevisionPlan'
 import { Button } from '@/components/ui/button'
@@ -236,9 +236,7 @@ export function AssignmentPage() {
               </div>
             </div>
           ) : assignment.notes_markdown.trim() ? (
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown>{assignment.notes_markdown}</ReactMarkdown>
-            </div>
+            <MarkdownView className="prose-sm">{assignment.notes_markdown}</MarkdownView>
           ) : (
             <p className="text-sm text-muted-foreground">No notes yet.</p>
           )}
