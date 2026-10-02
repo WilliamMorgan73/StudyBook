@@ -1,0 +1,4 @@
+# rehype-katex and remark-math pin katex@^0.16, whose class names the app's katex@0.18 CSS no
+# longer styles. Render every read-only view with the same KaTeX as MarkdownEditor.
+overrides:
+  katex: $katex

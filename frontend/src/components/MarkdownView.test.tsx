@@ -49,3 +49,28 @@ describe('MarkdownView GFM', () => {
     expect([...boxes].map((box) => box.checked)).toEqual([true, false])
   })
 })
+
+describe('MarkdownView math', () => {
+  it('renders with the same KaTeX build as the editor', () => {
+    const container = renderMarkdown('$v \\neq 0$')
+    // KaTeX 0.18 prefixes its layout classes; the stylesheet only styles the prefixed names.
+    expect(container.querySelector('.katex-base')).not.toBeNull()
+    expect(container.querySelector('.base')).toBeNull()
+  })
+
+  it('renders one-line $$…$$ as display math', () => {
+    const container = renderMarkdown('$$\\det(A - \\lambda I) = 0$$')
+    expect(container.querySelector('.katex-display')).not.toBeNull()
+  })
+
+  it('still renders fenced $$ blocks as display math', () => {
+    const container = renderMarkdown('$$\na = 1\n$$')
+    expect(container.querySelector('.katex-display')).not.toBeNull()
+  })
+
+  it('keeps single-$ math inline', () => {
+    const container = renderMarkdown('Let $a = 1$ hold.')
+    expect(container.querySelector('.katex')).not.toBeNull()
+    expect(container.querySelector('.katex-display')).toBeNull()
+  })
+})
