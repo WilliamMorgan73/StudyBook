@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { createRevisionPlan, type Assignment } from '@/lib/api'
+import { createRevisionPlan, replanRevision, type Assignment } from '@/lib/api'
 import { toggleWeekday, WEEKDAY_LABELS } from '@/lib/busyTime'
 import {
   defaultRevisionPlanForm,
@@ -26,32 +26,41 @@ function todayValue() {
 /**
  * "Plan revision" for an exam: start date, study weekdays and session length. The backend schedules the
  * sessions around lectures, busy time and other exams' sessions, or explains why they don't fit.
+ * `mode="replan"` reschedules an existing plan's upcoming, not-done sessions instead, starting from
+ * `initialForm(today)` (the plan's own settings).
  */
 export function PlanRevisionDialog({
   exam,
   open,
   onOpenChange,
   onPlanned,
+  mode = 'plan',
+  initialForm,
 }: {
   exam: Assignment & { due_at: string }
   open: boolean
   onOpenChange: (open: boolean) => void
   onPlanned: () => void
+  mode?: 'plan' | 'replan'
+  initialForm?: (today: string) => RevisionPlanFormState
 }) {
-  const [form, setForm] = useState<RevisionPlanFormState>(() => defaultRevisionPlanForm(todayValue()))
+  const startingForm = () => (initialForm ?? defaultRevisionPlanForm)(todayValue())
+  const [form, setForm] = useState<RevisionPlanFormState>(startingForm)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const replan = mode === 'replan'
 
-  const set = (patch: Partial<RevisionPlanFormState>) => setForm((f) => ({ ...f, ...patch }))
-
-  function handleOpenChange(next: boolean) {
-    // Reset on close, so the next open starts from today again.
-    if (!next) {
-      setForm(defaultRevisionPlanForm(todayValue()))
+  // Start each open afresh from today (and, when replanning, the plan as it is now).
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setForm(startingForm())
       setError(null)
     }
-    onOpenChange(next)
   }
+
+  const set = (patch: Partial<RevisionPlanFormState>) => setForm((f) => ({ ...f, ...patch }))
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -63,25 +72,26 @@ export function PlanRevisionDialog({
     setSubmitting(true)
     setError(null)
     try {
-      await createRevisionPlan(exam.id, payload)
+      await (replan ? replanRevision : createRevisionPlan)(exam.id, payload)
       onPlanned()
-      handleOpenChange(false)
+      onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not plan revision.')
+      setError(err instanceof Error ? err.message : `Could not ${replan ? 'replan' : 'plan'} revision.`)
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <form onSubmit={handleSubmit} className="contents">
           <DialogHeader>
-            <DialogTitle>Plan revision</DialogTitle>
+            <DialogTitle>{replan ? 'Replan revision' : 'Plan revision'}</DialogTitle>
             <DialogDescription>
-              One session on each chosen day until the exam, fitted around lectures, busy time and other exams'
-              revision. Weaker topics get more sessions.
+              {replan
+                ? "Sessions you've done or that have already started stay. Every upcoming session you haven't done is rescheduled from now, weighted by your current weakest topics."
+                : "One session on each chosen day until the exam, fitted around lectures, busy time and other exams' revision. Weaker topics get more sessions."}
             </DialogDescription>
           </DialogHeader>
 
@@ -154,7 +164,7 @@ export function PlanRevisionDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Planning…' : 'Plan sessions'}
+              {replan ? (submitting ? 'Replanning…' : 'Replan sessions') : submitting ? 'Planning…' : 'Plan sessions'}
             </Button>
           </DialogFooter>
         </form>

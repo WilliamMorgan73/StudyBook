@@ -1,4 +1,4 @@
-import { CalendarPlus } from 'lucide-react'
+import { CalendarPlus, RefreshCw, TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -7,17 +7,26 @@ import { RevisionSessionDialog } from '@/components/RevisionSessionDialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
-import { deleteRevisionPlan, listRevisionSessions, updateRevisionSession, type Assignment } from '@/lib/api'
-import { formatSessionWhen } from '@/lib/revision'
+import {
+  deleteRevisionPlan,
+  getRevisionPlanStatus,
+  listRevisionSessions,
+  updateRevisionSession,
+  type Assignment,
+} from '@/lib/api'
+import { formatSessionWhen, replanForm, replanReasons } from '@/lib/revision'
 import { useAsync } from '@/lib/useAsync'
 
 /**
  * An exam's revision plan on its Assignment page: "Plan revision" until there is one, then its sessions
- * with done ticks. `?session=<id>` opens that session's view, which is how calendars link to a session.
+ * with done ticks, Replan, and a nudge to replan when sessions were missed or weak topics shifted.
+ * `?session=<id>` opens that session's view, which is how calendars link to a session.
  */
 export function RevisionPlan({ exam }: { exam: Assignment }) {
   const sessions = useAsync(() => listRevisionSessions({ assignmentId: exam.id }), [exam.id])
+  const status = useAsync(() => getRevisionPlanStatus(exam.id), [exam.id])
   const [planOpen, setPlanOpen] = useState(false)
+  const [replanOpen, setReplanOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
 
   const requestedSessionId = Number(searchParams.get('session')) || null
@@ -36,19 +45,26 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
     )
   }
 
+  // Ticks and replans change the replan signal too.
+  async function refetch() {
+    await Promise.all([sessions.refetch(), status.refetch()])
+  }
+
   async function setDone(id: number, done: boolean) {
     await updateRevisionSession(id, { done })
-    await sessions.refetch()
+    await refetch()
   }
 
   async function clearPlan() {
     if (!confirm('Delete every session in this revision plan, including ones ticked done?')) return
     await deleteRevisionPlan(exam.id)
-    await sessions.refetch()
+    await refetch()
   }
 
   const examPassed = exam.due_at !== null && new Date(exam.due_at) < new Date()
   const doneCount = sessions.data?.filter((s) => s.done).length ?? 0
+  const missed = new Set(status.data?.missed_session_ids)
+  const reasons = status.data?.needs_replan ? replanReasons(status.data) : []
 
   let blocker: string | null = null
   if (!exam.due_at) blocker = "Set the exam's date in Settings to plan revision."
@@ -64,6 +80,11 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
             <span className="text-sm text-muted-foreground">
               {doneCount} of {sessions.data.length} done
             </span>
+            {!examPassed && (
+              <Button variant="ghost" size="sm" onClick={() => setReplanOpen(true)}>
+                <RefreshCw /> Replan
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={clearPlan}>
               Clear plan
             </Button>
@@ -88,6 +109,20 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
           </div>
         ))}
 
+      {reasons.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-200">
+          <p className="flex items-center gap-2">
+            <TriangleAlert className="size-4 shrink-0" />
+            <span>
+              {reasons.join(' · ')} since you planned.
+            </span>
+          </p>
+          <Button size="sm" variant="outline" onClick={() => setReplanOpen(true)} className="shrink-0">
+            Replan
+          </Button>
+        </div>
+      )}
+
       {sessions.data && sessions.data.length > 0 && (
         <ul className="divide-y">
           {sessions.data.map((s) => (
@@ -104,6 +139,7 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
               >
                 <span className={`shrink-0 ${s.done ? 'text-muted-foreground line-through' : ''}`}>
                   {formatSessionWhen(s)}
+                  {missed.has(s.id) && <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">Missed</span>}
                 </span>
                 <span className="truncate text-muted-foreground">{s.submodules.map((t) => t.title).join(', ')}</span>
               </button>
@@ -117,14 +153,24 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
           exam={{ ...exam, due_at: exam.due_at }}
           open={planOpen}
           onOpenChange={setPlanOpen}
-          onPlanned={sessions.refetch}
+          onPlanned={refetch}
+        />
+      )}
+      {exam.due_at && sessions.data && (
+        <PlanRevisionDialog
+          exam={{ ...exam, due_at: exam.due_at }}
+          mode="replan"
+          initialForm={(today) => replanForm(sessions.data ?? [], today)}
+          open={replanOpen}
+          onOpenChange={setReplanOpen}
+          onPlanned={refetch}
         />
       )}
       <RevisionSessionDialog
         sessionId={shownSessionId}
         open={requestedSessionId !== null}
         onOpenChange={(open) => !open && openSession(null)}
-        onChanged={sessions.refetch}
+        onChanged={refetch}
       />
     </section>
   )

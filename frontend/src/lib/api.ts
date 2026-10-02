@@ -157,6 +157,16 @@ export interface RevisionSession {
   submodules: { id: number; title: string }[]
 }
 
+/** Whether an exam's revision plan has drifted since it was last made or replanned. */
+export interface RevisionPlanStatus {
+  needs_replan: boolean
+  planned_at: string | null
+  /** Sessions that ended without being ticked done. */
+  missed_session_ids: number[]
+  /** Covered topics whose weakness (0 = never lapses, 1 = always) has moved enough to rebalance the plan. */
+  shifted_topics: { id: number; title: string; planned_weakness: number; weakness: number }[]
+}
+
 export interface RevisionSessionDetail extends RevisionSession {
   /** `weakness`: 0 (never lapses) to 1 (always lapses); 0.5 with no review data. */
   topics: { id: number; title: string; weakness: number }[]
@@ -565,6 +575,18 @@ export function getCalendar(start: Date, end: Date) {
 /** Rejects with an `ApiError` whose message explains when there isn't enough time. */
 export function createRevisionPlan(assignmentId: number, input: RevisionPlanInput) {
   return postJson<RevisionSession[]>(`/assignments/${assignmentId}/revision-plan`, input)
+}
+
+/**
+ * Keeps sessions that are done or already started and reschedules the rest; resolves to the whole plan.
+ * Rejects like `createRevisionPlan`, leaving the plan unchanged.
+ */
+export function replanRevision(assignmentId: number, input: RevisionPlanInput) {
+  return postJson<RevisionSession[]>(`/assignments/${assignmentId}/revision-plan/replan`, input)
+}
+
+export function getRevisionPlanStatus(assignmentId: number) {
+  return request<RevisionPlanStatus>(`/assignments/${assignmentId}/revision-plan/status`)
 }
 
 export function deleteRevisionPlan(assignmentId: number) {

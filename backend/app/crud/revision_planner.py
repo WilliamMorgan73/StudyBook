@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
+from typing import Protocol
 
 from app.crud.busy_time import merge_intervals
 from app.models.flashcard import Flashcard, FlashcardReview
@@ -30,6 +31,8 @@ DAY_END = time(21, 0)
 SLOT_STEP_MINUTES = 15
 # When there are fewer sessions than topics, a session takes one extra topic per this many minutes.
 MIN_MINUTES_PER_TOPIC = 30
+# A covered Submodule whose weakness has moved at least this far since planning prompts a replan.
+WEAKNESS_SHIFT = 0.2
 
 
 def _latest(reviews: Iterable[FlashcardReview], n: int) -> list[FlashcardReview]:
@@ -131,6 +134,7 @@ def find_session_slots(
     session_minutes: int,
     blocked: Iterable[tuple[datetime, datetime]],
     not_before: datetime | None = None,
+    skip_dates: Collection[date] = (),
     day_start: time = DAY_START,
     day_end: time = DAY_END,
 ) -> list[datetime]:
@@ -138,14 +142,15 @@ def find_session_slots(
 
     Each is the earliest `SLOT_STEP_MINUTES`-aligned start in that day's `[day_start, day_end)` window
     (and not before `not_before`) whose whole session ends by `end` and overlaps no blocked interval.
-    Days with no such gap get no session. `weekdays` uses `date.weekday()` numbering (0 = Monday).
+    Days with no such gap, and `skip_dates`, get no session. `weekdays` uses `date.weekday()` numbering
+    (0 = Monday).
     """
     blocked = merge_intervals(blocked)
     length = timedelta(minutes=session_minutes)
     slots: list[datetime] = []
     day = start_date
     while day <= end.date():
-        if day.weekday() in weekdays:
+        if day.weekday() in weekdays and day not in skip_dates:
             window_start = datetime.combine(day, day_start)
             if not_before is not None:
                 window_start = max(window_start, not_before)
@@ -192,6 +197,7 @@ def schedule_revision(
     session_minutes: int,
     blocked: Iterable[tuple[datetime, datetime]],
     not_before: datetime | None = None,
+    skip_dates: Collection[date] = (),
     day_start: time = DAY_START,
     day_end: time = DAY_END,
 ) -> list[ProposedSession] | NotEnoughTime:
@@ -219,6 +225,7 @@ def schedule_revision(
         session_minutes=session_minutes,
         blocked=blocked,
         not_before=not_before,
+        skip_dates=skip_dates,
         day_start=day_start,
         day_end=day_end,
     )
@@ -235,3 +242,75 @@ def schedule_revision(
         return NotEnoughTime(available_sessions=len(slots), submodule_count=len(ids), topics_per_session=per_session)
     weakest_first = sorted(ids, key=lambda i: (-weights[i], i))
     return [session(slot, weakest_first[n :: len(slots)]) for n, slot in enumerate(slots)]
+
+
+# --- replanning ---------------------------------------------------------------------------------
+
+
+class PlannedSession(Protocol):
+    """What replanning needs of a session; `RevisionSession` rows fit."""
+
+    id: int
+    starts_at: datetime
+    duration_minutes: int
+    done: bool
+
+
+
+def split_for_replan[S: PlannedSession](sessions: Iterable[S], now: datetime) -> tuple[list[S], list[S]]:
+    """`(kept, replaced)`: a replan keeps every session that is done or has started by `now`, and
+    replaces the rest (future and not done) with freshly scheduled ones. Order is preserved."""
+    kept: list[S] = []
+    replaced: list[S] = []
+    for session in sessions:
+        (kept if session.done or session.starts_at < now else replaced).append(session)
+    return kept, replaced
+
+
+@dataclass(frozen=True)
+class WeaknessShift:
+    submodule_id: int
+    planned: float
+    current: float
+
+
+@dataclass(frozen=True)
+class ReplanSignal:
+    missed_session_ids: tuple[int, ...]
+    """Sessions of the current plan that have ended without being ticked done."""
+    shifted: tuple[WeaknessShift, ...]
+    """Covered Submodules whose weakness has moved at least `WEAKNESS_SHIFT` since planning, by id."""
+
+    @property
+    def needs_replan(self) -> bool:
+        return bool(self.missed_session_ids or self.shifted)
+
+
+def replan_signal(
+    *,
+    sessions: Iterable[PlannedSession],
+    planned_at: datetime,
+    planned_weakness: Mapping[int, float] | None,
+    current_weakness: Mapping[int, float],
+    now: datetime,
+) -> ReplanSignal:
+    """Whether an exam's plan has drifted since it was (re)planned at `planned_at`.
+
+    Missed: not done, ended by `now`, and started at or after `planned_at` (sessions already past at the
+    last replan were dealt with then). Shifted: Submodules in `current_weakness` (the ones covered now)
+    whose score differs from `planned_weakness` by at least `WEAKNESS_SHIFT`; Submodules missing from
+    the snapshot, or no snapshot at all, never count.
+    """
+    missed = tuple(
+        s.id
+        for s in sorted(sessions, key=lambda s: (s.starts_at, s.id))
+        if not s.done and s.starts_at >= planned_at and s.starts_at + timedelta(minutes=s.duration_minutes) <= now
+    )
+    planned_weakness = planned_weakness or {}
+    shifted = tuple(
+        WeaknessShift(i, planned_weakness[i], current_weakness[i])
+        for i in sorted(current_weakness)
+        # Rounded so float noise (0.7 - 0.5 = 0.19999...) doesn't hide a shift of exactly WEAKNESS_SHIFT.
+        if i in planned_weakness and round(abs(current_weakness[i] - planned_weakness[i]), 9) >= WEAKNESS_SHIFT
+    )
+    return ReplanSignal(missed, shifted)

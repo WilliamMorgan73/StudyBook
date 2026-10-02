@@ -258,3 +258,129 @@ def test_delete_plan_removes_its_sessions_so_it_can_be_replanned(client, db):
     assert client.delete(f"/assignments/{exam.id}/revision-plan").status_code == 204
     assert client.get("/revision-sessions", params={"assignment_id": exam.id}).json() == []
     assert client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body()).status_code == 201
+
+
+# --- replanning -------------------------------------------------------------------------------
+
+
+def at(day: int, hour: int, minute: int = 0) -> datetime:
+    """Local wall-clock time `day` days after START."""
+    return datetime.combine(START + timedelta(days=day), time(hour, minute))
+
+
+@pytest.fixture
+def set_now(monkeypatch):
+    def set_now(moment: datetime) -> None:
+        monkeypatch.setattr("app.api.routes.revision.local_now", lambda: moment)
+
+    return set_now
+
+
+def status_of(client, exam) -> dict:
+    return client.get(f"/assignments/{exam.id}/revision-plan/status").json()
+
+
+def test_replan_keeps_past_and_done_sessions_and_reschedules_the_rest(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    original = client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body()).json()
+    client.patch(f"/revision-sessions/{original[0]['id']}", json={"done": True})
+    client.patch(f"/revision-sessions/{original[4]['id']}", json={"done": True})
+
+    set_now(at(2, 12))  # day 0 done, day 1 missed, day 2's 09:00 session already over
+    response = client.post(f"/assignments/{exam.id}/revision-plan/replan", json=plan_body(session_minutes=90))
+
+    assert response.status_code == 200
+    plan = response.json()
+    kept_ids = [original[i]["id"] for i in (0, 1, 2, 4)]
+    assert [s["id"] for s in plan if s["id"] in kept_ids] == kept_ids
+    new = [s for s in plan if s["id"] not in kept_ids]
+    # Days 3, 5 and 6 are free; day 4 already has its done session.
+    assert [s["starts_at"][:10] for s in new] == [(START + timedelta(days=d)).isoformat() for d in (3, 5, 6)]
+    assert all(s["duration_minutes"] == 90 and not s["done"] for s in new)
+    assert {sub["id"] for s in new for sub in s["submodules"]} == {s.id for s in subs}
+    assert plan == client.get("/revision-sessions", params={"assignment_id": exam.id}).json()
+    assert [s["starts_at"] for s in plan] == sorted(s["starts_at"] for s in plan)
+
+
+def test_replan_that_doesnt_fit_leaves_the_plan_unchanged(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    before = client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body()).json()
+
+    set_now(at(5, 12))
+    response = client.post(f"/assignments/{exam.id}/revision-plan/replan", json=plan_body(weekdays=[0]))
+
+    assert response.status_code == 422
+    assert "single session" in response.json()["detail"]
+    assert client.get("/revision-sessions", params={"assignment_id": exam.id}).json() == before
+
+
+def test_replan_needs_an_existing_plan_and_an_exam_still_ahead(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    assert client.post(f"/assignments/{exam.id}/revision-plan/replan", json=plan_body()).status_code == 409
+
+    client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body())
+    set_now(EXAM_AT)
+    assert client.post(f"/assignments/{exam.id}/revision-plan/replan", json=plan_body()).status_code == 400
+
+
+def test_missed_sessions_flag_a_replan_until_ticked_or_replanned(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    sessions = client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body()).json()
+    assert status_of(client, exam)["needs_replan"] is False
+
+    set_now(at(1, 12))
+    status = status_of(client, exam)
+    assert status["needs_replan"] is True
+    assert status["missed_session_ids"] == [sessions[0]["id"], sessions[1]["id"]]
+
+    client.patch(f"/revision-sessions/{sessions[0]['id']}", json={"done": True})
+    assert status_of(client, exam)["missed_session_ids"] == [sessions[1]["id"]]
+
+    client.post(f"/assignments/{exam.id}/revision-plan/replan", json=plan_body())
+    status = status_of(client, exam)
+    assert status["needs_replan"] is False
+    assert status["planned_at"] == at(1, 12).isoformat()
+
+
+def test_a_topic_getting_weaker_since_planning_flags_a_replan(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body())
+
+    card = Flashcard(module=module, submodule=subs[0], front="Q", back="A", due_at=NOW)
+    db.add_all([FlashcardReview(flashcard=card, quality=0, reviewed_at=NOW + timedelta(hours=n)) for n in range(4)])
+    db.commit()
+
+    status = status_of(client, exam)
+    assert status["needs_replan"] is True
+    assert status["missed_session_ids"] == []
+    [shifted] = status["shifted_topics"]
+    assert shifted["id"] == subs[0].id and shifted["title"] == "Topic 1"
+    assert shifted["planned_weakness"] == 0.5
+    assert shifted["weakness"] == pytest.approx(5 / 6)
+
+
+def test_status_is_quiet_without_a_plan_and_after_clearing_one(client, db, set_now):
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+    set_now(at(-7, 12))
+    assert status_of(client, exam) == {
+        "needs_replan": False, "planned_at": None, "missed_session_ids": [], "shifted_topics": []
+    }
+
+    client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body())
+    set_now(at(3, 12))
+    assert status_of(client, exam)["needs_replan"] is True
+
+    client.delete(f"/assignments/{exam.id}/revision-plan")
+    assert status_of(client, exam)["needs_replan"] is False
+    assert db.get(Assignment, exam.id).revision_planned_weakness is None

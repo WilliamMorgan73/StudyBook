@@ -1,4 +1,4 @@
-import type { RevisionPlanInput, RevisionSession } from '@/lib/api'
+import type { RevisionPlanInput, RevisionPlanStatus, RevisionSession } from '@/lib/api'
 
 /** Offered session lengths, in minutes. The backend accepts 15–480. */
 export const SESSION_LENGTH_OPTIONS = [30, 45, 60, 90, 120]
@@ -18,6 +18,39 @@ export interface RevisionPlanFormState {
 
 export function defaultRevisionPlanForm(today: string): RevisionPlanFormState {
   return { startDate: today, weekdays: [0, 1, 2, 3, 4], sessionMinutes: 60 }
+}
+
+/**
+ * The Replan form starts from today and the plan's own settings: the weekdays its sessions fall on and
+ * the latest session's length. A plan with no sessions gets the Plan revision defaults.
+ */
+export function replanForm(
+  sessions: Pick<RevisionSession, 'starts_at' | 'duration_minutes'>[],
+  today: string,
+): RevisionPlanFormState {
+  const form = defaultRevisionPlanForm(today)
+  if (sessions.length === 0) return form
+  const latest = sessions.reduce((a, b) => (b.starts_at > a.starts_at ? b : a))
+  // `getDay()` counts from Sunday; the API counts from Monday. `starts_at` is naive local time.
+  const weekdays = [...new Set(sessions.map((s) => (new Date(s.starts_at).getDay() + 6) % 7))].sort((a, b) => a - b)
+  const sessionMinutes = SESSION_LENGTH_OPTIONS.includes(latest.duration_minutes)
+    ? latest.duration_minutes
+    : form.sessionMinutes
+  return { startDate: today, weekdays, sessionMinutes }
+}
+
+/** Why a plan needs replanning, as short phrases: "2 sessions missed", "Graphs got weaker". */
+export function replanReasons(status: Pick<RevisionPlanStatus, 'missed_session_ids' | 'shifted_topics'>): string[] {
+  const reasons: string[] = []
+  const missed = status.missed_session_ids.length
+  if (missed > 0) reasons.push(`${missed} session${missed === 1 ? '' : 's'} missed`)
+  const titles = (weaker: boolean) =>
+    status.shifted_topics.filter((t) => t.weakness > t.planned_weakness === weaker).map((t) => t.title)
+  const weaker = titles(true)
+  const stronger = titles(false)
+  if (weaker.length > 0) reasons.push(`${weaker.join(', ')} got weaker`)
+  if (stronger.length > 0) reasons.push(`${stronger.join(', ')} got stronger`)
+  return reasons
 }
 
 /**

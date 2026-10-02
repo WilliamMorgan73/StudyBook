@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultRevisionPlanForm,
   formatSessionLength,
+  replanForm,
+  replanReasons,
   revisionPlanPayload,
   revisionSessionUrl,
   weaknessLabel,
@@ -61,5 +63,38 @@ describe('weaknessLabel', () => {
     expect(weaknessLabel(0.5)).toBe('Fair')
     expect(weaknessLabel(0.8)).toBe('Weak')
     expect(weaknessLabel(0.1)).toBe('Strong')
+  })
+})
+
+describe('replanForm', () => {
+  // 2026-06-01 is a Monday.
+  const session = (starts_at: string, duration_minutes = 60) => ({ starts_at, duration_minutes })
+
+  it("starts today with the plan's weekdays and latest session length", () => {
+    const sessions = [session('2026-06-03T09:00:00', 45), session('2026-06-01T10:00:00', 45), session('2026-06-07T09:00:00', 90)]
+    expect(replanForm(sessions, '2026-06-05')).toEqual({ startDate: '2026-06-05', weekdays: [0, 2, 6], sessionMinutes: 90 })
+  })
+
+  it('falls back to the defaults without sessions or with an unoffered length', () => {
+    expect(replanForm([], '2026-06-05')).toEqual(defaultRevisionPlanForm('2026-06-05'))
+    expect(replanForm([session('2026-06-02T09:00:00', 75)], '2026-06-05')).toMatchObject({ weekdays: [1], sessionMinutes: 60 })
+  })
+})
+
+describe('replanReasons', () => {
+  const topic = (title: string, planned_weakness: number, weakness: number) => ({ id: 1, title, planned_weakness, weakness })
+
+  it('lists missed sessions, then weaker and stronger topics', () => {
+    expect(
+      replanReasons({
+        missed_session_ids: [4, 5],
+        shifted_topics: [topic('Graphs', 0.5, 0.8), topic('Sorting', 0.6, 0.3), topic('Trees', 0.2, 0.5)],
+      }),
+    ).toEqual(['2 sessions missed', 'Graphs, Trees got weaker', 'Sorting got stronger'])
+  })
+
+  it('says nothing when the plan is on track', () => {
+    expect(replanReasons({ missed_session_ids: [], shifted_topics: [] })).toEqual([])
+    expect(replanReasons({ missed_session_ids: [1], shifted_topics: [] })).toEqual(['1 session missed'])
   })
 })
