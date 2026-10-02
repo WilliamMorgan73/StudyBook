@@ -88,6 +88,12 @@
     --sidebar-ring: oklch(0.708 0 0);
     /* ==highlight== in notes; translucent so it works under any skin's text color. */
     --note-highlight: oklch(0.9 0.16 95 / 60%);
+    /* Callout accents (> [!type] in notes); tints are mixed from these. */
+    --callout-note: oklch(0.6 0.17 255);
+    --callout-tip: oklch(0.62 0.15 150);
+    --callout-warning: oklch(0.7 0.16 65);
+    --callout-definition: oklch(0.58 0.2 300);
+    --callout-example: oklch(0.62 0.12 200);
 }
 
 .dark {
@@ -124,6 +130,11 @@
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
     --note-highlight: oklch(0.75 0.15 85 / 35%);
+    --callout-note: oklch(0.72 0.14 255);
+    --callout-tip: oklch(0.74 0.14 150);
+    --callout-warning: oklch(0.8 0.15 75);
+    --callout-definition: oklch(0.72 0.16 300);
+    --callout-example: oklch(0.75 0.11 200);
 }
 
 :root[data-skin='slate'] {
@@ -290,4 +301,47 @@
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
   display: none;
+}
+
+/* Note blocks, shared by the editor's live preview (MarkdownEditor) and MarkdownView. Each type
+   class only picks the accent; .callout (MarkdownView) and .cm-callout (editor lines) draw it. */
+.callout-note { --callout-accent: var(--callout-note); }
+.callout-tip { --callout-accent: var(--callout-tip); }
+.callout-warning { --callout-accent: var(--callout-warning); }
+.callout-definition { --callout-accent: var(--callout-definition); }
+.callout-example { --callout-accent: var(--callout-example); }
+
+.callout {
+    margin: 0.75em 0;
+    padding: 0.6rem 0.9rem;
+    border-left: 3px solid var(--callout-accent);
+    border-radius: 0.5rem;
+    background-color: color-mix(in oklab, var(--callout-accent) 10%, transparent);
+}
+.callout > :last-child { margin-bottom: 0; }
+.callout .callout-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0 0 0.25em;
+    font-weight: 600;
+    color: var(--callout-accent);
+}
+.callout .callout-title svg { width: 1em; height: 1em; flex-shrink: 0; }
+
+/* The two-column block's side box (:::columns ... :::side). */
+.note-side-box {
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.9rem;
+    background-color: var(--card);
+}
+
+/* GFM checklists in MarkdownView (remark-gfm adds these classes): the box replaces the bullet,
+   sitting in the bullet's spot, so mixed lists stay aligned. */
+.prose li.task-list-item { list-style: none; }
+.prose li.task-list-item input[type='checkbox'] {
+    margin: 0 0.45em 0 -1.35em;
+    vertical-align: -0.125em;
+    accent-color: var(--primary);
 }

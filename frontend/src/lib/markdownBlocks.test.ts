@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCalloutMarkdown,
+  buildColumnsMarkdown,
   buildTableMarkdown,
   EMPTY_CELL,
   filterSlashCommands,
+  findColumnsBlocks,
   findHighlights,
+  parseCalloutHeader,
   parseTableShorthand,
   planSlashInsert,
   SLASH_COMMANDS,
@@ -37,6 +41,12 @@ describe('filterSlashCommands', () => {
     expect(ids('list')).toEqual(['list', 'numbered', 'checklist'])
     expect(ids('HEAD')).toEqual(['h1', 'h2', 'h3'])
     expect(ids('zzz')).toEqual([])
+  })
+
+  it('ranks id and label matches above keyword-only ones', () => {
+    const ids = (q: string) => filterSlashCommands(q).map((c) => c.id)
+    expect(ids('block')).toEqual(['block', 'codeblock', 'math', 'quote'])
+    expect(ids('callout')[0]).toBe('callout-note')
   })
 
   it('turns a sized table shorthand into a single sized option', () => {
@@ -101,5 +111,66 @@ describe('buildTableMarkdown', () => {
   it('builds header, divider and empty data rows', () => {
     const { text } = buildTableMarkdown(2, 1)
     expect(text).toBe(`| Header 1 | Header 2 |\n| --- | --- |\n| ${EMPTY_CELL} | ${EMPTY_CELL} |`)
+  })
+})
+
+describe('parseCalloutHeader', () => {
+  it('reads the type, title and marker span', () => {
+    const line = '> [!Tip] Revise early'
+    const header = parseCalloutHeader(line)
+    expect(header).toEqual({ type: 'tip', title: 'Revise early', markerFrom: 2, markerTo: 9 })
+    expect(line.slice(header!.markerFrom, header!.markerTo)).toBe('[!Tip] ')
+  })
+
+  it('allows an empty title', () => {
+    expect(parseCalloutHeader('> [!warning]')).toMatchObject({ type: 'warning', title: '' })
+  })
+
+  it('falls back to note for unknown types', () => {
+    expect(parseCalloutHeader('> [!question] Why?')?.type).toBe('note')
+  })
+
+  it('ignores plain quotes', () => {
+    expect(parseCalloutHeader('> just a quote')).toBeNull()
+    expect(parseCalloutHeader('[!note] not in a quote')).toBeNull()
+  })
+})
+
+describe('buildCalloutMarkdown', () => {
+  it('prefixes every body line, keeping blank lines inside the quote', () => {
+    expect(buildCalloutMarkdown('definition', ' Osmosis ', 'Water moves.\n\nAcross a membrane.\n')).toBe(
+      '> [!definition] Osmosis\n> Water moves.\n>\n> Across a membrane.',
+    )
+  })
+
+  it('omits an empty title and body', () => {
+    expect(buildCalloutMarkdown('note', '', '')).toBe('> [!note]')
+    expect(buildCalloutMarkdown('tip', 'Title only', '  \n')).toBe('> [!tip] Title only')
+  })
+})
+
+describe('findColumnsBlocks', () => {
+  const block = ':::columns\nMain text\n:::side Key terms\n- one\n:::'
+
+  it('splits main text and side box with offsets', () => {
+    const text = `before\n${block}\nafter`
+    const [found] = findColumnsBlocks(text)
+    expect(found).toEqual({ from: 7, to: 7 + block.length, main: 'Main text', sideTitle: 'Key terms', side: '- one' })
+    expect(text.slice(found.from, found.to)).toBe(block)
+  })
+
+  it('round-trips through buildColumnsMarkdown', () => {
+    expect(buildColumnsMarkdown('Main text', 'Key terms', '- one')).toBe(block)
+    expect(findColumnsBlocks(buildColumnsMarkdown('a', '', 'b'))[0]).toMatchObject({ sideTitle: '', side: 'b' })
+  })
+
+  it('needs both :::side and a closing :::', () => {
+    expect(findColumnsBlocks(':::columns\nMain\n:::side\nSide')).toEqual([])
+    expect(findColumnsBlocks(':::columns\nMain\n:::')).toEqual([])
+  })
+
+  it('finds adjacent blocks and skips an unclosed one before them', () => {
+    const text = `:::columns\nunclosed\n${block}\n${block}`
+    expect(findColumnsBlocks(text).map((b) => b.main)).toEqual(['Main text', 'Main text'])
   })
 })

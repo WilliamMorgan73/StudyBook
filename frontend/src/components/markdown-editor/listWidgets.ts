@@ -56,15 +56,14 @@ export class CheckboxWidget extends WidgetType {
   }
 }
 
+/** MarkdownEditor saves edits with this user event straight away (see its onCommit). */
+export const TOGGLE_TASK_EVENT = 'input.toggle-task'
+
 function toggleTaskMarker(view: EditorView, pos: number) {
   const marker = view.state.sliceDoc(pos, pos + 3)
   if (!/^\[[ xX]\]$/.test(marker)) return
   view.dispatch({
     changes: { from: pos + 1, to: pos + 2, insert: marker[1] === ' ' ? 'x' : ' ' },
-    userEvent: 'input.toggle-task',
+    userEvent: TOGGLE_TASK_EVENT,
   })
-  // Notes save on blur, so an edit made while unfocused would never be saved. Focusing here
-  // makes the next blur save it (view.hasFocus is unreliable here, so always focus). The
-  // selection is untouched, so the toggled line stays rendered.
-  view.focus()
 }

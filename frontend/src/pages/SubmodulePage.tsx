@@ -1,12 +1,12 @@
-import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, Trash2 } from 'lucide-react'
+import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AIActionButton } from '@/components/AIActionButton'
 import { AttachmentList } from '@/components/AttachmentList'
 import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
-import { MarkdownEditor } from '@/components/MarkdownEditor'
+import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { StudySession } from '@/components/StudySession'
 import { SubmoduleSummary, SummarizeDialog } from '@/components/SubmoduleSummary'
@@ -113,6 +113,14 @@ export function SubmodulePage() {
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
 
   const [content, setContent] = useState('')
+  // Mirrors `content` for saveContent: the editor can ask for a save straight after an edit
+  // (onCommit), before a re-render would give saveContent's closure the new value.
+  const contentRef = useRef('')
+
+  function updateContent(value: string) {
+    contentRef.current = value
+    setContent(value)
+  }
   const [sourceMode, setSourceMode] = useState(false)
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -123,9 +131,10 @@ export function SubmodulePage() {
   const [pdfOpen, setPdfOpen] = useState(false)
   const [flashcardsOpen, setFlashcardsOpen] = useState(false)
   const [summarizeOpen, setSummarizeOpen] = useState(false)
+  const editorRef = useRef<MarkdownEditorHandle>(null)
 
   useEffect(() => {
-    if (submodule) setContent(submodule.content_markdown)
+    if (submodule) updateContent(submodule.content_markdown)
   }, [submodule?.id])
 
   if (loading) {
@@ -151,8 +160,9 @@ export function SubmodulePage() {
   }
 
   async function saveContent() {
-    if (content !== submodule!.content_markdown) {
-      await updateSubmodule(id, { content_markdown: content })
+    const latest = contentRef.current
+    if (latest !== submodule!.content_markdown) {
+      await updateSubmodule(id, { content_markdown: latest })
       refetch()
     }
   }
@@ -251,6 +261,9 @@ export function SubmodulePage() {
                 <ScrollText /> Summarize
               </AIActionButton>
             )}
+            <Button variant="ghost" size="sm" onClick={() => editorRef.current?.openBlockDialog()}>
+              <SquarePlus /> Insert
+            </Button>
             <Button
               variant={sourceMode ? 'secondary' : 'ghost'}
               size="sm"
@@ -268,9 +281,11 @@ export function SubmodulePage() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-8 py-10">
         <SubmoduleSummary submodule={submodule} aiEnabled={appSettings?.ai_enabled} onRegenerate={openSummarize} />
         <MarkdownEditor
+          ref={editorRef}
           value={content}
-          onChange={setContent}
+          onChange={updateContent}
           onBlur={saveContent}
+          onCommit={saveContent}
           sourceMode={sourceMode}
           placeholder="Start writing…"
           minHeight="70vh"
