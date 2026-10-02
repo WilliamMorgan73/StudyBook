@@ -56,7 +56,7 @@ def list_assignments(
 ) -> list[Assignment]:
     stmt = select(Assignment)
     if upcoming:
-        stmt = stmt.where(Assignment.status != "graded").order_by(Assignment.due_at.asc().nulls_last())
+        stmt = stmt.where(Assignment.status.not_in(("graded", "submitted"))).order_by(Assignment.due_at.asc().nulls_last())
     if limit:
         stmt = stmt.limit(limit)
     return list(db.scalars(stmt).all())
