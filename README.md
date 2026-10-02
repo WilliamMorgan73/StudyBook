@@ -41,19 +41,25 @@ Each course gets a colour, a credit weighting, a live countdown to the next lect
 
 ### ✅ Assignments and exams
 
-Each assignment has a weighting (a module's weightings can't add up to more than 100%), a due-date countdown, markdown notes, a checklist and PDF/PPTX attachments. It moves through *not started → submitted → graded*. Exams also store a duration, a location and the topics they cover.
+Each assignment has a weighting (a module's weightings can't add up to more than 100%), a due-date countdown and a status that moves through *not started → submitted → graded*. Its notes fill the left of the page in the same live editor as your topic notes. On the right, a checklist tracks your progress, and attached files (the brief, a rubric, a past paper) open as inline PDF, image or video previews. Exams also store a duration, a location and the topics they cover, shown as links in the header, plus their revision plan.
 
-<img src="docs/screenshots/assignment.png" alt="Assignment page" width="100%">
+<table>
+  <tr>
+    <td><img src="docs/screenshots/assignment.png" alt="Coursework page with notes, a checklist and an embedded PDF brief"></td>
+    <td><img src="docs/screenshots/assignment-exam.png" alt="Exam page with covered topics, a checklist and a revision plan"></td>
+  </tr>
+</table>
 
 ### ✍️ Notes that render as you type
 
 Each topic is a full-page markdown document in an Obsidian-style **live-preview editor**. Headings, tables, code blocks, images and **LaTeX maths** (KaTeX) render inline while you write.
 
 - `[[Wikilinks]]` between topics, with Ctrl/Cmd+click to jump
-- Slash-style shortcuts: type `\table3x4`, `\codeblock` or `\image` and press Space
+- A `/` menu for headings, lists, tables, code blocks, maths, images and embeds (`/table3x4`, `/tipcallout`, `/sidebox`)
+- Obsidian-style callouts (`> [!tip]`), two-column side boxes, and `![[file]]` embeds that preview PDFs, images and video inline. Paste or drop a file to upload it
 - Keybinds you can rebind, plus adjustable font size and table alignment
 
-<img src="docs/screenshots/notes.png" alt="Live-preview markdown editor with LaTeX and an AI summary" width="100%">
+<img src="docs/screenshots/notes.png" alt="Live-preview markdown editor with an AI summary, a side box, a callout and LaTeX" width="100%">
 
 ### 🧠 Spaced-repetition flashcards
 
