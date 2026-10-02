@@ -1,4 +1,3 @@
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -42,6 +41,5 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db)) -> None
     attachment = db.get(Attachment, attachment_id)
     if attachment is None:
         raise HTTPException(404, "Attachment not found")
-    Path(attachment.file_path).unlink(missing_ok=True)
     db.delete(attachment)
-    db.commit()
+    db.commit()  # the file is removed once this commits (see app/models/attachment.py)
