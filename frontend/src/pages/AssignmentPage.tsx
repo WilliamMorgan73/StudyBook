@@ -1,6 +1,6 @@
 import { ArrowLeft, Code2, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AssignmentChecklist } from '@/components/AssignmentChecklist'
@@ -20,6 +20,9 @@ import {
   resolveWikilink,
   updateAssignment,
   uploadAssignmentAttachment,
+  type AppSettings,
+  type Assignment,
+  type ModuleDetail,
 } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
@@ -45,29 +48,10 @@ function formatExamWhen(startsAt: string, durationMinutes: number | null, locati
 
 export function AssignmentPage() {
   const { moduleId, assignmentId } = useParams()
-  const navigate = useNavigate()
   const id = Number(assignmentId)
   const { data: assignment, loading, refetch } = useAsync(() => getAssignment(id), [id])
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
-
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [sourceMode, setSourceMode] = useState(false)
-  const editorRef = useRef<MarkdownEditorHandle>(null)
-
-  const [notes, setNotes] = useState('')
-  // Mirrors `notes` for saveNotes: the editor can ask for a save straight after an edit
-  // (onCommit), before a re-render would give saveNotes's closure the new value.
-  const notesRef = useRef('')
-
-  function updateNotes(value: string) {
-    notesRef.current = value
-    setNotes(value)
-  }
-
-  useEffect(() => {
-    if (assignment) updateNotes(assignment.notes_markdown)
-  }, [assignment?.id])
 
   if (loading && !assignment) {
     return (
@@ -91,13 +75,55 @@ export function AssignmentPage() {
     )
   }
 
+  // Keyed by id so another Assignment gets a fresh view, its editor seeded from those notes;
+  // refetches of this one (ticking a step, uploading a file) keep the view and unsaved typing.
+  return (
+    <AssignmentView
+      key={assignment.id}
+      assignment={assignment}
+      module={module}
+      appSettings={appSettings}
+      refetch={refetch}
+    />
+  )
+}
+
+function AssignmentView({
+  assignment,
+  module,
+  appSettings,
+  refetch,
+}: {
+  assignment: Assignment
+  module: ModuleDetail | null
+  appSettings: AppSettings | null
+  refetch: () => Promise<void>
+}) {
+  const { moduleId } = useParams()
+  const navigate = useNavigate()
+  const id = assignment.id
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sourceMode, setSourceMode] = useState(false)
+  const editorRef = useRef<MarkdownEditorHandle>(null)
+
+  const [notes, setNotes] = useState(assignment.notes_markdown)
+  // Mirrors `notes` for saveNotes: the editor can ask for a save straight after an edit
+  // (onCommit), before a re-render would give saveNotes's closure the new value.
+  const notesRef = useRef(assignment.notes_markdown)
+
+  function updateNotes(value: string) {
+    notesRef.current = value
+    setNotes(value)
+  }
+
   const overdue =
     assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
   const isExam = assignment.kind === 'exam'
 
   async function saveNotes() {
     const latest = notesRef.current
-    if (latest !== assignment!.notes_markdown) {
+    if (latest !== assignment.notes_markdown) {
       await updateAssignment(id, { notes_markdown: latest })
       refetch()
     }
@@ -113,7 +139,7 @@ export function AssignmentPage() {
 
   async function handleNavigateWikilink(title: string) {
     try {
-      const target = await resolveWikilink(title, assignment!.module_id)
+      const target = await resolveWikilink(title, assignment.module_id)
       // Cmd/Ctrl+click navigates without a DOM blur, so flush edits before the route swap unmounts us.
       await saveNotes()
       navigate(`/modules/${target.module_id}/submodules/${target.id}`)

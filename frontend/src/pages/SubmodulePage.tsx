@@ -1,6 +1,6 @@
 import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AIActionButton } from '@/components/AIActionButton'
@@ -26,7 +26,10 @@ import {
   resolveWikilink,
   updateSubmodule,
   uploadSubmoduleAttachment,
+  type AppSettings,
   type Flashcard,
+  type ModuleDetail,
+  type SubmoduleDetail,
 } from '@/lib/api'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
 import { listItem } from '@/lib/motion'
@@ -103,39 +106,10 @@ function FlashcardRow({ card, onDeleted }: { card: Flashcard; onDeleted: () => v
 
 export function SubmodulePage() {
   const { moduleId, submoduleId } = useParams()
-  const navigate = useNavigate()
   const id = Number(submoduleId)
   const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
   const { data: submodule, loading, refetch: refetchSubmodule } = useAsync(() => getSubmodule(id), [id])
-  const { data: flashcards, refetch: refetchFlashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id])
-  // Saves here can touch the note or its flashcards, so refresh both together.
-  const refetch = () => Promise.all([refetchSubmodule(), refetchFlashcards()])
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
-
-  const [content, setContent] = useState('')
-  // Mirrors `content` for saveContent: the editor can ask for a save straight after an edit
-  // (onCommit), before a re-render would give saveContent's closure the new value.
-  const contentRef = useRef('')
-
-  function updateContent(value: string) {
-    contentRef.current = value
-    setContent(value)
-  }
-  const [sourceMode, setSourceMode] = useState(false)
-
-  const [settingsOpen, setSettingsOpen] = useState(false)
-
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
-
-  const [pdfOpen, setPdfOpen] = useState(false)
-  const [flashcardsOpen, setFlashcardsOpen] = useState(false)
-  const [summarizeOpen, setSummarizeOpen] = useState(false)
-  const editorRef = useRef<MarkdownEditorHandle>(null)
-
-  useEffect(() => {
-    if (submodule) updateContent(submodule.content_markdown)
-  }, [submodule?.id])
 
   if (loading) {
     return (
@@ -159,6 +133,58 @@ export function SubmodulePage() {
     )
   }
 
+  // Keyed by id so another Submodule gets a fresh view, its editor seeded from that note; refetches
+  // of this one keep the view (and unsaved typing) in place.
+  return (
+    <SubmoduleView
+      key={submodule.id}
+      submodule={submodule}
+      module={module}
+      appSettings={appSettings}
+      refetchSubmodule={refetchSubmodule}
+    />
+  )
+}
+
+function SubmoduleView({
+  submodule,
+  module,
+  appSettings,
+  refetchSubmodule,
+}: {
+  submodule: SubmoduleDetail
+  module: ModuleDetail | null
+  appSettings: AppSettings | null
+  refetchSubmodule: () => Promise<void>
+}) {
+  const { moduleId } = useParams()
+  const navigate = useNavigate()
+  const id = submodule.id
+  const { data: flashcards, refetch: refetchFlashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id])
+  // Saves here can touch the note or its flashcards, so refresh both together.
+  const refetch = () => Promise.all([refetchSubmodule(), refetchFlashcards()])
+
+  const [content, setContent] = useState(submodule.content_markdown)
+  // Mirrors `content` for saveContent: the editor can ask for a save straight after an edit
+  // (onCommit), before a re-render would give saveContent's closure the new value.
+  const contentRef = useRef(submodule.content_markdown)
+
+  function updateContent(value: string) {
+    contentRef.current = value
+    setContent(value)
+  }
+  const [sourceMode, setSourceMode] = useState(false)
+
+  const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState('')
+
+  const [pdfOpen, setPdfOpen] = useState(false)
+  const [flashcardsOpen, setFlashcardsOpen] = useState(false)
+  const [summarizeOpen, setSummarizeOpen] = useState(false)
+  const editorRef = useRef<MarkdownEditorHandle>(null)
+
   // Resolves once the refetched Submodule lists the new Attachment, so an embed of it renders
   // straight away instead of as "missing".
   async function uploadToNote(file: File) {
@@ -169,7 +195,7 @@ export function SubmodulePage() {
 
   async function saveContent() {
     const latest = contentRef.current
-    if (latest !== submodule!.content_markdown) {
+    if (latest !== submodule.content_markdown) {
       await updateSubmodule(id, { content_markdown: latest })
       refetch()
     }
@@ -182,28 +208,28 @@ export function SubmodulePage() {
   }
 
   function startEditingTitle() {
-    setTitleDraft(submodule!.title)
+    setTitleDraft(submodule.title)
     setEditingTitle(true)
   }
 
   async function saveTitle() {
     setEditingTitle(false)
     const trimmed = titleDraft.trim()
-    if (trimmed && trimmed !== submodule!.title) {
+    if (trimmed && trimmed !== submodule.title) {
       await updateSubmodule(id, { title: trimmed })
       refetch()
     }
   }
 
   async function handleDeleteSubmodule() {
-    if (!confirm(`Delete "${submodule!.title}"? This removes its notes, attachments, and any linked flashcards.`)) return
+    if (!confirm(`Delete "${submodule.title}"? This removes its notes, attachments, and any linked flashcards.`)) return
     await deleteSubmodule(id)
     navigate(`/modules/${moduleId}`)
   }
 
   async function handleNavigateWikilink(title: string) {
     try {
-      const target = await resolveWikilink(title, submodule!.module_id)
+      const target = await resolveWikilink(title, submodule.module_id)
       // Cmd/Ctrl+click navigates straight from a click handler inside the editor, not via a DOM
       // blur — so the usual onBlur={saveContent} on MarkdownEditor never fires, and this route
       // swap would otherwise unmount the page (and any unsaved edits) before they're persisted.
@@ -236,7 +262,7 @@ export function SubmodulePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') e.currentTarget.blur()
                   if (e.key === 'Escape') {
-                    setTitleDraft(submodule!.title)
+                    setTitleDraft(submodule.title)
                     e.currentTarget.blur()
                   }
                 }}
