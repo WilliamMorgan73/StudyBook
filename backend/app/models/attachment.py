@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Enum, ForeignKey, String, Text, event
+from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.core.database import Base
+from app.crud.attachments import remove_stored_file
 from app.models.enums import AttachmentKind
 
 
@@ -35,3 +36,28 @@ class Attachment(Base):
         from app.crud.attachment_text import is_extractable
 
         return is_extractable(self.kind, self.filename)
+
+
+# An Attachment's file goes with its row, however the row goes: deleted directly, or through a
+# Submodule/Assignment/Module delete cascading to it (the ORM loads and deletes those rows, so they
+# show up here). Files are removed only once the delete commits; a rollback keeps them. Bulk
+# `query.delete()` and DB-level ON DELETE CASCADE alone bypass the ORM and would orphan files.
+_FILES_TO_REMOVE = "attachment_files_to_remove"
+
+
+@event.listens_for(Session, "after_flush")
+def _collect_deleted_attachment_files(session: Session, _flush_context) -> None:
+    paths = [obj.file_path for obj in session.deleted if isinstance(obj, Attachment)]
+    if paths:
+        session.info.setdefault(_FILES_TO_REMOVE, []).extend(paths)
+
+
+@event.listens_for(Session, "after_commit")
+def _remove_deleted_attachment_files(session: Session) -> None:
+    for path in session.info.pop(_FILES_TO_REMOVE, []):
+        remove_stored_file(path)
+
+
+@event.listens_for(Session, "after_rollback")
+def _keep_files_on_rollback(session: Session) -> None:
+    session.info.pop(_FILES_TO_REMOVE, None)

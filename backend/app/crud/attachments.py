@@ -41,3 +41,21 @@ def store_upload(file: UploadFile, subdir: str) -> tuple[AttachmentKind, str, st
         shutil.copyfileobj(file.file, out)
 
     return kind, file.filename or stored_name, str(dest)
+
+
+def remove_stored_file(file_path: str) -> None:
+    """Delete an Attachment's file, then its owner folder (uploads/<kind>/<id>/) once empty.
+
+    A missing file is fine, and anything resolving outside the upload dir is left alone.
+    """
+    root = Path(settings.upload_dir).resolve()
+    path = Path(file_path).resolve()
+    if not path.is_relative_to(root) or path == root:
+        return
+    path.unlink(missing_ok=True)
+    folder = path.parent
+    if len(folder.relative_to(root).parts) >= 2:  # never the root or uploads/submodules itself
+        try:
+            folder.rmdir()
+        except OSError:
+            pass  # still holds other files
