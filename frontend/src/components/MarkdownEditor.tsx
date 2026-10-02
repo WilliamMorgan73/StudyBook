@@ -18,6 +18,11 @@ import 'katex/dist/katex.min.css'
 
 import type { TableAlignment } from '@/lib/api'
 import { DEFAULT_KEYBINDS, type EditorKeybinds } from '@/lib/keybinds'
+import { buildTableMarkdown, findHighlights, parseTableShorthand } from '@/lib/markdownBlocks'
+
+import { BulletWidget, CheckboxWidget } from './markdown-editor/listWidgets'
+import { slashMenu } from './markdown-editor/slashMenu'
+import { isInsideCode } from './markdown-editor/syntax'
 
 const HIDE = Decoration.replace({})
 
@@ -51,7 +56,7 @@ class ImageWidget extends WidgetType {
 
 // Matches enough of SyntaxNode's shape to read TableCell children without importing the type
 // from @lezer/common directly (not resolvable as a direct import under this project's pnpm
-// layout — same workaround as WalkableNode, used by isInsideCode further down).
+// layout — same workaround as WalkableNode in markdown-editor/syntax.ts).
 interface TableRowSource {
   getChildren(type: string): { from: number; to: number }[]
 }
@@ -164,6 +169,10 @@ function skipTrailingSpace(state: EditorState, pos: number): number {
   return state.doc.sliceString(pos, pos + 1) === ' ' ? pos + 1 : pos
 }
 
+function isCheckedTaskMarker(marker: string): boolean {
+  return marker.toLowerCase() === '[x]'
+}
+
 // [[Title]] / [[Title|Alias]] isn't CommonMark/GFM syntax, so the parser never produces a node
 // for it — wikilinks are found with a plain regex scan instead of a syntaxTree walk.
 const WIKILINK_PATTERN = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
@@ -175,21 +184,6 @@ const WIKILINK_PATTERN = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g
 // middle '$'s.
 const BLOCK_MATH_PATTERN = /\$\$([\s\S]+?)\$\$/g
 const INLINE_MATH_PATTERN = /\$(?!\s)([^$\n]+?)(?<!\s)\$/g
-const CODE_NODE_NAMES = new Set(['InlineCode', 'FencedCode', 'CodeBlock', 'CodeText'])
-
-interface WalkableNode {
-  type: { name: string }
-  parent: WalkableNode | null
-}
-
-function isInsideCode(state: EditorState, pos: number): boolean {
-  let node: WalkableNode | null = syntaxTree(state).resolveInner(pos, 1)
-  while (node) {
-    if (CODE_NODE_NAMES.has(node.type.name)) return true
-    node = node.parent
-  }
-  return false
-}
 
 function addWikilinkDecorations(
   state: EditorState,
@@ -261,6 +255,24 @@ function addInlineMathDecorations(
   }
 }
 
+function addHighlightDecorations(
+  state: EditorState,
+  from: number,
+  to: number,
+  cursorLine: number,
+  ranges: Range<Decoration>[],
+) {
+  for (const highlight of findHighlights(state.doc.sliceString(from, to))) {
+    const matchFrom = from + highlight.from
+    if (isInsideCode(state, matchFrom)) continue
+    ranges.push(Decoration.mark({ class: 'cm-highlight' }).range(from + highlight.inner.from, from + highlight.inner.to))
+    if (state.doc.lineAt(matchFrom).number !== cursorLine) {
+      ranges.push(HIDE.range(matchFrom, from + highlight.inner.from))
+      ranges.push(HIDE.range(from + highlight.inner.to, from + highlight.to))
+    }
+  }
+}
+
 // CodeMirror's own `.cm-focused` class toggling proved unreliable inside this React tree,
 // so focus is tracked explicitly via React's onFocus/onBlur instead of `view.hasFocus`.
 const setFocused = StateEffect.define<boolean>()
@@ -286,6 +298,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   for (const { from, to } of view.visibleRanges) {
     addWikilinkDecorations(state, from, to, cursorLine, ranges)
     addInlineMathDecorations(state, from, to, cursorLine, ranges, blockMathRanges)
+    addHighlightDecorations(state, from, to, cursorLine, ranges)
 
     syntaxTree(state).iterate({
       from,
@@ -346,6 +359,58 @@ function buildDecorations(view: EditorView): DecorationSet {
           const endLine = state.doc.lineAt(node.to).number
           for (let n = startLine; n <= endLine; n++) {
             ranges.push(Decoration.line({ class: 'cm-quote' }).range(state.doc.line(n).from))
+          }
+          return
+        }
+
+        if (name === 'ListMark') {
+          const item = node.node.parent
+          const onCursorLine = state.doc.lineAt(node.from).number === cursorLine
+          if (item?.getChild('Task')) {
+            // The checkbox stands in for the whole "- [ ] " prefix.
+            if (!onCursorLine) ranges.push(HIDE.range(node.from, skipTrailingSpace(state, node.to)))
+          } else if (item?.parent?.type.name === 'BulletList') {
+            if (!onCursorLine) ranges.push(Decoration.replace({ widget: new BulletWidget() }).range(node.from, node.to))
+          } else {
+            ranges.push(Decoration.mark({ class: 'cm-list-number' }).range(node.from, node.to))
+          }
+          return
+        }
+
+        if (name === 'TaskMarker') {
+          if (state.doc.lineAt(node.from).number !== cursorLine) {
+            const checked = isCheckedTaskMarker(state.doc.sliceString(node.from, node.to))
+            ranges.push(Decoration.replace({ widget: new CheckboxWidget(checked) }).range(node.from, node.to))
+          }
+          return
+        }
+
+        if (name === 'Task') {
+          const marker = node.node.getChild('TaskMarker')
+          if (marker && marker.to < node.to && isCheckedTaskMarker(state.doc.sliceString(marker.from, marker.to))) {
+            ranges.push(Decoration.mark({ class: 'cm-task-done' }).range(marker.to, node.to))
+          }
+          return // still descends into TaskMarker and inline formatting
+        }
+
+        if (name === 'Link') {
+          // Only inline [text](url) links; reference links and bare brackets have no URL child.
+          const url = node.node.getChild('URL')
+          const linkMarks = node.node.getChildren('LinkMark')
+          if (!url || linkMarks.length < 2) return
+          const textFrom = linkMarks[0].to
+          const textTo = linkMarks[1].from
+          if (textTo > textFrom) {
+            ranges.push(
+              Decoration.mark({
+                class: 'cm-link',
+                attributes: { 'data-href': state.doc.sliceString(url.from, url.to) },
+              }).range(textFrom, textTo),
+            )
+          }
+          if (state.doc.lineAt(node.from).number !== cursorLine) {
+            ranges.push(HIDE.range(node.from, textFrom))
+            ranges.push(HIDE.range(textTo, node.to))
           }
           return
         }
@@ -603,6 +668,84 @@ const editorTheme = EditorView.theme({
     textUnderlineOffset: '2px',
     cursor: 'pointer',
   },
+  '.cm-link': {
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
+    color: 'var(--primary)',
+    cursor: 'pointer',
+  },
+  '.cm-highlight': {
+    backgroundColor: 'var(--note-highlight)',
+    borderRadius: '0.2em',
+    padding: '0.05em 0',
+  },
+  '.cm-list-bullet': { color: 'var(--muted-foreground)' },
+  '.cm-list-number': { color: 'var(--muted-foreground)' },
+  // Mirrors components/ui/checkbox.tsx (size-4, rounded-[4px], border-input, checked = primary).
+  '.cm-task-checkbox': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '1rem',
+    height: '1rem',
+    marginRight: '0.5em',
+    verticalAlign: '-0.15em',
+    border: '1px solid var(--input)',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    transition: 'background-color 150ms, border-color 150ms',
+  },
+  '.cm-task-checkbox[aria-checked="true"]': {
+    backgroundColor: 'var(--primary)',
+    borderColor: 'var(--primary)',
+    color: 'var(--primary-foreground)',
+  },
+  '.cm-task-checkbox svg': {
+    width: '0.875rem',
+    height: '0.875rem',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: '2',
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+  },
+  '.cm-task-done': {
+    color: 'var(--muted-foreground)',
+    textDecoration: 'line-through',
+  },
+  // The `/` menu, styled like the app's Radix popovers rather than CodeMirror's defaults.
+  '.cm-tooltip.cm-tooltip-autocomplete': {
+    backgroundColor: 'var(--popover)',
+    color: 'var(--popover-foreground)',
+    border: '1px solid var(--border)',
+    borderRadius: '0.5rem',
+    boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
+    padding: '0.25rem',
+    fontFamily: 'var(--font-sans)',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+    maxHeight: '18rem',
+    minWidth: '14rem',
+    fontFamily: 'inherit',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+    display: 'flex',
+    alignItems: 'baseline',
+    padding: '0.3rem 0.5rem',
+    borderRadius: '0.375rem',
+    fontSize: '0.875rem',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    backgroundColor: 'var(--accent)',
+    color: 'var(--accent-foreground)',
+  },
+  '.cm-completionDetail': {
+    marginLeft: 'auto',
+    paddingLeft: '1rem',
+    fontStyle: 'normal',
+    fontSize: '0.75rem',
+    color: 'var(--muted-foreground)',
+  },
   // KaTeX's own CSS leaves color unset on the base glyphs, so they inherit this — no extra
   // dark-mode handling needed.
   '.cm-math-inline': { padding: '0 0.15em' },
@@ -695,28 +838,6 @@ const SIMPLE_SLASH_COMMANDS: Record<string, { before: string; after: string }> =
   image: { before: '![', after: ']()' },
 }
 
-const TABLE_SLASH_PATTERN = /^table(\d+)x(\d+)$/
-const MAX_TABLE_DIMENSION = 12
-
-// \table<N>x<M> convention: N columns, M *data* rows — header row + its `---` divider are
-// always present in addition to M (e.g. \table3x4 -> 3 cols, header + divider + 4 empty rows).
-// A cell that's *entirely* whitespace never gets a TableCell node from @lezer/markdown's table
-// parser (it only tokenizes non-whitespace runs between '|'s), so a truly empty data cell would
-// silently disappear from getRowCells/TableWidget's rendered row — reproduced live (rowCount
-// matched, but each row's cells came back empty). A zero-width space keeps the cell invisible
-// but gives the parser a real (non-whitespace) character to tokenize; it also survives
-// getRowCells' `.trim()`, since JS's trim() doesn't strip U+200B (a Unicode "Format" character,
-// not "space separator").
-const EMPTY_CELL = '​'
-
-function buildTableMarkdown(cols: number, rows: number): { text: string; selectFrom: number; selectTo: number } {
-  const header = `| ${Array.from({ length: cols }, (_, i) => `Header ${i + 1}`).join(' | ')} |`
-  const divider = `| ${Array(cols).fill('---').join(' | ')} |`
-  const dataRow = `| ${Array(cols).fill(EMPTY_CELL).join(' | ')} |`
-  const text = [header, divider, ...Array(rows).fill(dataRow)].join('\n')
-  return { text, selectFrom: 2, selectTo: 2 + 'Header 1'.length } // select "Header 1", ready to overwrite
-}
-
 // Space/Enter handler for \bold, \link, \code, \codeblock, \image, \table<N>x<M>. A single
 // dispatch both deletes the `\word` span and inserts the replacement, so one undo step reverts
 // it fully.
@@ -745,12 +866,9 @@ function runSlashCommand(view: EditorView): boolean {
     return true
   }
 
-  const tableMatch = TABLE_SLASH_PATTERN.exec(word)
-  if (tableMatch) {
-    const cols = Number(tableMatch[1])
-    const rows = Number(tableMatch[2])
-    if (cols < 1 || rows < 1 || cols > MAX_TABLE_DIMENSION || rows > MAX_TABLE_DIMENSION) return false
-    const { text, selectFrom, selectTo } = buildTableMarkdown(cols, rows)
+  const table = parseTableShorthand(word)
+  if (table) {
+    const { text, selectFrom, selectTo } = buildTableMarkdown(table.cols, table.rows)
     view.dispatch({
       changes: { from: matchFrom, to: pos, insert: text },
       selection: EditorSelection.range(matchFrom + selectFrom, matchFrom + selectTo),
@@ -773,15 +891,30 @@ const slashCommandKeymap = Prec.highest(
   ]),
 )
 
-function wikilinkClickHandler(onNavigateWikilink?: (title: string) => void) {
+// Only schemes that are safe to hand to window.open; `javascript:` and friends are ignored.
+const OPENABLE_HREF = /^(https?:|mailto:)/i
+
+// Cmd/Ctrl+click follows a wikilink (in-app) or a web link (new tab / system browser).
+function linkClickHandler(onNavigateWikilink?: (title: string) => void) {
   return (event: MouseEvent) => {
-    if (!onNavigateWikilink || !(event.metaKey || event.ctrlKey)) return false
+    if (!(event.metaKey || event.ctrlKey)) return false
     const target = event.target
-    const link = target instanceof HTMLElement ? target.closest<HTMLElement>('[data-wikilink-title]') : null
-    if (!link?.dataset.wikilinkTitle) return false
-    event.preventDefault()
-    onNavigateWikilink(link.dataset.wikilinkTitle)
-    return true
+    if (!(target instanceof HTMLElement)) return false
+
+    const wikilink = target.closest<HTMLElement>('[data-wikilink-title]')
+    if (wikilink?.dataset.wikilinkTitle && onNavigateWikilink) {
+      event.preventDefault()
+      onNavigateWikilink(wikilink.dataset.wikilinkTitle)
+      return true
+    }
+
+    const href = target.closest<HTMLElement>('[data-href]')?.dataset.href
+    if (href && OPENABLE_HREF.test(href)) {
+      event.preventDefault()
+      window.open(href, '_blank', 'noopener,noreferrer')
+      return true
+    }
+    return false
   }
 }
 
@@ -860,6 +993,7 @@ export function MarkdownEditor({
         spellcheckAttributes,
         buildFormattingKeymap(keybinds),
         slashCommandKeymap,
+        slashMenu,
         // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
         // "gone" far more often there than on a line with text next to it — just keep it solid.
         drawSelection({ cursorBlinkRate: 0 }),
@@ -871,7 +1005,7 @@ export function MarkdownEditor({
               tableDecorations,
               mathBlockDecorations,
               focusAttributes,
-              EditorView.domEventHandlers({ click: wikilinkClickHandler(onNavigateWikilink) }),
+              EditorView.domEventHandlers({ click: linkClickHandler(onNavigateWikilink) }),
             ]),
       ]}
       className={className}
