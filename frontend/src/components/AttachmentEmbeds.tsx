@@ -16,13 +16,13 @@ function EmbedBody({ attachment }: { attachment: Attachment }) {
           // navpanes=0 hides the thumbnail sidebar Chrome otherwise opens in a narrow frame.
           src={`${attachment.url}#view=FitH&navpanes=0`}
           title={attachment.filename}
-          className="block h-[28rem] w-full border-0 bg-muted"
+          className="block h-72 w-full border-0 bg-muted"
         />
       )
     case 'image':
-      return <img src={attachment.url} alt={attachment.filename} className="block max-h-[28rem] w-full object-contain" />
+      return <img src={attachment.url} alt={attachment.filename} className="block max-h-72 w-full object-contain" />
     case 'video':
-      return <video src={attachment.url} controls preload="metadata" className="block max-h-[28rem] w-full bg-black" />
+      return <video src={attachment.url} controls preload="metadata" className="block max-h-72 w-full bg-black" />
     case 'audio':
       return <audio src={attachment.url} controls preload="metadata" className="block w-full px-3 py-2" />
     default:
