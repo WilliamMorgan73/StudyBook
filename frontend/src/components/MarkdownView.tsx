@@ -1,15 +1,39 @@
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
+import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import 'katex/dist/katex.min.css'
 
+import { CalloutIcon } from '@/components/CalloutIcon'
+import type { CalloutType } from '@/lib/markdownBlocks'
+import { remarkCallouts } from '@/lib/remarkCallouts'
 import { cn } from '@/lib/utils'
 
-/** Read-only markdown with `$inline$` and `$$display$$` math, for content shown outside the editor. */
+const components: Components = {
+  // remarkCallouts tags a callout's title paragraph with its type, so the icon can lead it.
+  p({ node, children, ...props }) {
+    const calloutType = node?.properties?.dataCalloutType
+    return (
+      <p {...props}>
+        {typeof calloutType === 'string' && <CalloutIcon type={calloutType as CalloutType} />}
+        {children}
+      </p>
+    )
+  },
+}
+
+/**
+ * Read-only markdown for content shown outside the editor: GFM (tables, checklists), `$inline$`
+ * and `$$display$$` math, and `> [!type]` callouts.
+ */
 export function MarkdownView({ children, className }: { children: string; className?: string }) {
   return (
     <div className={cn('prose dark:prose-invert max-w-none', className)}>
-      <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath, remarkCallouts]}
+        rehypePlugins={[rehypeKatex]}
+        components={components}
+      >
         {children}
       </ReactMarkdown>
     </div>

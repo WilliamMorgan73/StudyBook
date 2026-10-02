@@ -11,16 +11,25 @@ import CodeMirror, {
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
 import { EditorSelection, Prec } from '@codemirror/state'
-import { useRef } from 'react'
+import { useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { drawSelection, keymap, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
 import type { TableAlignment } from '@/lib/api'
 import { DEFAULT_KEYBINDS, type EditorKeybinds } from '@/lib/keybinds'
-import { buildTableMarkdown, findHighlights, parseTableShorthand } from '@/lib/markdownBlocks'
+import {
+  buildTableMarkdown,
+  findColumnsBlocks,
+  findHighlights,
+  parseCalloutHeader,
+  parseTableShorthand,
+} from '@/lib/markdownBlocks'
 
-import { BulletWidget, CheckboxWidget } from './markdown-editor/listWidgets'
+import { CalloutMarkerWidget, ColumnsWidget } from './markdown-editor/blockWidgets'
+import { openBlockDialogEffect } from './markdown-editor/editorActions'
+import { InsertBlockDialog } from './markdown-editor/InsertBlockDialog'
+import { BulletWidget, CheckboxWidget, TOGGLE_TASK_EVENT } from './markdown-editor/listWidgets'
 import { slashMenu } from './markdown-editor/slashMenu'
 import { isInsideCode } from './markdown-editor/syntax'
 
@@ -357,8 +366,23 @@ function buildDecorations(view: EditorView): DecorationSet {
         if (name === 'Blockquote') {
           const startLine = state.doc.lineAt(node.from).number
           const endLine = state.doc.lineAt(node.to).number
+          // `> [!type] Title` makes the quote a callout: tinted lines instead of the quote bar,
+          // stays live-editable (line decorations only), and its marker becomes an icon.
+          const header = parseCalloutHeader(state.doc.line(startLine).text)
           for (let n = startLine; n <= endLine; n++) {
-            ranges.push(Decoration.line({ class: 'cm-quote' }).range(state.doc.line(n).from))
+            const classes = header ? ['cm-callout', `callout-${header.type}`] : ['cm-quote']
+            if (header && n === startLine) classes.push('cm-callout-start', 'cm-callout-title')
+            if (header && n === endLine) classes.push('cm-callout-end')
+            ranges.push(Decoration.line({ class: classes.join(' ') }).range(state.doc.line(n).from))
+          }
+          if (header && startLine !== cursorLine) {
+            const lineFrom = state.doc.line(startLine).from
+            ranges.push(
+              Decoration.replace({ widget: new CalloutMarkerWidget(header.type, !header.title) }).range(
+                lineFrom + header.markerFrom,
+                lineFrom + header.markerTo,
+              ),
+            )
           }
           return
         }
@@ -535,6 +559,29 @@ const mathBlockDecorations = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+// `:::columns` blocks span lines too, so they're a StateField like tables and display math.
+function buildColumnsDecorations(state: EditorState): DecorationSet {
+  const focused = state.field(focusedField, false)
+  const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
+  const ranges: Range<Decoration>[] = []
+
+  for (const block of findColumnsBlocks(state.doc.toString())) {
+    if (isInsideCode(state, block.from)) continue
+    const startLine = state.doc.lineAt(block.from).number
+    const endLine = state.doc.lineAt(block.to).number
+    if (cursorLine >= startLine && cursorLine <= endLine) continue
+    ranges.push(Decoration.replace({ widget: new ColumnsWidget(block), block: true }).range(block.from, block.to))
+  }
+
+  return Decoration.set(ranges, true)
+}
+
+const columnsDecorations = StateField.define<DecorationSet>({
+  create: (state) => buildColumnsDecorations(state),
+  update: (_decorations, tr) => buildColumnsDecorations(tr.state),
+  provide: (field) => EditorView.decorations.from(field),
+})
+
 // Drives a class on the editor root from focusedField, so cursor visibility doesn't depend
 // on CodeMirror's own (unreliable here) `.cm-focused` class.
 const focusAttributes = EditorView.editorAttributes.of((view) => ({
@@ -662,6 +709,37 @@ const editorTheme = EditorView.theme({
     paddingLeft: '0.75rem',
     color: 'var(--muted-foreground)',
   },
+  // Callout lines; `--callout-accent` comes from the `callout-<type>` class (index.css), shared
+  // with MarkdownView's `.callout`.
+  '.cm-callout': {
+    backgroundColor: 'color-mix(in oklab, var(--callout-accent) 10%, transparent)',
+    borderLeft: '3px solid var(--callout-accent)',
+    padding: '0 0.9rem',
+  },
+  '.cm-callout-start': {
+    borderTopRightRadius: '0.5rem',
+    borderTopLeftRadius: '0.5rem',
+    paddingTop: '0.5rem',
+    marginTop: '0.4em',
+  },
+  '.cm-callout-end': {
+    borderBottomRightRadius: '0.5rem',
+    borderBottomLeftRadius: '0.5rem',
+    paddingBottom: '0.5rem',
+    marginBottom: '0.4em',
+  },
+  '.cm-callout-title': { fontWeight: '600', color: 'var(--callout-accent)' },
+  '.cm-callout-marker': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4em',
+    marginRight: '0.4em',
+    verticalAlign: '-0.125em',
+  },
+  '.cm-callout-marker svg': { width: '1em', height: '1em' },
+  // .cm-content is `white-space: pre-wrap`, which would turn the "\n" text nodes react-markdown
+  // emits between elements into blank lines.
+  '.cm-columns': { cursor: 'text', whiteSpace: 'normal' },
   '.cm-wikilink': {
     textDecoration: 'underline',
     textDecorationColor: 'var(--border)',
@@ -891,6 +969,10 @@ const slashCommandKeymap = Prec.highest(
   ]),
 )
 
+const INSERT_BLOCK_EVENT = 'input.block'
+// Edits that aren't typing and may happen while unfocused, so they're saved straight away.
+const COMMIT_USER_EVENTS = [TOGGLE_TASK_EVENT, INSERT_BLOCK_EVENT]
+
 // Only schemes that are safe to hand to window.open; `javascript:` and friends are ignored.
 const OPENABLE_HREF = /^(https?:|mailto:)/i
 
@@ -918,6 +1000,11 @@ function linkClickHandler(onNavigateWikilink?: (title: string) => void) {
   }
 }
 
+export interface MarkdownEditorHandle {
+  /** Opens the block builder, inserting at the cursor (or the end, if never focused). */
+  openBlockDialog: () => void
+}
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -931,6 +1018,8 @@ export function MarkdownEditor({
   fontSize = 15,
   tableAlign = 'left',
   keybinds = DEFAULT_KEYBINDS,
+  onCommit,
+  ref,
 }: {
   value: string
   onChange: (value: string) => void
@@ -947,8 +1036,49 @@ export function MarkdownEditor({
   tableAlign?: TableAlignment
   /** From AppSettings.keybind_*. */
   keybinds?: EditorKeybinds
+  /**
+   * Called right after an edit that isn't typing (a checklist tick, an inserted block), so it can
+   * be saved now. Those can happen while the editor is unfocused, so no blur would follow.
+   */
+  onCommit?: () => void
+  ref?: Ref<MarkdownEditorHandle>
 }) {
   const viewRef = useRef<EditorView | null>(null)
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false)
+  // Where the dialog's block goes: the cursor when it opened. Until the note is first focused the
+  // selection is just offset 0, so the block goes at the end instead of above everything.
+  const blockInsertPos = useRef(0)
+  const everFocused = useRef(false)
+
+  function openBlockDialog() {
+    const view = viewRef.current
+    if (!view) return
+    blockInsertPos.current = everFocused.current ? view.state.selection.main.head : view.state.doc.length
+    setBlockDialogOpen(true)
+  }
+
+  useImperativeHandle(ref, () => ({ openBlockDialog }))
+
+  // A block always gets its own lines with a blank line above: in place on a blank line, else
+  // after the cursor's line. The trailing newline leaves the cursor on a fresh line below it, so
+  // the block renders straight away (and a following paragraph can't lazily join a callout).
+  function insertBlock(markdown: string) {
+    const view = viewRef.current
+    if (!view) return
+    const { doc } = view.state
+    const line = doc.lineAt(Math.min(blockInsertPos.current, doc.length))
+    const blank = line.text.trim() === ''
+    const blankAbove = line.number === 1 || doc.line(line.number - 1).text.trim() === ''
+    const from = blank ? line.from : line.to
+    const prefix = blank ? (blankAbove ? '' : '\n') : '\n\n'
+    const text = `${prefix}${markdown}\n`
+    view.dispatch({
+      changes: { from, to: line.to, insert: text },
+      selection: EditorSelection.cursor(from + text.length),
+      scrollIntoView: true,
+      userEvent: INSERT_BLOCK_EVENT,
+    })
+  }
   // Clicking (especially on an empty line) can fire several synchronous focus/blur events
   // in a row before settling. Debounce so only the final state reaches the view — dispatching
   // on every intermediate event was itself feeding the thrashing (each dispatch recomputes
@@ -965,50 +1095,71 @@ export function MarkdownEditor({
   }
 
   return (
-    <CodeMirror
-      value={value}
-      onChange={onChange}
-      onCreateEditor={(view) => {
-        viewRef.current = view
-      }}
-      onFocus={() => scheduleFocusUpdate(true)}
-      onBlur={() => scheduleFocusUpdate(false)}
-      autoFocus={autoFocus}
-      placeholder={placeholder}
-      minHeight={minHeight}
-      theme="none"
-      basicSetup={{
-        lineNumbers: false,
-        foldGutter: false,
-        highlightActiveLine: false,
-        highlightActiveLineGutter: false,
-        autocompletion: false,
-        syntaxHighlighting: false,
-      }}
-      extensions={[
-        markdown({ extensions: GFM }),
-        EditorView.lineWrapping,
-        editorTheme,
-        buildDynamicAttributes(fontSize, tableAlign),
-        spellcheckAttributes,
-        buildFormattingKeymap(keybinds),
-        slashCommandKeymap,
-        slashMenu,
-        // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
-        // "gone" far more often there than on a line with text next to it — just keep it solid.
-        drawSelection({ cursorBlinkRate: 0 }),
-        ...(sourceMode
-          ? []
-          : [
-              focusedField,
-              liveMarkdown,
-              tableDecorations,
-              mathBlockDecorations,
-              focusAttributes,
-              EditorView.domEventHandlers({ click: linkClickHandler(onNavigateWikilink) }),
-            ]),
-      ]}
-      className={className}
-    />
+    <>
+      <CodeMirror
+        value={value}
+        onChange={onChange}
+        onCreateEditor={(view) => {
+          viewRef.current = view
+        }}
+        onUpdate={(update) => {
+          if (update.transactions.some((tr) => tr.effects.some((effect) => effect.is(openBlockDialogEffect)))) {
+            openBlockDialog()
+          }
+          if (update.transactions.some((tr) => COMMIT_USER_EVENTS.some((event) => tr.isUserEvent(event)))) {
+            onCommit?.()
+          }
+        }}
+        onFocus={() => {
+          everFocused.current = true
+          scheduleFocusUpdate(true)
+        }}
+        onBlur={() => scheduleFocusUpdate(false)}
+        autoFocus={autoFocus}
+        placeholder={placeholder}
+        minHeight={minHeight}
+        theme="none"
+        basicSetup={{
+          lineNumbers: false,
+          foldGutter: false,
+          highlightActiveLine: false,
+          highlightActiveLineGutter: false,
+          autocompletion: false,
+          syntaxHighlighting: false,
+        }}
+        extensions={[
+          markdown({ extensions: GFM }),
+          EditorView.lineWrapping,
+          editorTheme,
+          buildDynamicAttributes(fontSize, tableAlign),
+          spellcheckAttributes,
+          buildFormattingKeymap(keybinds),
+          slashCommandKeymap,
+          slashMenu,
+          // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
+          // "gone" far more often there than on a line with text next to it — just keep it solid.
+          drawSelection({ cursorBlinkRate: 0 }),
+          ...(sourceMode
+            ? []
+            : [
+                focusedField,
+                liveMarkdown,
+                tableDecorations,
+                mathBlockDecorations,
+                columnsDecorations,
+                focusAttributes,
+                EditorView.domEventHandlers({ click: linkClickHandler(onNavigateWikilink) }),
+              ]),
+        ]}
+        className={className}
+      />
+      <InsertBlockDialog
+        open={blockDialogOpen}
+        onOpenChange={setBlockDialogOpen}
+        onInsert={insertBlock}
+        // Back to the note to keep typing (the insert itself is saved through onCommit).
+        onClosed={() => viewRef.current?.focus()}
+      />
+    </>
   )
 }
