@@ -1,5 +1,6 @@
-import { CalendarPlus, RefreshCw, TriangleAlert } from 'lucide-react'
-import { useState } from 'react'
+import { CalendarPlus, ChevronRight, RefreshCw, TriangleAlert } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { PlanRevisionDialog } from '@/components/PlanRevisionDialog'
@@ -14,25 +15,51 @@ import {
   updateRevisionSession,
   type Assignment,
 } from '@/lib/api'
-import { formatSessionWhen, replanForm, replanReasons } from '@/lib/revision'
+import { findUpcomingSessionIndex, formatSessionWhen, replanForm, replanReasons } from '@/lib/revision'
 import { useAsync } from '@/lib/useAsync'
+import { cn } from '@/lib/utils'
+
+const COLLAPSED_KEY = 'studybook.revisionPlan.collapsed'
+
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 /**
  * An exam's revision plan on its Assignment page: "Plan revision" until there is one, then its sessions
  * with done ticks, Replan, and a nudge to replan when sessions were missed or weak topics shifted.
+ * Collapsible (remembered across exams), with capped height and inner scrolling to the next upcoming session.
  * `?session=<id>` opens that session's view, which is how calendars link to a session.
  */
-export function RevisionPlan({ exam }: { exam: Assignment }) {
+export function RevisionPlan({ exam, color }: { exam: Assignment; color?: string }) {
   const sessions = useAsync(() => listRevisionSessions({ assignmentId: exam.id }), [exam.id])
   const status = useAsync(() => getRevisionPlanStatus(exam.id), [exam.id])
+  const [collapsed, setCollapsed] = useState(readCollapsed)
   const [planOpen, setPlanOpen] = useState(false)
   const [replanOpen, setReplanOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const listRef = useRef<HTMLUListElement>(null)
+  const upcomingRef = useRef<HTMLLIElement>(null)
 
   const requestedSessionId = Number(searchParams.get('session')) || null
   // Kept after the param is cleared, so the dialog's content stays put while it animates closed.
   const [shownSessionId, setShownSessionId] = useState(requestedSessionId)
   if (requestedSessionId !== null && requestedSessionId !== shownSessionId) setShownSessionId(requestedSessionId)
+
+  function toggle() {
+    const next = !collapsed
+    setCollapsed(next)
+    try {
+      localStorage.setItem(COLLAPSED_KEY, String(next))
+    } catch {
+      // Storage unavailable: toggle still works for this visit.
+    }
+  }
 
   function openSession(id: number | null) {
     setSearchParams(
@@ -61,6 +88,24 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
     await refetch()
   }
 
+  const hasSessions = Boolean(sessions.data && sessions.data.length > 0)
+
+  // Incomplete sessions at top in chronological order; completed sessions sink to the bottom in chronological order.
+  const sortedSessions = useMemo(() => {
+    if (!sessions.data) return []
+    const incomplete = sessions.data.filter((s) => !s.done)
+    const completed = sessions.data.filter((s) => s.done)
+    return [...incomplete, ...completed]
+  }, [sessions.data])
+
+  const upcomingIndex = findUpcomingSessionIndex(sortedSessions)
+
+  useEffect(() => {
+    if (!collapsed && upcomingRef.current && listRef.current) {
+      listRef.current.scrollTop = upcomingRef.current.offsetTop
+    }
+  }, [collapsed, sessions.data])
+
   const examPassed = exam.due_at !== null && new Date(exam.due_at) < new Date()
   const doneCount = sessions.data?.filter((s) => s.done).length ?? 0
   const missed = new Set(status.data?.missed_session_ids)
@@ -73,12 +118,24 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-medium">Revision plan</h2>
-        {sessions.data && sessions.data.length > 0 && (
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">
-              {doneCount} of {sessions.data.length} done
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        {hasSessions ? (
+          <button
+            type="button"
+            onClick={toggle}
+            aria-expanded={!collapsed}
+            className="flex items-center gap-1.5 text-lg font-medium hover:text-foreground"
+          >
+            <ChevronRight className={cn('size-4 text-muted-foreground transition-transform', !collapsed && 'rotate-90')} />
+            Revision plan
+          </button>
+        ) : (
+          <h2 className="text-lg font-medium">Revision plan</h2>
+        )}
+        {hasSessions && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {doneCount} of {sessions.data?.length} done
             </span>
             {!examPassed && (
               <Button variant="ghost" size="sm" onClick={() => setReplanOpen(true)}>
@@ -91,6 +148,25 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
           </div>
         )}
       </div>
+
+      {hasSessions && sessions.data && (
+        <div
+          className="h-1 overflow-hidden rounded-full bg-muted"
+          role="progressbar"
+          aria-label="Revision plan progress"
+          aria-valuemin={0}
+          aria-valuemax={sessions.data.length}
+          aria-valuenow={doneCount}
+        >
+          <motion.div
+            className="h-full rounded-full bg-primary"
+            style={color ? { backgroundColor: color } : undefined}
+            initial={false}
+            animate={{ width: `${(doneCount / sessions.data.length) * 100}%` }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          />
+        </div>
+      )}
 
       {sessions.loading && <Skeleton className="h-16 w-full" />}
       {sessions.error && !sessions.data && <p className="text-sm text-destructive">Couldn't load the revision plan.</p>}
@@ -123,30 +199,49 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
         </div>
       )}
 
-      {sessions.data && sessions.data.length > 0 && (
-        <ul className="divide-y">
-          {sessions.data.map((s) => (
-            <li key={s.id} className="flex items-center gap-3 py-1.5">
-              <Checkbox
-                checked={s.done}
-                aria-label={s.done ? 'Mark not done' : 'Mark done'}
-                onCheckedChange={(checked) => setDone(s.id, checked === true)}
-              />
-              <button
-                type="button"
-                onClick={() => openSession(s.id)}
-                className="-mx-2 flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-2 py-1 text-left text-sm transition-colors hover:bg-muted"
-              >
-                <span className={`shrink-0 ${s.done ? 'text-muted-foreground line-through' : ''}`}>
-                  {formatSessionWhen(s)}
-                  {missed.has(s.id) && <span className="ml-2 text-xs text-amber-700 dark:text-amber-300">Missed</span>}
-                </span>
-                <span className="truncate text-muted-foreground">{s.submodules.map((t) => t.title).join(', ')}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <AnimatePresence initial={false}>
+        {hasSessions && !collapsed && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
+          >
+            <ul
+              ref={listRef}
+              className="relative max-h-44 divide-y overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
+            >
+              {sortedSessions.map((s, idx) => (
+                <motion.li
+                  key={s.id}
+                  layout="position"
+                  transition={{ duration: 0.2 }}
+                  ref={idx === upcomingIndex ? upcomingRef : undefined}
+                  className="flex items-center gap-2 py-1.5"
+                >
+                  <Checkbox
+                    checked={s.done}
+                    aria-label={s.done ? 'Mark not done' : 'Mark done'}
+                    onCheckedChange={(checked) => setDone(s.id, checked === true)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => openSession(s.id)}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-1.5 py-1 text-left text-sm transition-colors hover:bg-muted"
+                  >
+                    <span className={cn('shrink-0', s.done && 'text-muted-foreground line-through')}>
+                      {formatSessionWhen(s)}
+                      {missed.has(s.id) && <span className="ml-1.5 text-xs text-amber-700 dark:text-amber-300">Missed</span>}
+                    </span>
+                    <span className="truncate text-right text-muted-foreground">{s.submodules.map((t) => t.title).join(', ')}</span>
+                  </button>
+                </motion.li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {exam.due_at && (
         <PlanRevisionDialog
@@ -175,3 +270,4 @@ export function RevisionPlan({ exam }: { exam: Assignment }) {
     </section>
   )
 }
+

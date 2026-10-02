@@ -228,7 +228,7 @@ function AssignmentView({
       </div>
 
       <div className="grid gap-x-10 gap-y-10 px-8 py-10 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <main className="min-w-0 rounded-xl border bg-card px-6 py-5 sm:px-10 sm:py-8">
+        <main className="min-w-0 rounded-xl border bg-card px-6 py-5 sm:px-10 sm:py-8 max-h-[60vh] overflow-y-auto lg:sticky lg:top-6 lg:self-start">
           <MarkdownEditor
             ref={editorRef}
             value={notes}
@@ -256,9 +256,9 @@ function AssignmentView({
           />
         </main>
 
-        <aside className="space-y-8 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto lg:pb-1">
+        <aside className="space-y-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-6">
           <AssignmentChecklist assignmentId={id} todos={assignment.todos} color={module?.color} onChanged={refetch} />
-          {isExam && <RevisionPlan exam={assignment} />}
+          {isExam && <RevisionPlan exam={assignment} color={module?.color} />}
           <AttachmentEmbeds
             attachments={assignment.attachments}
             upload={(file) => uploadAssignmentAttachment(id, file)}

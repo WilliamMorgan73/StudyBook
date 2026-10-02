@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   defaultRevisionPlanForm,
+  findUpcomingSessionIndex,
   formatSessionLength,
   replanForm,
   replanReasons,
@@ -98,3 +99,52 @@ describe('replanReasons', () => {
     expect(replanReasons({ missed_session_ids: [1], shifted_topics: [] })).toEqual(['1 session missed'])
   })
 })
+
+describe('findUpcomingSessionIndex', () => {
+  const s = (ends_at: string, done = false) => ({ ends_at, done })
+
+  it('returns 0 for empty list', () => {
+    expect(findUpcomingSessionIndex([])).toBe(0)
+  })
+
+  it('picks the first session whose end time is in the future', () => {
+    const sessions = [
+      s('2026-06-01T10:00:00', true),
+      s('2026-06-02T10:00:00', true),
+      s('2026-06-03T10:00:00', false),
+      s('2026-06-04T10:00:00', false),
+    ]
+    const now = new Date('2026-06-02T12:00:00')
+    expect(findUpcomingSessionIndex(sessions, now)).toBe(2)
+  })
+
+  it('picks the active session if currently running', () => {
+    const sessions = [
+      s('2026-06-01T10:00:00', true),
+      s('2026-06-02T10:00:00', false),
+      s('2026-06-03T10:00:00', false),
+    ]
+    const now = new Date('2026-06-02T09:30:00')
+    expect(findUpcomingSessionIndex(sessions, now)).toBe(1)
+  })
+
+  it('falls back to the first incomplete session when all ended in the past', () => {
+    const sessions = [
+      s('2026-06-01T10:00:00', true),
+      s('2026-06-02T10:00:00', false),
+      s('2026-06-03T10:00:00', false),
+    ]
+    const now = new Date('2026-06-05T12:00:00')
+    expect(findUpcomingSessionIndex(sessions, now)).toBe(1)
+  })
+
+  it('returns 0 when all sessions in the past are completed', () => {
+    const sessions = [
+      s('2026-06-01T10:00:00', true),
+      s('2026-06-02T10:00:00', true),
+    ]
+    const now = new Date('2026-06-05T12:00:00')
+    expect(findUpcomingSessionIndex(sessions, now)).toBe(0)
+  })
+})
+

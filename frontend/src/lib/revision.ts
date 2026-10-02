@@ -85,9 +85,25 @@ export function revisionSessionUrl(session: Pick<RevisionSession, 'id' | 'module
   return `/modules/${session.module_id}/assignments/${session.assignment_id}?session=${session.id}`
 }
 
+/**
+ * Index of the next session to focus on: the first session whose end time is not yet past,
+ * or the first incomplete session if all have ended, or 0.
+ */
+export function findUpcomingSessionIndex(
+  sessions: Pick<RevisionSession, 'ends_at' | 'done'>[],
+  now = new Date(),
+): number {
+  if (sessions.length === 0) return 0
+  const index = sessions.findIndex((s) => new Date(s.ends_at) >= now)
+  if (index !== -1) return index
+  const firstIncomplete = sessions.findIndex((s) => !s.done)
+  return firstIncomplete !== -1 ? firstIncomplete : 0
+}
+
 /** A word for a Submodule's weakness score (0 = never lapses, 1 = always; 0.5 = no review data). */
 export function weaknessLabel(weakness: number): 'Weak' | 'Fair' | 'Strong' {
   if (weakness >= 0.6) return 'Weak'
   if (weakness <= 0.35) return 'Strong'
   return 'Fair'
 }
+
