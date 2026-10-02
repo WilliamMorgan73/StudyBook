@@ -32,11 +32,12 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
   getAssignment: vi.fn(async () => assignment),
   getModule: vi.fn(async () => module),
+  getAppSettings: vi.fn(() => new Promise(() => {})),
 }))
 
 describe('AssignmentPage notes', () => {
   it('renders inline and display maths with KaTeX', async () => {
-    const { container } = render(
+    render(
       <MemoryRouter initialEntries={['/modules/3/assignments/7']}>
         <Routes>
           <Route path="/modules/:moduleId/assignments/:assignmentId" element={<AssignmentPage />} />
@@ -44,10 +45,9 @@ describe('AssignmentPage notes', () => {
       </MemoryRouter>,
     )
 
-    const notes = (await screen.findByText(/Merge sort runs in/)).closest('section')!
+    // The notes are the live editor: maths off the cursor line renders as KaTeX widgets.
+    const notes = (await screen.findByText(/Merge sort runs in/)).closest('.cm-editor')!
     expect(notes.querySelector('.katex')).not.toBeNull()
     expect(notes.querySelector('.katex-display')).not.toBeNull()
-    expect(notes.textContent).not.toContain('$')
-    expect(container.querySelector('.prose.prose-sm')).not.toBeNull()
   })
 })
