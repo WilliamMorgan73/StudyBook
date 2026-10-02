@@ -6,18 +6,25 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.clock import local_now
 from app.core.database import get_db
-from app.crud.revision_planner import NotEnoughTime, weakest_cards
-from app.crud.revision_plans import plan_exam_revision, submodule_weakness
+from app.crud.revision_planner import NotEnoughTime, split_for_replan, weakest_cards
+from app.crud.revision_plans import (
+    exam_replan_signal,
+    plan_exam_revision,
+    save_plan,
+    submodule_weakness,
+)
 from app.models.assignment import Assignment
 from app.models.enums import AssignmentKind
 from app.models.flashcard import Flashcard
 from app.models.revision_session import RevisionSession
 from app.schemas.revision import (
     RevisionPlanCreate,
+    RevisionPlanStatus,
     RevisionSessionDetail,
     RevisionSessionRead,
     RevisionSessionUpdate,
     SessionTopic,
+    ShiftedTopic,
     WeakCard,
 )
 
@@ -42,18 +49,12 @@ def _get_session_or_404(db: Session, session_id: int) -> RevisionSession:
     return session
 
 
-@router.post("/assignments/{assignment_id}/revision-plan", response_model=list[RevisionSessionRead], status_code=201)
-def create_revision_plan(
-    assignment_id: int, payload: RevisionPlanCreate, db: Session = Depends(get_db)
-) -> list[RevisionSessionRead]:
-    """Schedule and save revision sessions for an exam. 422 with a readable `detail` when they don't fit."""
-    exam = _get_exam_or_404(db, assignment_id)
+def _check_plan_request(exam: Assignment, payload: RevisionPlanCreate) -> set[int]:
+    """The checks planning and replanning share; returns the weekdays."""
     if exam.due_at is None:
         raise HTTPException(400, "Set the exam's date before planning revision")
     if not exam.covered_submodules:
         raise HTTPException(400, "Choose which submodules the exam covers before planning revision")
-    if exam.revision_sessions:
-        raise HTTPException(409, "This exam already has a revision plan")
     weekdays = set(payload.weekdays)
     if not weekdays:
         raise HTTPException(422, "Pick at least one weekday")
@@ -61,30 +62,81 @@ def create_revision_plan(
         raise HTTPException(422, "Weekdays must be 0 (Monday) to 6 (Sunday)")
     if payload.start_date > exam.due_at.date():
         raise HTTPException(422, "The start date must be on or before the exam")
+    return weekdays
 
+
+def _plan_and_save(
+    db: Session, exam: Assignment, payload: RevisionPlanCreate, weekdays: set[int], kept: list[RevisionSession]
+) -> list[RevisionSessionRead]:
+    now = local_now()
+    weakness = submodule_weakness(db, [s.id for s in exam.covered_submodules])
     result = plan_exam_revision(
         db,
         exam,
         start_date=payload.start_date,
         weekdays=weekdays,
         session_minutes=payload.session_minutes,
-        now=local_now(),
+        weakness=weakness,
+        now=now,
+        kept=kept,
     )
     if isinstance(result, NotEnoughTime):
         raise HTTPException(422, result.message)
-
-    submodules = {s.id: s for s in exam.covered_submodules}
-    exam.revision_sessions = [
-        RevisionSession(
-            starts_at=p.starts_at,
-            duration_minutes=p.duration_minutes,
-            submodules=[submodules[i] for i in p.submodule_ids],
-        )
-        for p in result
-    ]
+    save_plan(exam, result, weakness=weakness, now=now, kept=kept)
     db.commit()
     db.refresh(exam)
     return [RevisionSessionRead.from_row(s) for s in exam.revision_sessions]
+
+
+@router.post("/assignments/{assignment_id}/revision-plan", response_model=list[RevisionSessionRead], status_code=201)
+def create_revision_plan(
+    assignment_id: int, payload: RevisionPlanCreate, db: Session = Depends(get_db)
+) -> list[RevisionSessionRead]:
+    """Schedule and save revision sessions for an exam. 422 with a readable `detail` when they don't fit."""
+    exam = _get_exam_or_404(db, assignment_id)
+    weekdays = _check_plan_request(exam, payload)
+    if exam.revision_sessions:
+        raise HTTPException(409, "This exam already has a revision plan")
+    return _plan_and_save(db, exam, payload, weekdays, kept=[])
+
+
+@router.post("/assignments/{assignment_id}/revision-plan/replan", response_model=list[RevisionSessionRead])
+def replan_revision(
+    assignment_id: int, payload: RevisionPlanCreate, db: Session = Depends(get_db)
+) -> list[RevisionSessionRead]:
+    """Reschedule an exam's plan: sessions that are done or have started stay, every future not-done one
+    is replaced. Returns the whole plan. A 422 (e.g. not enough time) leaves the plan unchanged."""
+    exam = _get_exam_or_404(db, assignment_id)
+    weekdays = _check_plan_request(exam, payload)
+    if not exam.revision_sessions:
+        raise HTTPException(409, "This exam has no revision plan to replan")
+    now = local_now()
+    if exam.due_at <= now:
+        raise HTTPException(400, "This exam has already started")
+    kept, _replaced = split_for_replan(exam.revision_sessions, now)
+    return _plan_and_save(db, exam, payload, weekdays, kept=kept)
+
+
+@router.get("/assignments/{assignment_id}/revision-plan/status", response_model=RevisionPlanStatus)
+def get_revision_plan_status(assignment_id: int, db: Session = Depends(get_db)) -> RevisionPlanStatus:
+    """Whether the exam's plan needs replanning: sessions missed, or weak topics shifted since planning."""
+    exam = _get_exam_or_404(db, assignment_id)
+    now = local_now()
+    if not exam.revision_sessions or exam.due_at is None or exam.due_at <= now:
+        return RevisionPlanStatus(
+            needs_replan=False, planned_at=exam.revision_planned_at, missed_session_ids=[], shifted_topics=[]
+        )
+    signal = exam_replan_signal(db, exam, now)
+    titles = {s.id: s.title for s in exam.covered_submodules}
+    return RevisionPlanStatus(
+        needs_replan=signal.needs_replan,
+        planned_at=exam.revision_planned_at,
+        missed_session_ids=list(signal.missed_session_ids),
+        shifted_topics=[
+            ShiftedTopic(id=s.submodule_id, title=titles[s.submodule_id], planned_weakness=s.planned, weakness=s.current)
+            for s in signal.shifted
+        ],
+    )
 
 
 @router.delete("/assignments/{assignment_id}/revision-plan", status_code=204)
@@ -92,6 +144,8 @@ def delete_revision_plan(assignment_id: int, db: Session = Depends(get_db)) -> N
     """Remove every session of the exam's plan, done ones included, so it can be planned afresh."""
     exam = _get_exam_or_404(db, assignment_id)
     exam.revision_sessions = []
+    exam.revision_planned_at = None
+    exam.revision_planned_weakness = None
     db.commit()
 
 

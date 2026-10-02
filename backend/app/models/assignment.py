@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Enum, ForeignKey, Numeric, String, Table
+from sqlalchemy import JSON, Column, Enum, ForeignKey, Numeric, String, Table
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -36,6 +36,10 @@ class Assignment(Base):
     # Exam-only; for exams `due_at` is the exam start.
     duration_minutes: Mapped[int | None]
     location: Mapped[str | None] = mapped_column(String(200))
+    # When the exam's revision plan was last made or replanned (naive local time, like its sessions), and
+    # each covered Submodule's weakness score then, keyed by str(id). The baseline for the replan signal.
+    revision_planned_at: Mapped[datetime | None]
+    revision_planned_weakness: Mapped[dict[str, float] | None] = mapped_column(JSON)
 
     module: Mapped["Module"] = relationship(back_populates="assignments")  # noqa: F821
     attachments: Mapped[list["Attachment"]] = relationship(back_populates="assignment", cascade="all, delete-orphan")  # noqa: F821

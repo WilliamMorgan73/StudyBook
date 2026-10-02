@@ -71,3 +71,21 @@ class RevisionSessionDetail(RevisionSessionRead):
 
     topics: list[SessionTopic]
     weakest_cards: list[WeakCard]
+
+
+class ShiftedTopic(SessionSubmodule):
+    planned_weakness: float
+    """When the plan was last made or replanned."""
+    weakness: float
+
+
+class RevisionPlanStatus(BaseModel):
+    """Whether an exam's plan has drifted since it was last made or replanned. Never set without a plan,
+    or once the exam has started."""
+
+    needs_replan: bool
+    planned_at: datetime | None
+    missed_session_ids: list[int]
+    """Sessions that ended without being ticked done."""
+    shifted_topics: list[ShiftedTopic]
+    """Covered Submodules whose weakness has moved enough to rebalance the plan."""

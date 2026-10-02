@@ -1,5 +1,6 @@
 import random
 from collections import Counter
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from itertools import pairwise
 
@@ -8,9 +9,13 @@ import pytest
 import app.models  # noqa: F401  registers relationship string refs before we touch the mapper
 from app.crud.revision_planner import (
     NEUTRAL_WEAKNESS,
+    WEAKNESS_SHIFT,
     NotEnoughTime,
     ProposedSession,
+    WeaknessShift,
+    replan_signal,
     schedule_revision,
+    split_for_replan,
     weakest_cards,
     weakness_scores,
 )
@@ -172,6 +177,12 @@ def test_overnight_blocks_from_the_previous_evening_are_respected():
     assert sessions[0].starts_at == dt(2026, 6, 1, 10)
 
 
+def test_skip_dates_get_no_session():
+    sessions = plan(submodule_ids=[1], weekdays={MON}, skip_dates={date(2026, 6, 1)})
+
+    assert [s.starts_at.date() for s in sessions] == [date(2026, 6, 8)]
+
+
 def test_not_before_skips_hours_already_gone():
     sessions = plan(weekdays={MON}, not_before=dt(2026, 6, 1, 15, 5))
 
@@ -251,3 +262,90 @@ def test_same_inputs_give_the_same_plan_regardless_of_order():
 def test_no_covered_submodules_is_an_error():
     with pytest.raises(ValueError):
         plan(submodule_ids=[])
+
+
+# --- replanning -------------------------------------------------------------------------------
+
+
+@dataclass
+class Session:
+    id: int
+    starts_at: datetime
+    done: bool = False
+    duration_minutes: int = 60
+
+
+REPLAN_AT = dt(2026, 6, 8, 12)
+
+
+def test_replan_keeps_past_and_done_sessions_and_replaces_future_not_done_ones():
+    past_missed = Session(1, dt(2026, 6, 1, 9))
+    past_done = Session(2, dt(2026, 6, 2, 9), done=True)
+    in_progress = Session(3, dt(2026, 6, 8, 11, 30))
+    future_done = Session(4, dt(2026, 6, 9, 9), done=True)
+    future = Session(5, dt(2026, 6, 10, 9))
+    starting_now = Session(6, REPLAN_AT)
+
+    kept, replaced = split_for_replan([past_missed, past_done, in_progress, future_done, future, starting_now], REPLAN_AT)
+
+    assert kept == [past_missed, past_done, in_progress, future_done]
+    assert replaced == [future, starting_now]
+
+
+def signal(sessions=(), planned_at=dt(2026, 6, 1), planned=None, current=None, now=REPLAN_AT):
+    return replan_signal(
+        sessions=sessions,
+        planned_at=planned_at,
+        planned_weakness={1: 0.5, 2: 0.5} if planned is None else planned,
+        current_weakness={1: 0.5, 2: 0.5} if current is None else current,
+        now=now,
+    )
+
+
+def test_a_fresh_plan_needs_no_replan():
+    result = signal([Session(1, dt(2026, 6, 9, 9)), Session(2, dt(2026, 6, 1, 9), done=True)])
+
+    assert result.missed_session_ids == ()
+    assert result.shifted == ()
+    assert not result.needs_replan
+
+
+def test_sessions_that_ended_without_a_tick_are_missed():
+    ended = Session(1, dt(2026, 6, 8, 10))
+    ends_at_now = Session(2, dt(2026, 6, 8, 11))
+    still_running = Session(3, dt(2026, 6, 8, 11, 30))
+    ticked = Session(4, dt(2026, 6, 2, 9), done=True)
+
+    result = signal([still_running, ends_at_now, ended, ticked])
+
+    assert result.missed_session_ids == (1, 2)
+    assert result.needs_replan
+
+
+def test_sessions_missed_before_the_last_replan_no_longer_count():
+    missed_earlier = Session(1, dt(2026, 6, 1, 9))
+
+    assert signal([missed_earlier], planned_at=dt(2026, 6, 3)).missed_session_ids == ()
+
+
+def test_weakness_moving_by_the_threshold_either_way_is_a_shift():
+    result = signal(planned={1: 0.5, 2: 0.5, 3: 0.5}, current={1: 0.5 + WEAKNESS_SHIFT, 2: 0.4, 3: 0.5 - WEAKNESS_SHIFT})
+
+    assert result.shifted == (WeaknessShift(1, 0.5, 0.7), WeaknessShift(3, 0.5, 0.3))
+    assert result.needs_replan
+
+
+def test_small_weakness_changes_are_not_a_shift():
+    assert signal(current={1: 0.5 + WEAKNESS_SHIFT - 0.01, 2: 0.5}).shifted == ()
+
+
+def test_submodules_without_a_planned_score_never_shift():
+    # Newly covered since planning (3), or a plan saved before snapshots existed (None).
+    assert signal(planned={1: 0.5}, current={1: 0.5, 3: 1.0}).shifted == ()
+    assert replan_signal(
+        sessions=[], planned_at=dt(2026, 6, 1), planned_weakness=None, current_weakness={1: 1.0}, now=REPLAN_AT
+    ).shifted == ()
+
+
+def test_submodules_no_longer_covered_are_ignored():
+    assert signal(planned={1: 0.5, 2: 0.1}, current={1: 0.5}).shifted == ()
