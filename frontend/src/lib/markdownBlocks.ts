@@ -152,6 +152,57 @@ export function buildColumnsMarkdown(main: string, sideTitle: string, side: stri
   return [':::columns', main.trim(), sideHeader, side.trim(), ':::'].join('\n')
 }
 
+// `![[file.pdf]]` embeds one of the note's Attachments by filename (Obsidian syntax). An optional
+// `|...` suffix (Obsidian's sizing) is accepted and ignored.
+const EMBED_PATTERN = /!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]/g
+
+export interface EmbedMatch {
+  from: number
+  to: number
+  name: string
+}
+
+export function findEmbeds(text: string): EmbedMatch[] {
+  const found: EmbedMatch[] = []
+  EMBED_PATTERN.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = EMBED_PATTERN.exec(text))) {
+    found.push({ from: match.index, to: match.index + match[0].length, name: match[1].trim() })
+  }
+  return found
+}
+
+/** The attachment an embed names: exact filename first, else case-insensitive; first wins. */
+export function resolveEmbed<T extends { filename: string }>(name: string, attachments: readonly T[]): T | null {
+  return (
+    attachments.find((a) => a.filename === name) ??
+    attachments.find((a) => a.filename.toLowerCase() === name.toLowerCase()) ??
+    null
+  )
+}
+
+/** Markdown for an attachment: images inline by URL (unique even for repeat "image.png" pastes), anything else as an embed. */
+export function attachmentMarkdown(attachment: { kind: string; filename: string; url: string }): string {
+  return attachment.kind === 'image' ? `![](${attachment.url})` : `![[${attachment.filename}]]`
+}
+
+// Browsers name every clipboard image "image.png", which makes pasted Attachments
+// indistinguishable; they get a timestamped name instead, as in Obsidian.
+const CLIPBOARD_IMAGE_NAME = /^image\.(png|jpe?g|gif|webp)$/i
+
+/** `Pasted image 2026-10-02 112530.png` for a browser's generic clipboard image name, else null. */
+export function pastedImageName(filename: string, now: Date): string | null {
+  const match = CLIPBOARD_IMAGE_NAME.exec(filename)
+  if (!match) return null
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+  return `Pasted image ${date} ${time}.${match[1].toLowerCase()}`
+}
+
+/** Dialogs a `/` command can open instead of inserting text. */
+export type EditorDialog = 'block' | 'image' | 'file'
+
 /**
  * What a command inserts. The cursor lands between `before` and `after`, or `select` (offsets into
  * `before + after`) is selected instead. A `block` command must start its own line, so it gets a
@@ -165,74 +216,79 @@ export interface SlashInsert {
 }
 
 export interface SlashCommand {
+  /** The one-word name typed after `/`, shown in the menu (e.g. `heading2`). */
   id: string
-  /** Instead of inserting text, removes the typed `/query` and asks the editor to do this. */
-  action?: 'block-dialog'
-
+  /** Instead of inserting text, removes the typed `/query` and opens this editor dialog. */
+  action?: EditorDialog
   label: string
+  /** Menu hint; defaults to `/id`. */
   detail?: string
   keywords?: string[]
   insert: SlashInsert
 }
 
 export const SLASH_COMMANDS: SlashCommand[] = [
-  { id: 'list', label: 'Bullet list', keywords: ['ul', 'bullet'], insert: { before: '- ', after: '', block: true } },
-  { id: 'numbered', label: 'Numbered list', keywords: ['ol', 'ordered'], insert: { before: '1. ', after: '', block: true } },
+  { id: 'bulletlist', label: 'Bullet list', keywords: ['ul', 'list'], insert: { before: '- ', after: '', block: true } },
+  {
+    id: 'numberedlist',
+    label: 'Numbered list',
+    keywords: ['ol', 'ordered', 'list'],
+    insert: { before: '1. ', after: '', block: true },
+  },
   {
     id: 'checklist',
     label: 'Checklist',
     keywords: ['todo', 'task', 'list'],
     insert: { before: '- [ ] ', after: '', block: true },
   },
-  { id: 'h1', label: 'Heading 1', keywords: ['heading', 'title'], insert: { before: '# ', after: '', block: true } },
-  { id: 'h2', label: 'Heading 2', keywords: ['heading'], insert: { before: '## ', after: '', block: true } },
-  { id: 'h3', label: 'Heading 3', keywords: ['heading'], insert: { before: '### ', after: '', block: true } },
+  { id: 'heading1', label: 'Heading 1', keywords: ['h1', 'title'], insert: { before: '# ', after: '', block: true } },
+  { id: 'heading2', label: 'Heading 2', keywords: ['h2'], insert: { before: '## ', after: '', block: true } },
+  { id: 'heading3', label: 'Heading 3', keywords: ['h3'], insert: { before: '### ', after: '', block: true } },
   { id: 'quote', label: 'Quote', keywords: ['blockquote'], insert: { before: '> ', after: '', block: true } },
   ...CALLOUT_TYPES.map(
     (type): SlashCommand => ({
-      id: `callout-${type}`,
+      id: `${type}callout`,
       label: `${CALLOUT_LABELS[type]} callout`,
-      keywords: ['callout', 'box', type],
+      keywords: ['callout', 'box'],
       insert: { before: `> [!${type}] `, after: '', block: true },
     }),
   ),
   {
     id: 'sidebox',
     label: 'Side box',
-    detail: 'text + box beside it',
     keywords: ['columns', 'aside', 'box', 'sidebar'],
     insert: { before: ':::columns\n', after: '\n:::side Key points\n- \n:::', block: true },
   },
   {
     id: 'block',
     label: 'Block…',
-    detail: 'build a callout or side box',
     keywords: ['insert', 'callout', 'box', 'builder'],
     insert: { before: '', after: '' },
-    action: 'block-dialog',
+    action: 'block',
+  },
+  {
+    id: 'image',
+    label: 'Image…',
+    keywords: ['picture', 'img', 'photo', 'upload'],
+    insert: { before: '', after: '' },
+    action: 'image',
+  },
+  {
+    id: 'embed',
+    label: 'Embed file…',
+    keywords: ['pdf', 'file', 'attachment', 'upload'],
+    insert: { before: '', after: '' },
+    action: 'file',
   },
   { id: 'divider', label: 'Divider', keywords: ['hr', 'rule', 'line'], insert: { before: '---\n', after: '', block: true } },
   { id: 'codeblock', label: 'Code block', keywords: ['fence'], insert: { before: '```\n', after: '\n```', block: true } },
-  { id: 'math', label: 'Math block', keywords: ['latex', 'equation'], insert: { before: '$$\n', after: '\n$$', block: true } },
-  {
-    id: 'table',
-    label: 'Table',
-    detail: '3 × 3, or type table4x2',
-    keywords: ['grid'],
-    insert: tableInsert(3, 3),
-  },
+  { id: 'mathblock', label: 'Math block', keywords: ['latex', 'equation'], insert: { before: '$$\n', after: '\n$$', block: true } },
+  { id: 'table', label: 'Table', detail: '/table · /table4x2', keywords: ['grid'], insert: tableInsert(3, 3) },
   { id: 'bold', label: 'Bold', keywords: ['strong'], insert: { before: '**', after: '**' } },
   { id: 'highlight', label: 'Highlight', keywords: ['mark'], insert: { before: '==', after: '==' } },
-  { id: 'code', label: 'Inline code', keywords: ['monospace'], insert: { before: '`', after: '`' } },
-  { id: 'wikilink', label: 'Note link', detail: '[[Title]]', keywords: ['wikilink', 'link'], insert: { before: '[[', after: ']]' } },
-  {
-    id: 'link',
-    label: 'Web link',
-    detail: '[text](url)',
-    keywords: ['url', 'href'],
-    insert: { before: '[', after: '](https://)' },
-  },
-  { id: 'image', label: 'Image', detail: '![](url)', keywords: ['picture', 'img'], insert: { before: '![', after: ']()' } },
+  { id: 'inlinecode', label: 'Inline code', keywords: ['code', 'monospace'], insert: { before: '`', after: '`' } },
+  { id: 'notelink', label: 'Note link', keywords: ['wikilink', 'link'], insert: { before: '[[', after: ']]' } },
+  { id: 'weblink', label: 'Web link', keywords: ['url', 'href', 'link'], insert: { before: '[', after: '](https://)' } },
 ]
 
 function tableInsert(cols: number, rows: number): SlashInsert {
@@ -276,10 +332,11 @@ export function filterSlashCommands(query: string): SlashCommand[] {
   return ranked.sort((a, b) => a.rank! - b.rank!).map(({ command }) => command)
 }
 
-// 0: the id or whole label starts with the query, 1: a later label word does, 2: only a keyword.
+// 0: the id or the label with its spaces dropped ("heading2") starts with the query, 1: a later
+// label word does, 2: only a keyword. Queries are one word: the menu closes on a space.
 function matchRank(command: SlashCommand, q: string): number | null {
   const label = command.label.toLowerCase()
-  if (command.id.startsWith(q) || label.startsWith(q)) return 0
+  if (command.id.startsWith(q) || label.replace(/\s+/g, '').startsWith(q)) return 0
   if (label.split(/\s+/).some((word) => word.startsWith(q))) return 1
   if (command.keywords?.some((word) => word.startsWith(q))) return 2
   return null

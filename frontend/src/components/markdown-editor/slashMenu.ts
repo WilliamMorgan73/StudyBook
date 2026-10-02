@@ -4,7 +4,7 @@ import type { EditorView } from '@codemirror/view'
 
 import { filterSlashCommands, planSlashInsert, type SlashCommand } from '@/lib/markdownBlocks'
 
-import { openBlockDialogEffect } from './editorActions'
+import { openDialogEffect } from './editorActions'
 import { isInsideCode } from './syntax'
 
 // `/query` at line start or after whitespace, so "and/or" or a URL path never opens the menu.
@@ -12,8 +12,8 @@ const SLASH_BEFORE_CURSOR = /(?:^|\s)\/\w*$/
 
 function applySlashCommand(command: SlashCommand) {
   return (view: EditorView, _completion: unknown, from: number, to: number) => {
-    if (command.action === 'block-dialog') {
-      view.dispatch({ changes: { from, to }, effects: openBlockDialogEffect.of(null), userEvent: 'input.complete' })
+    if (command.action) {
+      view.dispatch({ changes: { from, to }, effects: openDialogEffect.of(command.action), userEvent: 'input.complete' })
       return
     }
     const line = view.state.doc.lineAt(from)
@@ -35,7 +35,8 @@ function slashCompletionSource(context: CompletionContext): CompletionResult | n
 
   const options = filterSlashCommands(context.state.sliceDoc(slashFrom + 1, context.pos)).map((command) => ({
     label: command.label,
-    detail: command.detail,
+    // The one-word name to type, so it's learnable from the menu.
+    detail: command.detail ?? `/${command.id}`,
     apply: applySlashCommand(command),
   }))
   if (options.length === 0) return null

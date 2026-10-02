@@ -11,27 +11,40 @@ import CodeMirror, {
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxTree } from '@codemirror/language'
 import { EditorSelection, Prec } from '@codemirror/state'
-import { useImperativeHandle, useRef, useState, type Ref } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react'
 import { drawSelection, keymap, ViewPlugin, WidgetType, type ViewUpdate } from '@codemirror/view'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 
-import type { TableAlignment } from '@/lib/api'
+import type { Attachment, TableAlignment } from '@/lib/api'
 import { DEFAULT_KEYBINDS, type EditorKeybinds } from '@/lib/keybinds'
 import {
+  attachmentMarkdown,
   buildTableMarkdown,
+  type EditorDialog,
   findColumnsBlocks,
+  findEmbeds,
   findHighlights,
   parseCalloutHeader,
   parseTableShorthand,
+  resolveEmbed,
 } from '@/lib/markdownBlocks'
 
 import { CalloutMarkerWidget, ColumnsWidget } from './markdown-editor/blockWidgets'
-import { openBlockDialogEffect } from './markdown-editor/editorActions'
+import {
+  attachmentsFacet,
+  FileChipWidget,
+  ImageWidget,
+  MediaEmbedWidget,
+} from './markdown-editor/embedWidgets'
+import { AttachmentPickerDialog, type PickerMode } from './markdown-editor/AttachmentPickerDialog'
+import { openDialogEffect } from './markdown-editor/editorActions'
 import { InsertBlockDialog } from './markdown-editor/InsertBlockDialog'
 import { BulletWidget, CheckboxWidget, TOGGLE_TASK_EVENT } from './markdown-editor/listWidgets'
+import { fileDropHandlers, UPLOAD_EVENT } from './markdown-editor/fileDrop'
 import { slashMenu } from './markdown-editor/slashMenu'
 import { isInsideCode } from './markdown-editor/syntax'
+import { editorTheme } from './markdown-editor/theme'
 
 const HIDE = Decoration.replace({})
 
@@ -43,23 +56,6 @@ class HorizontalRuleWidget extends WidgetType {
   }
   eq() {
     return true
-  }
-}
-
-class ImageWidget extends WidgetType {
-  src: string
-  constructor(src: string) {
-    super()
-    this.src = src
-  }
-  toDOM() {
-    const img = document.createElement('img')
-    img.className = 'cm-image'
-    img.src = this.src
-    return img
-  }
-  eq(other: ImageWidget) {
-    return other.src === this.src
   }
 }
 
@@ -83,8 +79,11 @@ class TableWidget extends WidgetType {
     this.rows = rows
   }
   toDOM() {
+    const wrap = document.createElement('div')
+    wrap.className = 'cm-table-wrap' // spacing as padding, never a margin (see theme.ts)
     const table = document.createElement('table')
     table.className = 'cm-table'
+    wrap.appendChild(table)
 
     const thead = document.createElement('thead')
     const headRow = document.createElement('tr')
@@ -108,7 +107,7 @@ class TableWidget extends WidgetType {
     }
     table.appendChild(tbody)
 
-    return table
+    return wrap
   }
   eq(other: TableWidget) {
     return JSON.stringify(this.header) === JSON.stringify(other.header) && JSON.stringify(this.rows) === JSON.stringify(other.rows)
@@ -208,6 +207,7 @@ function addWikilinkDecorations(
     const matchFrom = from + match.index
     const matchTo = matchFrom + match[0].length
     if (isInsideCode(state, matchFrom)) continue
+    if (state.doc.sliceString(matchFrom - 1, matchFrom) === '!') continue // an ![[embed]]
 
     const [, rawTitle, alias] = match
     const titleFrom = matchFrom + 2
@@ -330,13 +330,16 @@ function buildDecorations(view: EditorView): DecorationSet {
         }
 
         if (name === 'Image') {
-          if (state.doc.lineAt(node.from).number !== cursorLine) {
-            const urlNode = node.node.getChild('URL')
-            const src = urlNode ? state.doc.sliceString(urlNode.from, urlNode.to) : null
-            if (src) {
-              ranges.push(Decoration.replace({ widget: new ImageWidget(src) }).range(node.from, node.to))
-            }
-          }
+          const urlNode = node.node.getChild('URL')
+          const src = urlNode ? state.doc.sliceString(urlNode.from, urlNode.to) : null
+          if (!src) return
+          // On the cursor line the source shows *and* the image stays, below it. Swapping a tall
+          // image for one line of text collapsed the page under the cursor as you arrowed onto it.
+          ranges.push(
+            state.doc.lineAt(node.from).number === cursorLine
+              ? Decoration.widget({ widget: new ImageWidget(src), side: 1 }).range(node.to)
+              : Decoration.replace({ widget: new ImageWidget(src) }).range(node.from, node.to),
+          )
           return
         }
 
@@ -582,6 +585,55 @@ const columnsDecorations = StateField.define<DecorationSet>({
   provide: (field) => EditorView.decorations.from(field),
 })
 
+const MEDIA_KINDS = new Set(['pdf', 'video', 'audio'])
+
+// `![[name]]` embeds resolve against attachmentsFacet, so this is a StateField too (it recomputes
+// on every transaction, including the reconfigure that brings new Attachments after an upload).
+// A PDF/video/audio alone on its line becomes a block player; inline, or any other kind, a link
+// chip; an image, an ImageWidget like `![](url)`.
+function buildEmbedDecorations(state: EditorState): DecorationSet {
+  const focused = state.field(focusedField, false)
+  const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
+  const attachments = state.facet(attachmentsFacet)
+  const ranges: Range<Decoration>[] = []
+
+  for (const embed of findEmbeds(state.doc.toString())) {
+    if (isInsideCode(state, embed.from)) continue
+    const line = state.doc.lineAt(embed.from)
+    // As with images: on the cursor line the source shows and an image or player stays rendered
+    // below it, so arrowing onto the line doesn't collapse the page. Chips just show the source.
+    const onCursorLine = line.number === cursorLine
+
+    const attachment = resolveEmbed(embed.name, attachments)
+    if (attachment?.kind === 'image') {
+      const widget = new ImageWidget(attachment.url)
+      ranges.push(
+        onCursorLine
+          ? Decoration.widget({ widget, side: 1 }).range(embed.to)
+          : Decoration.replace({ widget }).range(embed.from, embed.to),
+      )
+    } else if (attachment && MEDIA_KINDS.has(attachment.kind) && line.text.trim() === state.doc.sliceString(embed.from, embed.to)) {
+      const widget = new MediaEmbedWidget(attachment.kind as 'pdf' | 'video' | 'audio', attachment.url, attachment.filename)
+      ranges.push(
+        onCursorLine
+          ? Decoration.widget({ widget, block: true, side: 1 }).range(line.to)
+          : Decoration.replace({ widget, block: true }).range(line.from, line.to),
+      )
+    } else if (!onCursorLine) {
+      const widget = new FileChipWidget(embed.name, attachment?.url ?? null)
+      ranges.push(Decoration.replace({ widget }).range(embed.from, embed.to))
+    }
+  }
+
+  return Decoration.set(ranges, true)
+}
+
+const embedDecorations = StateField.define<DecorationSet>({
+  create: (state) => buildEmbedDecorations(state),
+  update: (_decorations, tr) => buildEmbedDecorations(tr.state),
+  provide: (field) => EditorView.decorations.from(field),
+})
+
 // Drives a class on the editor root from focusedField, so cursor visibility doesn't depend
 // on CodeMirror's own (unreliable here) `.cm-focused` class.
 const focusAttributes = EditorView.editorAttributes.of((view) => ({
@@ -593,248 +645,6 @@ const focusAttributes = EditorView.editorAttributes.of((view) => ({
 // extension. Per-node exclusion (code shouldn't be spellchecked) is layered on top via the
 // `InlineCode` decoration's own `attributes`, which most browsers respect as an override.
 const spellcheckAttributes = EditorView.contentAttributes.of({ spellcheck: 'true' })
-
-const editorTheme = EditorView.theme({
-  // @uiw/react-codemirror's own dimension theme sets `min-height` on `&` (.cm-editor) for the
-  // `minHeight` prop, but relies on `.cm-scroller { height: 100% }` to fill it — a percentage
-  // height can't resolve against an ancestor whose height comes only from min-height (not a
-  // definite `height`), so .cm-scroller silently collapses to content size on short documents.
-  // That mismatch (a tall .cm-editor, a short .cm-scroller) is what made the cursor-drawing
-  // layer compute a degenerate zero-size rect — invisible cursor — reproduced on any line, not
-  // just blank ones (blank lines just make an invisible cursor more noticeable, with nothing
-  // else on the line to anchor the eye). Flex with an explicit flex-basis sidesteps the
-  // percentage-height resolution issue entirely, regardless of how .cm-editor's height was set.
-  // Font size is a CSS custom property (set inline per-render via dynamicAttributes below,
-  // see the comment there) rather than baked into this rule directly, since this object is a
-  // stable module-level singleton shared by every render/instance.
-  '&': {
-    fontSize: 'var(--note-font-size, 0.9375rem)',
-    backgroundColor: 'transparent',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  // flex-basis: 0 (rather than `auto`) tells the browser this item's *hypothetical* size is 0
-  // for the purpose of sizing its auto-height flex container — so `.cm-editor` was resolving to
-  // exactly `min-height` no matter how tall the actual content was, and `.cm-scroller` (bounded
-  // to that same height, with the base theme's default `overflow: auto`) grew its own internal
-  // scrollbar instead of the page ever needing to scroll. `flex-basis: auto` makes the
-  // hypothetical size track real content height, so `.cm-editor` still gets stretched up to
-  // `min-height` by flex-grow on a short document (fixing the bug above), but grows past it on a
-  // long one instead of clipping — the page scrolls, not the editor.
-  '.cm-scroller': { flex: '1 1 auto', overflow: 'visible' },
-  '.cm-content': { padding: 0, fontFamily: 'var(--font-sans)' },
-  '.cm-line': { padding: 0 },
-  '&.cm-editor.cm-focused': { outline: 'none' },
-  '&.cm-live-focused .cm-cursor, &.cm-live-focused .cm-dropCursor': {
-    display: 'block',
-    // `drawSelection({ cursorBlinkRate: 0 })` sets `animation-duration: 0ms` on the cursor's
-    // `cm-blink` keyframe animation (steps(1), infinite) rather than removing it — whether a
-    // zero-duration infinite step animation resolves to its visible or invisible keyframe is a
-    // browser-specific edge case (`@keyframes cm-blink` toggles opacity at its 50% step), so
-    // relying on duration alone was fragile. `animation: none` removes the animation outright,
-    // guaranteeing a static, always-visible cursor regardless of that resolution.
-    animation: 'none',
-    opacity: 1,
-    borderLeftColor: 'var(--foreground)',
-    borderLeftWidth: '2px',
-  },
-  '.cm-hr': {
-    display: 'block',
-    height: 0,
-    margin: '0.6em 0',
-    borderTop: '1px solid var(--border)',
-  },
-  '.cm-image': {
-    display: 'block',
-    maxWidth: '100%',
-    borderRadius: '0.5rem',
-    margin: '0.4em 0',
-  },
-  '.cm-table': {
-    borderCollapse: 'collapse',
-    // 'auto' (centered) or '0px' (left) — see the fontSize comment above on '&'.
-    margin: '0.4em var(--note-table-margin-x, 0px)',
-    fontSize: '0.9em',
-  },
-  '.cm-table th, .cm-table td': {
-    border: '1px solid var(--border)',
-    padding: '0.3em 0.6em',
-    textAlign: 'left',
-  },
-  '.cm-table th': {
-    fontWeight: '600',
-    backgroundColor: 'var(--muted)',
-  },
-  '.cm-heading': { fontWeight: '600' },
-  '.cm-h1': { fontSize: '1.6em' },
-  '.cm-h2': { fontSize: '1.35em' },
-  '.cm-h3': { fontSize: '1.15em' },
-  '.cm-h4, .cm-h5, .cm-h6': { fontSize: '1em' },
-  '.cm-em': { fontStyle: 'italic' },
-  '.cm-strong': { fontWeight: '600' },
-  '.cm-strike': { textDecoration: 'line-through' },
-  '.cm-inline-code': {
-    fontFamily: 'ui-monospace, monospace',
-    fontSize: '0.875em',
-    backgroundColor: 'var(--muted)',
-    borderRadius: '0.25rem',
-    padding: '0.05em 0.3em',
-  },
-  '.cm-codeblock': {
-    fontFamily: 'ui-monospace, monospace',
-    fontSize: '0.875em',
-    backgroundColor: 'var(--muted)',
-    padding: '0 0.75rem',
-  },
-  '.cm-codeblock-start': {
-    borderTopLeftRadius: '0.5rem',
-    borderTopRightRadius: '0.5rem',
-    paddingTop: '0.5rem',
-    marginTop: '0.4em',
-  },
-  '.cm-codeblock-end': {
-    borderBottomLeftRadius: '0.5rem',
-    borderBottomRightRadius: '0.5rem',
-    paddingBottom: '0.5rem',
-    marginBottom: '0.4em',
-  },
-  '.cm-code-lang': {
-    color: 'var(--muted-foreground)',
-    fontSize: '0.75em',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-  },
-  '.cm-quote': {
-    borderLeft: '2px solid var(--border)',
-    paddingLeft: '0.75rem',
-    color: 'var(--muted-foreground)',
-  },
-  // Callout lines; `--callout-accent` comes from the `callout-<type>` class (index.css), shared
-  // with MarkdownView's `.callout`.
-  '.cm-callout': {
-    backgroundColor: 'color-mix(in oklab, var(--callout-accent) 10%, transparent)',
-    borderLeft: '3px solid var(--callout-accent)',
-    padding: '0 0.9rem',
-  },
-  '.cm-callout-start': {
-    borderTopRightRadius: '0.5rem',
-    borderTopLeftRadius: '0.5rem',
-    paddingTop: '0.5rem',
-    marginTop: '0.4em',
-  },
-  '.cm-callout-end': {
-    borderBottomRightRadius: '0.5rem',
-    borderBottomLeftRadius: '0.5rem',
-    paddingBottom: '0.5rem',
-    marginBottom: '0.4em',
-  },
-  '.cm-callout-title': { fontWeight: '600', color: 'var(--callout-accent)' },
-  '.cm-callout-marker': {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '0.4em',
-    marginRight: '0.4em',
-    verticalAlign: '-0.125em',
-  },
-  '.cm-callout-marker svg': { width: '1em', height: '1em' },
-  // .cm-content is `white-space: pre-wrap`, which would turn the "\n" text nodes react-markdown
-  // emits between elements into blank lines.
-  '.cm-columns': { cursor: 'text', whiteSpace: 'normal' },
-  '.cm-wikilink': {
-    textDecoration: 'underline',
-    textDecorationColor: 'var(--border)',
-    textUnderlineOffset: '2px',
-    cursor: 'pointer',
-  },
-  '.cm-link': {
-    textDecoration: 'underline',
-    textUnderlineOffset: '2px',
-    color: 'var(--primary)',
-    cursor: 'pointer',
-  },
-  '.cm-highlight': {
-    backgroundColor: 'var(--note-highlight)',
-    borderRadius: '0.2em',
-    padding: '0.05em 0',
-  },
-  '.cm-list-bullet': { color: 'var(--muted-foreground)' },
-  '.cm-list-number': { color: 'var(--muted-foreground)' },
-  // Mirrors components/ui/checkbox.tsx (size-4, rounded-[4px], border-input, checked = primary).
-  '.cm-task-checkbox': {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '1rem',
-    height: '1rem',
-    marginRight: '0.5em',
-    verticalAlign: '-0.15em',
-    border: '1px solid var(--input)',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    transition: 'background-color 150ms, border-color 150ms',
-  },
-  '.cm-task-checkbox[aria-checked="true"]': {
-    backgroundColor: 'var(--primary)',
-    borderColor: 'var(--primary)',
-    color: 'var(--primary-foreground)',
-  },
-  '.cm-task-checkbox svg': {
-    width: '0.875rem',
-    height: '0.875rem',
-    fill: 'none',
-    stroke: 'currentColor',
-    strokeWidth: '2',
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-  },
-  '.cm-task-done': {
-    color: 'var(--muted-foreground)',
-    textDecoration: 'line-through',
-  },
-  // The `/` menu, styled like the app's Radix popovers rather than CodeMirror's defaults.
-  '.cm-tooltip.cm-tooltip-autocomplete': {
-    backgroundColor: 'var(--popover)',
-    color: 'var(--popover-foreground)',
-    border: '1px solid var(--border)',
-    borderRadius: '0.5rem',
-    boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)',
-    padding: '0.25rem',
-    fontFamily: 'var(--font-sans)',
-  },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
-    maxHeight: '18rem',
-    minWidth: '14rem',
-    fontFamily: 'inherit',
-  },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
-    display: 'flex',
-    alignItems: 'baseline',
-    padding: '0.3rem 0.5rem',
-    borderRadius: '0.375rem',
-    fontSize: '0.875rem',
-  },
-  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
-    backgroundColor: 'var(--accent)',
-    color: 'var(--accent-foreground)',
-  },
-  '.cm-completionDetail': {
-    marginLeft: 'auto',
-    paddingLeft: '1rem',
-    fontStyle: 'normal',
-    fontSize: '0.75rem',
-    color: 'var(--muted-foreground)',
-  },
-  // KaTeX's own CSS leaves color unset on the base glyphs, so they inherit this — no extra
-  // dark-mode handling needed.
-  '.cm-math-inline': { padding: '0 0.15em' },
-  '.cm-math-block': {
-    display: 'flex',
-    justifyContent: 'center',
-    margin: '0.6em 0',
-    overflowX: 'auto',
-  },
-  '.cm-placeholder': { color: 'var(--muted-foreground)' },
-})
 
 // Font size and table alignment come from AppSettings, so they vary per render — but
 // EditorView.theme() mounts a real, permanent CSS rule into the document the first time each
@@ -971,7 +781,7 @@ const slashCommandKeymap = Prec.highest(
 
 const INSERT_BLOCK_EVENT = 'input.block'
 // Edits that aren't typing and may happen while unfocused, so they're saved straight away.
-const COMMIT_USER_EVENTS = [TOGGLE_TASK_EVENT, INSERT_BLOCK_EVENT]
+const COMMIT_USER_EVENTS = [TOGGLE_TASK_EVENT, INSERT_BLOCK_EVENT, UPLOAD_EVENT]
 
 // Only schemes that are safe to hand to window.open; `javascript:` and friends are ignored.
 const OPENABLE_HREF = /^(https?:|mailto:)/i
@@ -1005,6 +815,8 @@ export interface MarkdownEditorHandle {
   openBlockDialog: () => void
 }
 
+const NO_ATTACHMENTS: readonly Attachment[] = []
+
 export function MarkdownEditor({
   value,
   onChange,
@@ -1019,6 +831,8 @@ export function MarkdownEditor({
   tableAlign = 'left',
   keybinds = DEFAULT_KEYBINDS,
   onCommit,
+  attachments = NO_ATTACHMENTS,
+  onUploadFile,
   ref,
 }: {
   value: string
@@ -1037,27 +851,45 @@ export function MarkdownEditor({
   /** From AppSettings.keybind_*. */
   keybinds?: EditorKeybinds
   /**
-   * Called right after an edit that isn't typing (a checklist tick, an inserted block), so it can
-   * be saved now. Those can happen while the editor is unfocused, so no blur would follow.
+   * Called right after an edit that isn't typing (a checklist tick, an inserted block, a finished
+   * upload), so it can be saved now. Those can happen while the editor is unfocused, so no blur
+   * would follow.
    */
   onCommit?: () => void
+  /** The note's Attachments: what `![[name]]` embeds resolve against and the pickers list. */
+  attachments?: readonly Attachment[]
+  /**
+   * Uploads a file as one of the note's Attachments, resolving once `attachments` includes it.
+   * Without it, paste/drop of files falls through to CodeMirror and the pickers can't upload.
+   */
+  onUploadFile?: (file: File) => Promise<Attachment>
   ref?: Ref<MarkdownEditorHandle>
 }) {
   const viewRef = useRef<EditorView | null>(null)
-  const [blockDialogOpen, setBlockDialogOpen] = useState(false)
-  // Where the dialog's block goes: the cursor when it opened. Until the note is first focused the
+  const [dialog, setDialog] = useState<EditorDialog | null>(null)
+  // Kept while the picker animates closed, so its title doesn't flip mid-fade.
+  const [pickerMode, setPickerMode] = useState<PickerMode>('image')
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  // Where a dialog's block goes: the cursor when it opened. Until the note is first focused the
   // selection is just offset 0, so the block goes at the end instead of above everything.
   const blockInsertPos = useRef(0)
   const everFocused = useRef(false)
 
-  function openBlockDialog() {
+  function openDialog(kind: EditorDialog) {
     const view = viewRef.current
     if (!view) return
     blockInsertPos.current = everFocused.current ? view.state.selection.main.head : view.state.doc.length
-    setBlockDialogOpen(true)
+    if (kind !== 'block') setPickerMode(kind)
+    setDialog(kind)
   }
 
-  useImperativeHandle(ref, () => ({ openBlockDialog }))
+  useImperativeHandle(ref, () => ({ openBlockDialog: () => openDialog('block') }))
+
+  useEffect(() => {
+    if (!uploadError) return
+    const timeout = setTimeout(() => setUploadError(null), 6000)
+    return () => clearTimeout(timeout)
+  }, [uploadError])
 
   // A block always gets its own lines with a blank line above: in place on a blank line, else
   // after the cursor's line. The trailing newline leaves the cursor on a fresh line below it, so
@@ -1079,6 +911,18 @@ export function MarkdownEditor({
       userEvent: INSERT_BLOCK_EVENT,
     })
   }
+
+  async function upload(file: File) {
+    if (!onUploadFile) throw new Error('Uploading isn\'t available here.')
+    return onUploadFile(file)
+  }
+
+  const closeDialog = (open: boolean) => {
+    if (!open) setDialog(null)
+  }
+  // Back to the note to keep typing (inserts themselves are saved through onCommit).
+  const refocusEditor = () => viewRef.current?.focus()
+
   // Clicking (especially on an empty line) can fire several synchronous focus/blur events
   // in a row before settling. Debounce so only the final state reaches the view — dispatching
   // on every intermediate event was itself feeding the thrashing (each dispatch recomputes
@@ -1103,8 +947,8 @@ export function MarkdownEditor({
           viewRef.current = view
         }}
         onUpdate={(update) => {
-          if (update.transactions.some((tr) => tr.effects.some((effect) => effect.is(openBlockDialogEffect)))) {
-            openBlockDialog()
+          for (const tr of update.transactions) {
+            for (const effect of tr.effects) if (effect.is(openDialogEffect)) openDialog(effect.value)
           }
           if (update.transactions.some((tr) => COMMIT_USER_EVENTS.some((event) => tr.isUserEvent(event)))) {
             onCommit?.()
@@ -1136,6 +980,8 @@ export function MarkdownEditor({
           buildFormattingKeymap(keybinds),
           slashCommandKeymap,
           slashMenu,
+          attachmentsFacet.of(attachments),
+          fileDropHandlers(() => (onUploadFile ? { upload: onUploadFile, onError: setUploadError } : null)),
           // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
           // "gone" far more often there than on a line with text next to it — just keep it solid.
           drawSelection({ cursorBlinkRate: 0 }),
@@ -1147,6 +993,7 @@ export function MarkdownEditor({
                 tableDecorations,
                 mathBlockDecorations,
                 columnsDecorations,
+                embedDecorations,
                 focusAttributes,
                 EditorView.domEventHandlers({ click: linkClickHandler(onNavigateWikilink) }),
               ]),
@@ -1154,12 +1001,30 @@ export function MarkdownEditor({
         className={className}
       />
       <InsertBlockDialog
-        open={blockDialogOpen}
-        onOpenChange={setBlockDialogOpen}
+        open={dialog === 'block'}
+        onOpenChange={closeDialog}
         onInsert={insertBlock}
-        // Back to the note to keep typing (the insert itself is saved through onCommit).
-        onClosed={() => viewRef.current?.focus()}
+        onClosed={refocusEditor}
+        attachments={attachments}
+        upload={onUploadFile ? upload : undefined}
       />
+      <AttachmentPickerDialog
+        mode={pickerMode}
+        open={dialog === 'image' || dialog === 'file'}
+        onOpenChange={closeDialog}
+        attachments={attachments}
+        upload={upload}
+        onPick={(attachment) => insertBlock(attachmentMarkdown(attachment))}
+        onClosed={refocusEditor}
+      />
+      {uploadError && (
+        <div
+          role="alert"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border bg-popover px-4 py-2 text-sm text-destructive shadow-lg"
+        >
+          {uploadError}
+        </div>
+      )}
     </>
   )
 }
