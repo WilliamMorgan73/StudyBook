@@ -19,6 +19,9 @@ _EXTENSION_KIND = {
     ".png": AttachmentKind.image,
     ".jpg": AttachmentKind.image,
     ".jpeg": AttachmentKind.image,
+    ".gif": AttachmentKind.image,
+    ".webp": AttachmentKind.image,
+    # .svg stays `other`: served from our own origin, an uploaded SVG could run script.
 }
 
 

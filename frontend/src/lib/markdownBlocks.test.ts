@@ -1,16 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  attachmentMarkdown,
   buildCalloutMarkdown,
   buildColumnsMarkdown,
   buildTableMarkdown,
   EMPTY_CELL,
   filterSlashCommands,
   findColumnsBlocks,
+  findEmbeds,
   findHighlights,
   parseCalloutHeader,
   parseTableShorthand,
+  pastedImageName,
   planSlashInsert,
+  resolveEmbed,
   SLASH_COMMANDS,
 } from '@/lib/markdownBlocks'
 
@@ -38,15 +42,26 @@ describe('filterSlashCommands', () => {
     const ids = (q: string) => filterSlashCommands(q).map((c) => c.id)
     expect(ids('check')).toEqual(['checklist'])
     expect(ids('todo')).toEqual(['checklist'])
-    expect(ids('list')).toEqual(['list', 'numbered', 'checklist'])
-    expect(ids('HEAD')).toEqual(['h1', 'h2', 'h3'])
+    expect(ids('list')).toEqual(['bulletlist', 'numberedlist', 'checklist'])
+    expect(ids('HEAD')).toEqual(['heading1', 'heading2', 'heading3'])
     expect(ids('zzz')).toEqual([])
   })
 
   it('ranks id and label matches above keyword-only ones', () => {
     const ids = (q: string) => filterSlashCommands(q).map((c) => c.id)
-    expect(ids('block')).toEqual(['block', 'codeblock', 'math', 'quote'])
-    expect(ids('callout')[0]).toBe('callout-note')
+    expect(ids('block')).toEqual(['block', 'codeblock', 'mathblock', 'quote'])
+    expect(ids('callout')[0]).toBe('notecallout')
+  })
+
+  it('takes every command as one typeable word', () => {
+    const top = (q: string) => filterSlashCommands(q)[0]?.id
+    expect(top('heading2')).toBe('heading2')
+    expect(top('bulletlist')).toBe('bulletlist')
+    expect(top('tipcallout')).toBe('tipcallout')
+    expect(top('sidebox')).toBe('sidebox')
+    expect(top('embedfile')).toBe('embed')
+    expect(top('h2')).toBe('heading2')
+    for (const command of SLASH_COMMANDS) expect(command.id).toMatch(/^\w+$/)
   })
 
   it('turns a sized table shorthand into a single sized option', () => {
@@ -172,5 +187,57 @@ describe('findColumnsBlocks', () => {
   it('finds adjacent blocks and skips an unclosed one before them', () => {
     const text = `:::columns\nunclosed\n${block}\n${block}`
     expect(findColumnsBlocks(text).map((b) => b.main)).toEqual(['Main text', 'Main text'])
+  })
+})
+
+describe('findEmbeds', () => {
+  it('finds ![[name]] embeds, ignoring a |size suffix', () => {
+    expect(findEmbeds('see ![[Lecture 1.pdf]] and ![[fig.png|300]]')).toEqual([
+      { from: 4, to: 22, name: 'Lecture 1.pdf' },
+      { from: 27, to: 43, name: 'fig.png' },
+    ])
+  })
+
+  it('leaves plain wikilinks and unclosed embeds alone', () => {
+    expect(findEmbeds('[[Note]] and ![[open')).toEqual([])
+    expect(findEmbeds('![[split\nname]]')).toEqual([])
+  })
+})
+
+describe('resolveEmbed', () => {
+  const attachments = [
+    { id: 1, filename: 'Notes.PDF' },
+    { id: 2, filename: 'notes.pdf' },
+  ]
+
+  it('prefers an exact filename, then falls back to case-insensitive', () => {
+    expect(resolveEmbed('notes.pdf', attachments)?.id).toBe(2)
+    expect(resolveEmbed('NOTES.pdf', attachments)?.id).toBe(1)
+    expect(resolveEmbed('missing.pdf', attachments)).toBeNull()
+  })
+})
+
+describe('attachmentMarkdown', () => {
+  it('links images by URL and embeds everything else by name', () => {
+    expect(attachmentMarkdown({ kind: 'image', filename: 'image.png', url: '/uploads/s/1/a.png' })).toBe(
+      '![](/uploads/s/1/a.png)',
+    )
+    expect(attachmentMarkdown({ kind: 'pdf', filename: 'Week 2.pdf', url: '/uploads/s/1/b.pdf' })).toBe(
+      '![[Week 2.pdf]]',
+    )
+  })
+})
+
+describe('pastedImageName', () => {
+  const now = new Date(2026, 9, 2, 9, 5, 7)
+
+  it("renames a browser's generic clipboard image", () => {
+    expect(pastedImageName('image.png', now)).toBe('Pasted image 2026-10-02 090507.png')
+    expect(pastedImageName('IMAGE.JPEG', now)).toBe('Pasted image 2026-10-02 090507.jpeg')
+  })
+
+  it('keeps real filenames', () => {
+    expect(pastedImageName('cell-diagram.png', now)).toBeNull()
+    expect(pastedImageName('image.pdf', now)).toBeNull()
   })
 })

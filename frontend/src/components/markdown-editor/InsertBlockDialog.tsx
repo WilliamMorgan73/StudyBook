@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import { ColumnsBlockView } from '@/components/ColumnsBlockView'
 import { MarkdownView } from '@/components/MarkdownView'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import type { Attachment } from '@/lib/api'
 import {
   buildCalloutMarkdown,
   buildColumnsMarkdown,
@@ -18,6 +19,9 @@ import {
 
 type BlockKind = 'callout' | 'sidebox'
 
+// Radix Select can't use '' as an item value.
+const NO_IMAGE = 'none'
+
 /**
  * Builds a callout or side box as markdown, with a live preview. `onInsert` gets the markdown;
  * `onClosed` runs as the dialog closes (inserted or not), in place of Radix's focus restore.
@@ -27,11 +31,17 @@ export function InsertBlockDialog({
   onOpenChange,
   onInsert,
   onClosed,
+  attachments,
+  upload,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   onInsert: (markdown: string) => void
   onClosed: () => void
+  /** Image Attachments are offered for the side box. */
+  attachments: readonly Attachment[]
+  /** Uploads a new side-box image; without it only existing images can be chosen. */
+  upload?: (file: File) => Promise<Attachment>
 }) {
   const [kind, setKind] = useState<BlockKind>('callout')
   const [calloutType, setCalloutType] = useState<CalloutType>('note')
@@ -39,16 +49,39 @@ export function InsertBlockDialog({
   const [body, setBody] = useState('')
   const [main, setMain] = useState('')
   const [side, setSide] = useState('')
+  const [sideImage, setSideImage] = useState(NO_IMAGE)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const imageInput = useRef<HTMLInputElement>(null)
+  const images = attachments.filter((a) => a.kind === 'image')
+  // The image leads the box, under its title.
+  const sideMarkdown = sideImage === NO_IMAGE ? side : `![](${sideImage})\n\n${side}`
+
+  async function handleImageUpload(file: File) {
+    if (!upload) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      setSideImage((await upload(file)).url)
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Could not upload the image.')
+    } finally {
+      setUploading(false)
+      if (imageInput.current) imageInput.current.value = ''
+    }
+  }
 
   function reset() {
     setTitle('')
     setBody('')
     setMain('')
     setSide('')
+    setSideImage(NO_IMAGE)
+    setUploadError(null)
   }
 
   function handleInsert() {
-    onInsert(kind === 'callout' ? buildCalloutMarkdown(calloutType, title, body) : buildColumnsMarkdown(main, title, side))
+    onInsert(kind === 'callout' ? buildCalloutMarkdown(calloutType, title, body) : buildColumnsMarkdown(main, title, sideMarkdown))
     reset()
     onOpenChange(false)
   }
@@ -133,6 +166,49 @@ export function InsertBlockDialog({
                 placeholder="Markdown works here: **bold**, - lists, ![image](url), $math$"
               />
             </div>
+
+            {kind === 'sidebox' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="block-image">Box image</Label>
+                <div className="flex gap-2">
+                  <Select value={sideImage} onValueChange={setSideImage}>
+                    <SelectTrigger id="block-image" className="min-w-0 flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_IMAGE}>None</SelectItem>
+                      {images.map((image) => (
+                        <SelectItem key={image.id} value={image.url}>
+                          {image.filename}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {upload && (
+                    <>
+                      <input
+                        ref={imageInput}
+                        type="file"
+                        accept="image/png,image/jpeg,image/gif,image/webp"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) void handleImageUpload(file)
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => imageInput.current?.click()}
+                        disabled={uploading}
+                      >
+                        {uploading ? 'Uploading…' : 'Upload…'}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {uploadError && <p className="text-sm text-destructive">{uploadError}</p>}
+              </div>
+            )}
           </div>
 
           <div className="min-w-0 space-y-1.5">
@@ -141,7 +217,7 @@ export function InsertBlockDialog({
               {kind === 'callout' ? (
                 <MarkdownView>{buildCalloutMarkdown(calloutType, title, body)}</MarkdownView>
               ) : (
-                <ColumnsBlockView main={main} sideTitle={title.trim()} side={side} />
+                <ColumnsBlockView main={main} sideTitle={title.trim()} side={sideMarkdown} />
               )}
             </div>
           </div>

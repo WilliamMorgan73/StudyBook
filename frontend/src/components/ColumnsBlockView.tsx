@@ -6,7 +6,7 @@ import { MarkdownView } from '@/components/MarkdownView'
  */
 export function ColumnsBlockView({ main, sideTitle, side }: { main: string; sideTitle: string; side: string }) {
   return (
-    <div className="@container my-3">
+    <div className="@container py-3">
       <div className="grid gap-4 @md:grid-cols-[2fr_1fr] @md:items-start">
         <MarkdownView className="text-[length:inherit] [&>:first-child]:mt-0">{main}</MarkdownView>
         <aside className="note-side-box">

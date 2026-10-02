@@ -159,6 +159,14 @@ export function SubmodulePage() {
     )
   }
 
+  // Resolves once the refetched Submodule lists the new Attachment, so an embed of it renders
+  // straight away instead of as "missing".
+  async function uploadToNote(file: File) {
+    const attachment = await uploadSubmoduleAttachment(id, file)
+    await refetchSubmodule()
+    return attachment
+  }
+
   async function saveContent() {
     const latest = contentRef.current
     if (latest !== submodule!.content_markdown) {
@@ -286,6 +294,8 @@ export function SubmodulePage() {
           onChange={updateContent}
           onBlur={saveContent}
           onCommit={saveContent}
+          attachments={submodule.attachments}
+          onUploadFile={uploadToNote}
           sourceMode={sourceMode}
           placeholder="Start writing…"
           minHeight="70vh"
