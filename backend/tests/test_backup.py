@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers every table (the name `app` is rebound below)
 from app.core.config import settings
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
 from app.models import (
     AppSettings,
@@ -67,9 +67,7 @@ def upload_dir(tmp_path, monkeypatch) -> Path:
 
 @pytest.fixture
 def db(monkeypatch, upload_dir) -> Iterator[Session]:
-    # `updated_at`'s onupdate is the Postgres string "now()", which SQLite's DateTime rejects.
-    monkeypatch.setattr(Submodule.__table__.c.updated_at, "onupdate", None)
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine, autoflush=False)()
     try:

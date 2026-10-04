@@ -1,27 +1,27 @@
 """Quick to-dos, General and module-scoped, against a throwaway in-memory SQLite database (never
-the dev Postgres)."""
+the dev database)."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, event
+from sqlalchemy import event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
-from app.core.database import get_db
+from app.core.database import create_sqlite_engine, get_db
 from app.main import app
 from app.models.module import Module
 from app.models.quick_todo import QuickTodo
 
-NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)  # the models' server_default "now()" is Postgres-only
+NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)
 
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     # SQLite only enforces foreign keys (and so ON DELETE CASCADE) when asked.
     event.listen(engine, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON"))
     Module.__table__.create(engine)

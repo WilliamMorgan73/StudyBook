@@ -6,3 +6,5 @@ uploads/
 backups/
 .pytest_cache/
 .ruff_cache/
+studybook.db
+studybook.db-*

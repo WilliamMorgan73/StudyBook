@@ -8,13 +8,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
 from app.core.config import settings
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
 from app.models.assignment import Assignment
 from app.models.attachment import Attachment
@@ -33,12 +32,8 @@ def upload_dir(tmp_path, monkeypatch) -> Path:
 
 @pytest.fixture
 def db(monkeypatch, upload_dir) -> Iterator[Session]:
-    # `updated_at`'s onupdate is the Postgres string "now()", which SQLite's DateTime rejects.
-    monkeypatch.setattr(Submodule.__table__.c.updated_at, "onupdate", None)
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    for table in Base.metadata.sorted_tables:
-        if table.name != "personal_events":  # Postgres int array; not involved here
-            table.create(engine)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     session.add(Module(id=1, name="Biology", created_at=NOW))
     session.add(Module(id=2, name="Chemistry", created_at=NOW))

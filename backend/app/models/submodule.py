@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -19,8 +19,8 @@ class Submodule(Base):
     # is of the source material it was generated from; comparing it on read gives the stale flag.
     summary_markdown: Mapped[str | None] = mapped_column(Text)
     summary_source_hash: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
-    updated_at: Mapped[datetime] = mapped_column(server_default="now()", onupdate="now()")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
 
     module: Mapped["Module"] = relationship(back_populates="submodules")  # noqa: F821
     attachments: Mapped[list["Attachment"]] = relationship(back_populates="submodule", cascade="all, delete-orphan")  # noqa: F821

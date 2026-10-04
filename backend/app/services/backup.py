@@ -26,7 +26,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from alembic.script import ScriptDirectory
-from sqlalchemy import Date, DateTime, Integer, Numeric, Table, Time, select, text
+from sqlalchemy import Date, DateTime, Numeric, Table, Time, inspect, select
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Session
 
@@ -127,16 +127,26 @@ def _decode_row(table: Table, row: Any, *, drop_unknown: bool) -> dict[str, Any]
 # --- writing ---------------------------------------------------------------------------------------------
 
 
-def write_backup(db: Session, out_path: Path, *, upload_dir: Path) -> dict[str, Any]:
-    """Write a backup of the whole database and upload folder to `out_path`; returns the manifest."""
+def write_backup(db: Session, out_path: Path, *, upload_dir: Path, revision: str | None = None) -> dict[str, Any]:
+    """Write a backup of the whole database and upload folder to `out_path`; returns the manifest.
+
+    `revision` is the schema the database is actually at, when that isn't the code's head (the
+    automatic backup taken just before an upgrade): only the tables and columns that exist are read,
+    and a restore fills in the rest as it would for any older backup.
+    """
     upload_root = upload_dir.resolve()
+    inspector = inspect(db.connection())
     counts: dict[str, int] = {}
     with zipfile.ZipFile(out_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         for table in _tables():
+            if not inspector.has_table(table.name):
+                continue
+            existing = {column["name"] for column in inspector.get_columns(table.name)}
             secrets = SECRET_COLUMNS.get(table.name, ())
+            columns = [column for column in table.columns if column.name in existing and column.name not in secrets]
             rows = []
-            for row in db.execute(select(table)).mappings():
-                encoded = {key: _encode(value) for key, value in row.items() if key not in secrets}
+            for row in db.execute(select(*columns)).mappings():
+                encoded = {key: _encode(value) for key, value in row.items()}
                 if table.name == "attachments":
                     encoded["file_path"] = _relative_upload_path(encoded["file_path"], upload_root)
                 rows.append(encoded)
@@ -151,7 +161,7 @@ def write_backup(db: Session, out_path: Path, *, upload_dir: Path) -> dict[str, 
         manifest = {
             "format": FORMAT,
             "format_version": FORMAT_VERSION,
-            "alembic_revision": current_revision(),
+            "alembic_revision": revision or current_revision(),
             "created_at": datetime.now(UTC).isoformat(),
             "counts": counts,
         }
@@ -299,9 +309,6 @@ def _replace_rows(db: Session, backup: ParsedBackup, upload_dir: Path) -> None:
         else:
             db.execute(settings_table.insert().values(id=1, **kept_secrets))
 
-    if db.get_bind().dialect.name == "postgresql":
-        _reset_sequences(db, tables)
-
 
 def _current_secrets(db: Session) -> dict[str, Any]:
     table = Base.metadata.tables["app_settings"]
@@ -309,16 +316,3 @@ def _current_secrets(db: Session) -> dict[str, Any]:
     row = db.execute(select(*(table.c[name] for name in columns)).limit(1)).first()
     return dict(zip(columns, row, strict=True)) if row else {name: None for name in columns}
 
-
-def _reset_sequences(db: Session, tables: list[Table]) -> None:
-    """Point each serial id sequence past the restored rows, so new rows don't collide with them."""
-    for table in tables:
-        pk = list(table.primary_key.columns)
-        if len(pk) != 1 or not isinstance(pk[0].type, Integer):
-            continue
-        db.execute(
-            text(
-                f"SELECT setval(pg_get_serial_sequence('{table.name}', '{pk[0].name}'), "
-                f"COALESCE((SELECT MAX({pk[0].name}) FROM {table.name}), 0) + 1, false)"
-            )
-        )

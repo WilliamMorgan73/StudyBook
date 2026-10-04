@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -24,9 +26,19 @@ from app.api.routes import (
     submodules,
 )
 from app.core.config import settings
+from app.core.database import engine
+from app.core.migrate import ensure_schema
 from app.services.ai import AIError
 
-app = FastAPI(title="StudyBook API")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    # Only when the server starts (tests' plain `TestClient(app)` skips it and uses its own database).
+    ensure_schema(engine)
+    yield
+
+
+app = FastAPI(title="StudyBook API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

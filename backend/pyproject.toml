@@ -14,7 +14,6 @@ dependencies = [
     "httpx>=0.28.1",
     "icalendar>=7.3.0",
     "markitdown[pdf,pptx]>=0.1.8",
-    "psycopg[binary]>=3.3.5",
     "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.32",
     "recurring-ical-events>=3.8.2",

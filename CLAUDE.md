@@ -4,21 +4,19 @@ StudyBook is a single-user, no-auth study app: Obsidian-style markdown notes, No
 
 - **Frontend** (`frontend/`): React + TypeScript, Vite, Tailwind v4 + shadcn/ui (Nova preset, Radix), React Router. `pnpm`.
 - **Backend** (`backend/`): FastAPI, SQLAlchemy 2.0, Alembic. `uv`.
-- **Database**: Postgres via `docker-compose.yml` (db/user/password all `studybook`, `localhost:5432`).
+- **Database**: SQLite, a file in the data folder (`settings.data_dir`, `backend/` in dev: `backend/studybook.db`, `uploads/`, `backups/`). The app creates or upgrades the schema itself at startup (`app/core/migrate.py`).
 - **AI**: Anthropic (`anthropic` SDK) or Google Gemini (`google-genai` SDK), chosen by the selected model. Settings + the `app/services/ai.py` seam exist; features land per `docs/ai-integration-plan.md` (design and phase order).
 
 ## Commands
 
 ```bash
-docker compose up -d                          # repo root: Postgres
-
 # backend/
 uv sync
 uv run uvicorn app.main:app --reload          # :8000, docs at /docs
 uv run pytest [tests/test_file.py::test_name]
 uv run ruff check .
-uv run alembic revision --autogenerate -m "message"
-uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "message"   # needs the dev DB at head: start the app once first
+uv run alembic upgrade head                   # the app also does this at startup
 
 # frontend/
 pnpm install

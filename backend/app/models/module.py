@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import JSON, ForeignKey, String, Text
+from sqlalchemy import JSON, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -15,7 +15,7 @@ class Module(Base):
     color: Mapped[str] = mapped_column(String(20), default="#6366f1")
     term: Mapped[str | None] = mapped_column(String(50))
     credits: Mapped[int | None]
-    created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     # The module page's widget layout; null means the frontend default.
     dashboard_layout: Mapped[list | None] = mapped_column(JSON)
     # The module page's notepad.

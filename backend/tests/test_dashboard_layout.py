@@ -1,16 +1,15 @@
 """Overview dashboard layout on the settings endpoint, against a throwaway in-memory SQLite
-database holding only the app_settings table (never the dev Postgres)."""
+database holding only the app_settings table (never the dev database)."""
 
 from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
-from app.core.database import get_db
+from app.core.database import create_sqlite_engine, get_db
 from app.main import app
 from app.models.app_settings import AppSettings
 from app.models.module import Module
@@ -23,7 +22,7 @@ LAYOUT = [
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     AppSettings.__table__.create(engine)
     Module.__table__.create(engine)  # read by the first-run check when the settings row is created
     session = sessionmaker(bind=engine)()
