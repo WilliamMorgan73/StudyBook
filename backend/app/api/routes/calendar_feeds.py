@@ -13,6 +13,7 @@ from app.crud.calendar_feeds import (
     refresh_feed,
     refresh_stale_feeds,
     resync_feed,
+    suggested_module_id,
 )
 from app.models.calendar_feed import CalendarFeed, CalendarFeedLink
 from app.models.module import Module
@@ -21,7 +22,9 @@ from app.schemas.calendar_feed import (
     CalendarFeedRead,
     CalendarFeedsRefreshed,
     CalendarFeedUpdate,
+    CalendarSeriesRead,
     FeedLinkItem,
+    FeedLinkUpdate,
     FeedSeriesRead,
 )
 
@@ -161,38 +164,83 @@ async def replace_calendar_feed_file(feed_id: int, file: UploadFile, db: Session
     return _read(db, feed)
 
 
-@router.get("/{feed_id}/series", response_model=list[FeedSeriesRead])
-def list_feed_series(feed_id: int, db: Session = Depends(get_db)) -> list[FeedSeriesRead]:
-    """The feed's timed event series (grouped by title), each with the Module it's linked to, if any."""
-    feed = _get_or_404(db, feed_id)
-    module_by_title = {link.title: link.module_id for link in feed.links}
-    return [
-        FeedSeriesRead(
-            title=s.title,
-            count=s.count,
-            first_starts_at=s.first_starts_at,
-            location=s.location,
-            module_id=module_by_title.get(s.title),
-        )
-        for s in feed_series(feed)
-    ]
-
-
-@router.put("/{feed_id}/links", response_model=CalendarFeedRead)
-def set_feed_links(feed_id: int, payload: list[FeedLinkItem], db: Session = Depends(get_db)) -> CalendarFeedRead:
-    """Replaces the feed's series → Module links and re-applies its stored calendar: linked series
-    become Lectures, unlinked ones go back to busy time. Titles not listed are unlinked."""
-    feed = _get_or_404(db, feed_id)
-    module_ids = {item.module_id for item in payload if item.module_id is not None}
+def _check_modules(db: Session, module_ids: set[int]) -> None:
     found = set(db.scalars(select(Module.id).where(Module.id.in_(module_ids))).all())
     if module_ids - found:
         raise HTTPException(422, "Unknown module")
-    links = {item.title: item.module_id for item in payload if item.module_id is not None}
+
+
+def _apply_links(db: Session, feed: CalendarFeed, links: dict[str, int]) -> None:
+    """Makes `links` (title → Module id) the feed's whole set and re-applies its stored calendar:
+    linked series become Lectures, unlinked ones go back to busy time. The caller commits."""
     # Delete the old rows before inserting: the unit of work inserts first, which would trip the
     # (feed_id, title) unique constraint for a title that stays linked.
     feed.links = []
     db.flush()
     feed.links = [CalendarFeedLink(title=title, module_id=module_id) for title, module_id in links.items()]
     resync_feed(feed)
+
+
+def series_reads(feed: CalendarFeed, modules: list[Module]) -> list[FeedSeriesRead]:
+    """The feed's timed event series (grouped by title), each with the Module it's linked to, or
+    else the one its title suggests (`suggested_module_id`)."""
+    module_by_title = {link.title: link.module_id for link in feed.links}
+    reads = []
+    for s in feed_series(feed):
+        linked = module_by_title.get(s.title)
+        reads.append(
+            FeedSeriesRead(
+                title=s.title,
+                count=s.count,
+                first_starts_at=s.first_starts_at,
+                location=s.location,
+                module_id=linked,
+                suggested_module_id=None if linked is not None else suggested_module_id(s.title, modules),
+            )
+        )
+    return reads
+
+
+@router.get("/series", response_model=list[CalendarSeriesRead])
+def list_all_series(db: Session = Depends(get_db)) -> list[CalendarSeriesRead]:
+    """Every feed's series (feeds by name), each with its feed: what a Module's Lectures tab picks from."""
+    modules = list(db.scalars(select(Module)).all())
+    feeds = db.scalars(select(CalendarFeed).order_by(CalendarFeed.name)).all()
+    return [
+        CalendarSeriesRead(**read.model_dump(), feed_id=feed.id, feed_name=feed.name)
+        for feed in feeds
+        for read in series_reads(feed, modules)
+    ]
+
+
+@router.get("/{feed_id}/series", response_model=list[FeedSeriesRead])
+def list_feed_series(feed_id: int, db: Session = Depends(get_db)) -> list[FeedSeriesRead]:
+    feed = _get_or_404(db, feed_id)
+    return series_reads(feed, list(db.scalars(select(Module)).all()))
+
+
+@router.put("/{feed_id}/links", response_model=CalendarFeedRead)
+def set_feed_links(feed_id: int, payload: list[FeedLinkItem], db: Session = Depends(get_db)) -> CalendarFeedRead:
+    """Replaces the feed's series → Module links. Titles not listed are unlinked."""
+    feed = _get_or_404(db, feed_id)
+    _check_modules(db, {item.module_id for item in payload if item.module_id is not None})
+    _apply_links(db, feed, {item.title: item.module_id for item in payload if item.module_id is not None})
+    db.commit()
+    return _read(db, feed)
+
+
+@router.post("/{feed_id}/link", response_model=CalendarFeedRead)
+def link_feed_series(feed_id: int, payload: FeedLinkUpdate, db: Session = Depends(get_db)) -> CalendarFeedRead:
+    """Links one series to a Module (or unlinks it), keeping the feed's other links."""
+    feed = _get_or_404(db, feed_id)
+    if payload.title not in {s.title for s in feed_series(feed)}:
+        raise HTTPException(422, "That event series isn't in this calendar")
+    links = {link.title: link.module_id for link in feed.links}
+    if payload.module_id is None:
+        links.pop(payload.title, None)
+    else:
+        _check_modules(db, {payload.module_id})
+        links[payload.title] = payload.module_id
+    _apply_links(db, feed, links)
     db.commit()
     return _read(db, feed)

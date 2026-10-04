@@ -62,9 +62,22 @@ class FeedSeriesRead(BaseModel):
     location: str | None
     module_id: int | None
     """The Module this series is linked to (its events are that Module's Lectures), or None (busy time)."""
+    suggested_module_id: int | None = None
+    """For an unlinked series, the Module whose course code starts its title, if any."""
+
+
+class CalendarSeriesRead(FeedSeriesRead):
+    """A series from any feed, for picking a Module's series without going feed by feed."""
+
+    feed_id: int
+    feed_name: str
 
 
 class FeedLinkItem(BaseModel):
     title: str
     module_id: int | None
     """None unlinks the series, turning its Lectures back into busy time."""
+
+
+class FeedLinkUpdate(FeedLinkItem):
+    """Links (or, with `module_id` None, unlinks) one series, leaving the feed's other links alone."""
