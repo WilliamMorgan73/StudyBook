@@ -17,6 +17,36 @@ import { topicScopes, type TopicScope } from '@/lib/lectureSchedule'
 
 type SubmoduleRef = { id: number; title: string }
 
+function TopicChips({ lecture }: { lecture: { module_id: number; submodules: SubmoduleRef[] } }) {
+  return lecture.submodules.map((s) => (
+    <Link
+      key={s.id}
+      to={`/modules/${lecture.module_id}/submodules/${s.id}`}
+      title={`Open notes: ${s.title}`}
+      className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-muted"
+    >
+      <NotebookText className="size-3 shrink-0" />
+      <span className="truncate">{s.title}</span>
+    </Link>
+  ))
+}
+
+/** A Lecture's covered Submodules as "Open notes" links, without editing (topics are set on module pages). */
+export function LectureTopicLinks({
+  lecture,
+  className = '',
+}: {
+  lecture: { module_id: number; submodules: SubmoduleRef[] }
+  className?: string
+}) {
+  if (lecture.submodules.length === 0) return null
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
+      <TopicChips lecture={lecture} />
+    </div>
+  )
+}
+
 /**
  * The Submodules a Lecture covered, each a link to its notes, plus a menu to change them: ticks are
  * staged, and Apply saves them, first asking which other lectures in the series get the same topics
@@ -79,17 +109,7 @@ export function LectureSubmodules({
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      {lecture.submodules.map((s) => (
-        <Link
-          key={s.id}
-          to={`/modules/${lecture.module_id}/submodules/${s.id}`}
-          title={`Open notes: ${s.title}`}
-          className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs text-foreground transition-colors hover:bg-muted"
-        >
-          <NotebookText className="size-3 shrink-0" />
-          <span className="truncate">{s.title}</span>
-        </Link>
-      ))}
+      <TopicChips lecture={lecture} />
       <DropdownMenu onOpenChange={handleOpenChange}>
         <DropdownMenuTrigger asChild>
           <button

@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { DaySwap } from '@/components/CalendarEffects'
 import { useOverview } from '@/components/dashboard/overviewContext'
 import { EventMarker } from '@/components/EventMarker'
-import { LectureSubmodules } from '@/components/LectureSubmodules'
+import { LectureTopicLinks } from '@/components/LectureSubmodules'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { CalendarEvent } from '@/lib/api'
 import { calendarEventKey } from '@/lib/busyTime'
@@ -39,7 +39,6 @@ function formatTime(iso: string) {
 export function DayAgenda() {
   const { calendar, moduleName, moduleColor } = useOverview()
   const { selected, selectedDayEvents, expandedEventKey, toggleEvent, setRevisionDone } = calendar
-  const refetchCalendar = calendar.calendar.refetch
 
   return (
     <DaySwap dayKey={selected.toDateString()}>
@@ -79,24 +78,25 @@ export function DayAgenda() {
                 <AnimatePresence initial={false}>
                   {isExpanded && event.kind !== 'assignment_due' && (
                     <motion.div {...reveal} className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
-                      <p>
-                        {event.all_day ? (
-                          'All day'
-                        ) : (
-                          <>
-                            {formatTime(event.starts_at)}
-                            {event.ends_at && ` – ${formatTime(event.ends_at)}`}
-                          </>
-                        )}
+                      <p className="flex justify-between gap-3">
+                        <span className="shrink-0">
+                          {event.all_day ? (
+                            'All day'
+                          ) : (
+                            <>
+                              {formatTime(event.starts_at)}
+                              {event.ends_at && ` – ${formatTime(event.ends_at)}`}
+                            </>
+                          )}
+                        </span>
+                        {event.location && <span className="min-w-0 truncate text-right">{event.location}</span>}
                       </p>
-                      {event.location && <p>{event.location}</p>}
                       {isBusy && (
                         <p>{event.feed_id != null ? 'Calendar feed' : 'Personal event'} (Settings → Calendars)</p>
                       )}
                       {event.kind === 'lecture' && event.module_id !== null && (
-                        <LectureSubmodules
-                          lecture={{ id: event.id, module_id: event.module_id, submodules: event.submodules }}
-                          onChanged={refetchCalendar}
+                        <LectureTopicLinks
+                          lecture={{ module_id: event.module_id, submodules: event.submodules }}
                           className="py-0.5"
                         />
                       )}
