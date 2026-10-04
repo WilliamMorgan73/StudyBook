@@ -38,6 +38,12 @@ class FlashcardRead(FlashcardBase):
     last_reviewed_at: datetime | None
 
 
+class FlashcardDue(FlashcardRead):
+    """A due card plus the interval (days) each rating would give it next, keyed by quality."""
+
+    next_intervals: dict[int, int]
+
+
 class FlashcardReviewRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

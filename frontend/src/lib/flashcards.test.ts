@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Flashcard } from '@/lib/api'
 
-import { cardMaturity, maturityCounts, nextReviewLabel } from './flashcards'
+import { cardMaturity, formatInterval, maturityCounts, nextReviewLabel } from './flashcards'
 
 function card(over: Partial<Flashcard>): Flashcard {
   return {
@@ -60,4 +60,15 @@ describe('nextReviewLabel', () => {
   ])('%s → %s', (due, label) => {
     expect(nextReviewLabel(due.toISOString(), now)).toBe(label)
   })
+})
+
+it.each([
+  [1, '1 day'],
+  [6, '6 days'],
+  [29, '29 days'],
+  [45, '2 months'],
+  [365, '1 year'],
+  [548, '1.5 years'],
+])('formatInterval(%i) → %s', (days, label) => {
+  expect(formatInterval(days)).toBe(label)
 })

@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.crud.spaced_repetition import review_card
+from app.crud.spaced_repetition import preview_intervals, review_card
 from app.models.flashcard import Flashcard, FlashcardReview
 from app.models.submodule import Submodule
 from app.schemas.flashcard import (
     FlashcardCreate,
+    FlashcardDue,
     FlashcardRead,
     FlashcardReviewCreate,
     FlashcardReviewRead,
@@ -31,13 +32,13 @@ def list_flashcards(
     return list(db.scalars(stmt).all())
 
 
-@router.get("/due", response_model=list[FlashcardRead])
+@router.get("/due", response_model=list[FlashcardDue])
 def list_due(
     module_id: int | None = None,
     submodule_id: int | None = None,
     no_submodule: bool = False,
     db: Session = Depends(get_db),
-) -> list[Flashcard]:
+) -> list[FlashcardDue]:
     """Due cards, optionally within a Module, one Submodule, or (`no_submodule`) those on no topic."""
     stmt = select(Flashcard).where(Flashcard.due_at <= datetime.now(UTC).replace(tzinfo=None))
     if module_id is not None:
@@ -46,7 +47,11 @@ def list_due(
         stmt = stmt.where(Flashcard.submodule_id == submodule_id)
     if no_submodule:
         stmt = stmt.where(Flashcard.submodule_id.is_(None))
-    return list(db.scalars(stmt.order_by(Flashcard.due_at, Flashcard.id)).all())
+    cards = db.scalars(stmt.order_by(Flashcard.due_at, Flashcard.id)).all()
+    return [
+        FlashcardDue(**FlashcardRead.model_validate(card).model_dump(), next_intervals=preview_intervals(card))
+        for card in cards
+    ]
 
 
 # Enough for the browser's ratings strip; the revision planner reads the same window.

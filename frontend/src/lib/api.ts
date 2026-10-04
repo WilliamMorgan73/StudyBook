@@ -308,6 +308,11 @@ export interface Flashcard {
   last_reviewed_at: string | null
 }
 
+/** A due card, plus the interval in days each rating would give it next, keyed by SM-2 quality. */
+export interface FlashcardDue extends Flashcard {
+  next_intervals: Record<number, number>
+}
+
 export interface FlashcardReview {
   /** SM-2's 0–5 scale; below 3 means the card was forgotten. */
   quality: number
@@ -607,7 +612,7 @@ export function listDueFlashcards(scope: { moduleId?: number; submoduleId?: numb
   if (scope.moduleId !== undefined) params.set('module_id', String(scope.moduleId))
   if (scope.submoduleId !== undefined) params.set('submodule_id', String(scope.submoduleId))
   if (scope.noTopic) params.set('no_submodule', 'true')
-  return request<Flashcard[]>(`/flashcards/due?${params}`)
+  return request<FlashcardDue[]>(`/flashcards/due?${params}`)
 }
 
 /** `quality` is SM-2's 0–5 recall rating; >=3 counts as correct. */

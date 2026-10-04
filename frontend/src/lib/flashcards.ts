@@ -56,3 +56,27 @@ export function nextReviewLabel(dueAt: string, now: Date): string {
   if (days < 60) return `In ${days} days`
   return `In ${Math.round(days / 30)} months`
 }
+
+/** An SM-2 interval in words, for the study buttons: "1 day", "12 days", "3 months", "1.5 years". */
+export function formatInterval(days: number): string {
+  if (days < 30) return `${days} day${days === 1 ? '' : 's'}`
+  if (days < 365) {
+    const months = Math.round(days / 30)
+    return `${months} month${months === 1 ? '' : 's'}`
+  }
+  const years = Math.round((days / 365) * 10) / 10
+  return `${years} year${years === 1 ? '' : 's'}`
+}
+
+/** Below this SM-2 quality, a review counts as forgotten ("Again"). */
+export const FORGOTTEN_BELOW = 3
+
+/**
+ * A review's colour: Again is destructive; Hard, Good and Easy are increasing strengths of the
+ * module colour. Shared by the study session's trail and the browser's ratings strip.
+ */
+export function ratingColor(quality: number, color: string): string {
+  if (quality < FORGOTTEN_BELOW) return 'var(--destructive)'
+  const strength = quality === 3 ? 35 : quality === 4 ? 65 : 100
+  return `color-mix(in oklab, ${color} ${strength}%, transparent)`
+}

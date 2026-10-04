@@ -205,7 +205,7 @@ function SubmoduleView({
         }
         right={
           <>
-            <StudySession scope={{ submoduleId: id }} title={submodule.title} />
+            <StudySession scope={{ submoduleId: id }} title={submodule.title} color={module?.color} />
             <GenerateFlashcardsDialog
               submodule={submodule}
               aiEnabled={appSettings?.ai_enabled}

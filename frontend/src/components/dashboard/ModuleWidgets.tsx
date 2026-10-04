@@ -156,7 +156,7 @@ export function FlashcardsAction() {
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
         <Layers /> Cards
       </Button>
-      <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
+      <StudySession scope={{ moduleId: module.id }} title={module.name} color={module.color} onFinished={refetch} />
       <FlashcardBrowser
         open={open}
         onOpenChange={setOpen}
@@ -205,6 +205,7 @@ export function FlashcardsWidget() {
         <StudySession
           scope={scope}
           title={row.title}
+          color={module.color}
           onFinished={refetch}
           trigger={(open) => (
             <button

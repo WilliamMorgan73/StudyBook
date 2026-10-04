@@ -128,3 +128,16 @@ def test_due_can_be_limited_to_cards_without_a_topic(client, db):
     due = client.get("/flashcards/due", params={"module_id": card.module_id, "no_submodule": "true"}).json()
 
     assert [c["front"] for c in due] == ["Loose"]
+
+
+def test_due_cards_carry_the_interval_each_rating_would_give(client, db):
+    card = make_card(db)  # 2 repetitions, 6-day interval, ease 2.36
+    card.due_at = NOW
+    db.commit()
+
+    (due,) = client.get("/flashcards/due").json()
+
+    # Again resets to 1 day; Hard/Good/Easy are the third repetition: round(6 * 2.36) = 14.
+    assert due["next_intervals"] == {"1": 1, "3": 14, "4": 14, "5": 14}
+    db.refresh(card)
+    assert (card.interval_days, card.repetitions) == (6, 2)  # previewing doesn't reschedule

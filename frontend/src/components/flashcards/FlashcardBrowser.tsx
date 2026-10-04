@@ -18,7 +18,7 @@ import {
   type Flashcard,
   type FlashcardReview,
 } from '@/lib/api'
-import { cardMaturity, isDue, MATURITY_STEPS, maturityColor, nextReviewLabel } from '@/lib/flashcards'
+import { cardMaturity, FORGOTTEN_BELOW, isDue, MATURITY_STEPS, maturityColor, nextReviewLabel, ratingColor } from '@/lib/flashcards'
 import { RATINGS } from '@/lib/study'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
@@ -521,7 +521,7 @@ function CardField({
           }}
           placeholder={placeholder}
           aria-invalid={invalid || undefined}
-          className={cn(minHeight, 'text-base md:text-base')}
+          className={cn(minHeight, 'rounded-xl border-transparent bg-muted/40 text-base md:text-base dark:bg-muted/40')}
           autoFocus={autoFocus || editing}
         />
       ) : (
@@ -534,7 +534,7 @@ function CardField({
           onFocus={() => setEditing(true)}
           className={cn(
             minHeight,
-            'cursor-text rounded-lg border border-transparent px-2.5 py-2 transition-colors outline-none hover:border-input focus-visible:border-ring',
+            'cursor-text rounded-xl border border-transparent bg-muted/40 px-2.5 py-2 transition-colors outline-none hover:bg-muted/60 focus-visible:border-ring',
           )}
         >
           <MarkdownView>{value}</MarkdownView>
@@ -561,8 +561,6 @@ function SaveIndicator({ status, isNew, blank }: { status: SaveStatus; isNew: bo
     </span>
   )
 }
-
-const FORGOTTEN_BELOW = 3
 
 function ratingLabel(quality: number): string {
   if (quality < FORGOTTEN_BELOW) return 'Again'
@@ -619,7 +617,6 @@ function Understanding({ card, color }: { card: Flashcard; color: string }) {
 }
 
 const BAR_HEIGHT: Record<string, string> = { Again: '30%', Hard: '55%', Good: '80%', Easy: '100%' }
-const BAR_STRENGTH: Record<string, number> = { Hard: 45, Good: 75, Easy: 100 }
 
 function RatingsStrip({ reviews, color }: { reviews: FlashcardReview[] | null; color: string }) {
   if (!reviews) return <Skeleton className="h-10 w-full" />
@@ -638,16 +635,15 @@ function RatingsStrip({ reviews, color }: { reviews: FlashcardReview[] | null; c
               title={`${label}, ${new Date(r.reviewed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
               style={{
                 height: BAR_HEIGHT[label],
-                backgroundColor:
-                  label === 'Again' ? 'var(--destructive)' : `color-mix(in oklab, ${color} ${BAR_STRENGTH[label]}%, transparent)`,
+                backgroundColor: ratingColor(r.quality, color),
               }}
             />
           )
         })}
       </div>
       <p className="text-xs text-muted-foreground tabular-nums">
-        {reviews.length === 20 ? 'Last 20 reviews' : `${reviews.length} review${reviews.length === 1 ? '' : 's'}`}, forgotten{' '}
-        {forgotten === 1 ? 'once' : `${forgotten} times`}
+        {reviews.length === 20 ? 'Last 20 reviews' : `${reviews.length} review${reviews.length === 1 ? '' : 's'}`},{' '}
+        {forgotten === 0 ? 'never forgotten' : `forgotten ${forgotten === 1 ? 'once' : `${forgotten} times`}`}
       </p>
     </div>
   )
