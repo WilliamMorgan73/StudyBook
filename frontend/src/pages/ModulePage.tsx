@@ -118,7 +118,7 @@ export function ModulePage() {
   })
 
   return (
-    <motion.div className="min-h-full" {...enter}>
+    <motion.div className="flex h-full flex-col overflow-hidden" {...enter}>
       <PageHeader
         left={
           <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
@@ -133,13 +133,13 @@ export function ModulePage() {
         }
       />
 
-      <motion.div className="border-b" style={{ backgroundColor: `${module.color}1f` }} {...slotProps(0)}>
-        <div className="flex items-center gap-6 px-8 py-12">
-          <ModuleProgressRing progress={module.completion_progress} color={module.color} size={100} strokeWidth={10} />
+      <motion.div className="shrink-0 border-b" style={{ backgroundColor: `${module.color}1f` }} {...slotProps(0)}>
+        <div className="flex items-center gap-5 px-6 py-4">
+          <ModuleProgressRing progress={module.completion_progress} color={module.color} size={56} strokeWidth={7} />
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-4xl font-semibold">{module.name}</h1>
+            <h1 className="truncate text-2xl font-semibold">{module.name}</h1>
             {(module.code || module.term || module.credits !== null) && (
-              <p className="mt-1 text-base text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
                   .filter(Boolean)
                   .join(', ')}
@@ -148,7 +148,7 @@ export function ModulePage() {
           </div>
           <div className="flex shrink-0 gap-8 text-right">
             <div>
-              <p className="text-4xl font-semibold tabular-nums">
+              <p className="text-2xl font-semibold tabular-nums">
                 {module.current_grade !== null ? (
                   <>
                     <AnimatedNumber value={module.current_grade} decimals={1} />%
@@ -169,8 +169,10 @@ export function ModulePage() {
         </div>
       </motion.div>
 
-      <div className="space-y-8 px-8 py-8">
-        <MotionCard {...slotProps(1)}>
+      {/* Fits the viewport on large screens, with the lists scrolling inside their cards; when the
+          cards stack, this area scrolls instead. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+        <MotionCard size="sm" className="shrink-0" {...slotProps(1)}>
           <CardHeader>
             <CardTitle>Schedule</CardTitle>
           </CardHeader>
@@ -188,15 +190,15 @@ export function ModulePage() {
           </CardContent>
         </MotionCard>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          <MotionCard {...slotProps(2)}>
+        <div className="grid gap-4 max-lg:shrink-0 lg:min-h-40 lg:flex-1 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)]">
+          <MotionCard size="sm" {...slotProps(2)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Submodules</CardTitle>
                 <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto">
               {module.submodules.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No submodules yet.</p>
               ) : (
@@ -209,14 +211,14 @@ export function ModulePage() {
             </CardContent>
           </MotionCard>
 
-          <MotionCard {...slotProps(3)}>
+          <MotionCard size="sm" {...slotProps(3)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Assignments</CardTitle>
                 <AddAssignmentDialog moduleId={module.id} submodules={module.submodules} onCreated={refetch} />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto">
               {sortedAssignments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No assignments yet.</p>
               ) : (
@@ -229,14 +231,14 @@ export function ModulePage() {
             </CardContent>
           </MotionCard>
 
-          <MotionCard {...slotProps(4)}>
+          <MotionCard size="sm" {...slotProps(4)}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Flashcards</CardTitle>
                 <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-0 flex-1 overflow-y-auto">
               {module.flashcards.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No flashcards yet.</p>
               ) : (
@@ -250,7 +252,7 @@ export function ModulePage() {
         </div>
 
         {module.related_modules.length > 0 && (
-          <MotionCard {...slotProps(5)}>
+          <MotionCard size="sm" className="shrink-0" {...slotProps(5)}>
             <CardHeader>
               <CardTitle>Related modules</CardTitle>
             </CardHeader>

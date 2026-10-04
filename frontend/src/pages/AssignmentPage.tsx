@@ -149,7 +149,7 @@ function AssignmentView({
   }
 
   return (
-    <div className="min-h-full">
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         left={
           <Link
@@ -176,11 +176,11 @@ function AssignmentView({
         }
       />
 
-      <div className="border-b" style={{ backgroundColor: module ? `${module.color}1f` : undefined }}>
-        <div className="flex flex-wrap items-start gap-x-6 gap-y-6 px-8 pt-12 pb-8">
+      <div className="shrink-0 border-b" style={{ backgroundColor: module ? `${module.color}1f` : undefined }}>
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 px-6 pt-4 pb-4">
           <div className="min-w-0 flex-1 basis-96">
-            <h1 className="text-4xl font-semibold text-balance">{assignment.title}</h1>
-            <p className="mt-1 text-base text-muted-foreground">
+            <h1 className="text-2xl font-semibold text-balance">{assignment.title}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
               <span className={overdue ? 'font-medium text-destructive' : ''}>
                 {!assignment.due_at
                   ? 'No due date'
@@ -191,7 +191,13 @@ function AssignmentView({
               {`, worth ${assignment.weight_percent}% of the grade`}
             </p>
             {assignment.description && (
-              <p className="mt-4 max-w-prose text-sm text-pretty text-foreground/80">{assignment.description}</p>
+              // Clamped so a long brief can't push the notes down; the full text is on hover.
+              <p
+                className="mt-2 line-clamp-2 max-w-prose text-sm text-pretty text-foreground/80"
+                title={assignment.description}
+              >
+                {assignment.description}
+              </p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-8 text-right">
@@ -208,7 +214,7 @@ function AssignmentView({
         </div>
 
         {assignment.covered_submodules.length > 0 && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-8 pb-6">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-6 pb-4">
             <h2 className="text-sm text-muted-foreground">Covers</h2>
             <ul className="flex flex-wrap gap-1.5">
               {assignment.covered_submodules.map((s) => (
@@ -227,8 +233,10 @@ function AssignmentView({
         )}
       </div>
 
-      <div className="grid gap-x-10 gap-y-10 px-8 py-10 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <main className="min-w-0 rounded-xl border bg-card px-6 py-5 sm:px-10 sm:py-8 max-h-[60vh] overflow-y-auto lg:sticky lg:top-6 lg:self-start">
+      {/* Fills the rest of the viewport: on large screens the notes and the side column each scroll
+          on their own; in one column, this area scrolls instead. */}
+      <div className="grid min-h-0 flex-1 gap-x-6 gap-y-6 overflow-y-auto px-6 py-4 lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <main className="min-w-0 overflow-y-auto rounded-xl border bg-card px-6 py-5 max-lg:max-h-[60vh] sm:px-8 sm:py-6">
           <MarkdownEditor
             ref={editorRef}
             value={notes}
@@ -239,7 +247,7 @@ function AssignmentView({
             onUploadFile={uploadToNotes}
             sourceMode={sourceMode}
             placeholder="Plan the work, draft an outline, collect quotes…"
-            minHeight="60vh"
+            minHeight="40vh"
             onNavigateWikilink={handleNavigateWikilink}
             fontSize={appSettings?.note_font_size}
             tableAlign={appSettings?.table_alignment}
@@ -256,7 +264,7 @@ function AssignmentView({
           />
         </main>
 
-        <aside className="space-y-5 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-6">
+        <aside className="space-y-5 lg:overflow-y-auto lg:pr-1">
           <AssignmentChecklist assignmentId={id} todos={assignment.todos} color={module?.color} onChanged={refetch} />
           {isExam && <RevisionPlan exam={assignment} color={module?.color} />}
           <AttachmentEmbeds

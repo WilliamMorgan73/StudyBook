@@ -241,7 +241,7 @@ function SubmoduleView({
   }
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex h-full flex-col overflow-y-auto">
       <PageHeader
         left={
           <>

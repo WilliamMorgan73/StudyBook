@@ -51,7 +51,7 @@ export function ModulesWidget() {
   const maxCredits = appSettings?.max_credits ?? null
   const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
   const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
-  const columns = 'grid gap-4 @lg:grid-cols-2 @4xl:grid-cols-3 @7xl:grid-cols-4'
+  const columns = 'grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5'
 
   return (
     <>
@@ -61,7 +61,7 @@ export function ModulesWidget() {
         skeleton={
           <div className={columns}>
             {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-28 w-full" />
+              <Skeleton key={i} className="h-24 w-full" />
             ))}
           </div>
         }

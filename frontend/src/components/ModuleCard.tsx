@@ -25,7 +25,7 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
 
   return (
     <Link to={`/modules/${module.id}`}>
-      <Card className="h-full transition-colors hover:ring-foreground/20">
+      <Card size="sm" className="h-full transition-colors hover:ring-foreground/20">
         <CardHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -35,7 +35,7 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
               </div>
               <CardDescription>{credits ?? module.term ?? ' '}</CardDescription>
             </div>
-            <ModuleProgressRing progress={module.completion_progress} color={module.color} size={52} strokeWidth={6} />
+            <ModuleProgressRing progress={module.completion_progress} color={module.color} size={40} strokeWidth={5} />
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">

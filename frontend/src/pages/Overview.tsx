@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
 import {
   addWidget,
+  canAddWidget,
   DEFAULT_LAYOUT,
   hiddenWidgets,
   normalizeLayout,
@@ -113,7 +114,7 @@ export function Overview() {
   }
 
   return (
-    <div className="min-h-full">
+    <div className="flex h-full flex-col overflow-hidden">
       <PageHeader
         left={
           <div className="flex items-center gap-2">
@@ -133,16 +134,22 @@ export function Overview() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-72">
                   <DropdownMenuLabel>Add to your overview</DropdownMenuLabel>
-                  {hidden.map((id) => (
-                    <DropdownMenuItem
-                      key={id}
-                      onSelect={() => setDraft((current) => addWidget(current ?? saved, id))}
-                      className="flex-col items-start gap-0"
-                    >
-                      <span>{WIDGETS[id].title}</span>
-                      <span className="text-xs text-muted-foreground">{WIDGETS[id].description}</span>
-                    </DropdownMenuItem>
-                  ))}
+                  {hidden.map((id) => {
+                    const fits = canAddWidget(layout, id)
+                    return (
+                      <DropdownMenuItem
+                        key={id}
+                        disabled={!fits}
+                        onSelect={() => setDraft((current) => addWidget(current ?? saved, id))}
+                        className="flex-col items-start gap-0"
+                      >
+                        <span>{WIDGETS[id].title}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {fits ? WIDGETS[id].description : 'No room left. Shrink or remove a widget first.'}
+                        </span>
+                      </DropdownMenuItem>
+                    )
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button
@@ -178,9 +185,9 @@ export function Overview() {
         }
       />
 
-      <div className="px-8 py-8">
+      <div className="min-h-0 flex-1 px-6 py-4">
         {appSettings.data === null && appSettings.loading ? (
-          <Skeleton className="h-[36rem] w-full rounded-xl" />
+          <Skeleton className="h-full w-full rounded-xl" />
         ) : (
           <OverviewContext value={overview}>
             {editing && layout.length === 0 && (
