@@ -1,10 +1,10 @@
-import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus, Trash2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
-import { useRef, useState, type FormEvent } from 'react'
+import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AIActionButton } from '@/components/AIActionButton'
 import { AttachmentList } from '@/components/AttachmentList'
+import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
 import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
@@ -13,97 +13,21 @@ import { SubmoduleLectures } from '@/components/SubmoduleLectures'
 import { SubmoduleSummary, SummarizeDialog } from '@/components/SubmoduleSummary'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  createFlashcard,
-  deleteFlashcard,
   deleteSubmodule,
   getAppSettings,
   getModule,
   getSubmodule,
-  listFlashcards,
   resolveWikilink,
   updateSubmodule,
   uploadSubmoduleAttachment,
   type AppSettings,
-  type Flashcard,
   type ModuleDetail,
   type SubmoduleDetail,
 } from '@/lib/api'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
-import { listItem } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
-
-function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: number; submoduleId: number; onCreated: () => void }) {
-  const [front, setFront] = useState('')
-  const [back, setBack] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault()
-    if (!front.trim() || !back.trim()) {
-      setError('Both sides of the card are required.')
-      return
-    }
-    setSubmitting(true)
-    setError(null)
-    try {
-      await createFlashcard({ module_id: moduleId, submodule_id: submoduleId, front: front.trim(), back: back.trim() })
-      setFront('')
-      setBack('')
-      onCreated()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the flashcard.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3 rounded-xl bg-muted/50 p-3">
-      <div className="min-w-40 flex-1 space-y-1.5">
-        <Label htmlFor="flashcard-front">Front</Label>
-        <Input id="flashcard-front" value={front} onChange={(e) => setFront(e.target.value)} placeholder="Question" />
-      </div>
-      <div className="min-w-40 flex-1 space-y-1.5">
-        <Label htmlFor="flashcard-back">Back</Label>
-        <Input id="flashcard-back" value={back} onChange={(e) => setBack(e.target.value)} placeholder="Answer" />
-      </div>
-      <Button type="submit" size="sm" disabled={submitting}>
-        {submitting ? 'Adding…' : 'Add card'}
-      </Button>
-      {error && <p className="w-full text-sm text-destructive">{error}</p>}
-    </form>
-  )
-}
-
-function FlashcardRow({ card, onDeleted }: { card: Flashcard; onDeleted: () => void }) {
-  return (
-    // Padding lives on the inner row so the exit can collapse the <li> all the way to zero.
-    <motion.li variants={listItem} initial="hidden" animate="shown" exit="exit">
-      <div className="flex items-center justify-between gap-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{card.front}</p>
-          <p className="truncate text-sm text-muted-foreground">{card.back}</p>
-        </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Delete flashcard"
-          onClick={async () => {
-            await deleteFlashcard(card.id)
-            onDeleted()
-          }}
-        >
-          <Trash2 />
-        </Button>
-      </div>
-    </motion.li>
-  )
-}
 
 export function SubmodulePage() {
   const { moduleId, submoduleId } = useParams()
@@ -161,9 +85,7 @@ function SubmoduleView({
   const { moduleId } = useParams()
   const navigate = useNavigate()
   const id = submodule.id
-  const { data: flashcards, refetch: refetchFlashcards } = useAsync(() => listFlashcards({ submoduleId: id }), [id])
-  // Saves here can touch the note or its flashcards, so refresh both together.
-  const refetch = () => Promise.all([refetchSubmodule(), refetchFlashcards()])
+  const refetch = refetchSubmodule
 
   const [content, setContent] = useState(submodule.content_markdown)
   // Mirrors `content` for saveContent: the editor can ask for a save straight after an edit
@@ -283,7 +205,7 @@ function SubmoduleView({
         }
         right={
           <>
-            <StudySession scope={{ submoduleId: id }} title={submodule.title} />
+            <StudySession scope={{ submoduleId: id }} title={submodule.title} color={module?.color} />
             <GenerateFlashcardsDialog
               submodule={submodule}
               aiEnabled={appSettings?.ai_enabled}
@@ -400,26 +322,15 @@ function SubmoduleView({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={flashcardsOpen} onOpenChange={setFlashcardsOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Flashcards</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <NewFlashcardForm moduleId={submodule.module_id} submoduleId={id} onCreated={refetch} />
-            {flashcards?.length === 0 && <p className="text-sm text-muted-foreground">No flashcards yet.</p>}
-            {flashcards && flashcards.length > 0 && (
-              <ul className="max-h-80 divide-y overflow-y-auto">
-                <AnimatePresence initial={false}>
-                  {flashcards.map((card) => (
-                    <FlashcardRow key={card.id} card={card} onDeleted={refetch} />
-                  ))}
-                </AnimatePresence>
-              </ul>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <FlashcardBrowser
+        open={flashcardsOpen}
+        onOpenChange={setFlashcardsOpen}
+        moduleId={submodule.module_id}
+        topics={module?.submodules ?? [{ id, title: submodule.title }]}
+        color={module?.color ?? 'var(--primary)'}
+        initialTopic={`${id}`}
+        onChanged={refetch}
+      />
     </div>
   )
 }

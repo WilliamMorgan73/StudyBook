@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 
 from app.models.flashcard import Flashcard, FlashcardReview
 
@@ -33,3 +34,19 @@ def review_card(card: Flashcard, quality: int, now: datetime | None = None) -> F
     now = now or datetime.now(UTC)
     apply_review(card, quality, now)
     return FlashcardReview(flashcard=card, quality=quality, reviewed_at=now)
+
+
+# The qualities the study session's four buttons send (Again, Hard, Good, Easy).
+RATING_QUALITIES = (1, 3, 4, 5)
+
+
+def preview_intervals(card: Flashcard) -> dict[int, int]:
+    """The interval in days each rating would give the card next, without changing it."""
+    intervals: dict[int, int] = {}
+    for quality in RATING_QUALITIES:
+        copy = SimpleNamespace(
+            ease_factor=card.ease_factor, repetitions=card.repetitions or 0, interval_days=card.interval_days or 0
+        )
+        apply_review(copy, quality)  # type: ignore[arg-type]  # only reads/writes the scheduling fields
+        intervals[quality] = copy.interval_days
+    return intervals

@@ -17,6 +17,15 @@ class FlashcardCreate(FlashcardBase):
     module_id: int
 
 
+class FlashcardUpdate(BaseModel):
+    """Edits a card's text or Submodule; its SM-2 scheduling and review history are untouched."""
+
+    front: str | None = Field(default=None, pattern=r"\S")
+    back: str | None = Field(default=None, pattern=r"\S")
+    # Null moves the card to the whole Module.
+    submodule_id: int | None = None
+
+
 class FlashcardRead(FlashcardBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +36,19 @@ class FlashcardRead(FlashcardBase):
     repetitions: int
     due_at: datetime
     last_reviewed_at: datetime | None
+
+
+class FlashcardDue(FlashcardRead):
+    """A due card plus the interval (days) each rating would give it next, keyed by quality."""
+
+    next_intervals: dict[int, int]
+
+
+class FlashcardReviewRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quality: int
+    reviewed_at: datetime
 
 
 class FlashcardReviewCreate(BaseModel):

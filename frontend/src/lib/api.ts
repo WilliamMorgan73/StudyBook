@@ -308,6 +308,17 @@ export interface Flashcard {
   last_reviewed_at: string | null
 }
 
+/** A due card, plus the interval in days each rating would give it next, keyed by SM-2 quality. */
+export interface FlashcardDue extends Flashcard {
+  next_intervals: Record<number, number>
+}
+
+export interface FlashcardReview {
+  /** SM-2's 0–5 scale; below 3 means the card was forgotten. */
+  quality: number
+  reviewed_at: string
+}
+
 export interface ModuleDetail extends ModuleSummary {
   lectures: Lecture[]
   assignments: Assignment[]
@@ -595,11 +606,13 @@ export function listFlashcards(filter: { moduleId?: number; submoduleId?: number
   return request<Flashcard[]>(`/flashcards?${params}`)
 }
 
-export function listDueFlashcards(scope: { moduleId?: number; submoduleId?: number }) {
+/** `noTopic`: only cards on no Submodule (combine with `moduleId`). */
+export function listDueFlashcards(scope: { moduleId?: number; submoduleId?: number; noTopic?: boolean }) {
   const params = new URLSearchParams()
   if (scope.moduleId !== undefined) params.set('module_id', String(scope.moduleId))
   if (scope.submoduleId !== undefined) params.set('submodule_id', String(scope.submoduleId))
-  return request<Flashcard[]>(`/flashcards/due?${params}`)
+  if (scope.noTopic) params.set('no_submodule', 'true')
+  return request<FlashcardDue[]>(`/flashcards/due?${params}`)
 }
 
 /** `quality` is SM-2's 0–5 recall rating; >=3 counts as correct. */
@@ -629,6 +642,16 @@ export function generateFlashcards(submoduleId: number, input: { count: number; 
 /** Generates (or regenerates) and stores the Submodule's summary; returns the updated Submodule. */
 export function summarizeSubmodule(submoduleId: number, input: { raw_pdf_ids: number[] }) {
   return postJson<SubmoduleDetail>(`/submodules/${submoduleId}/summary`, input)
+}
+
+/** The card's latest reviews (up to 20), newest first. */
+export function listFlashcardReviews(id: number) {
+  return request<FlashcardReview[]>(`/flashcards/${id}/reviews`)
+}
+
+/** Edits text or moves the card (`submodule_id: null` = the whole Module); scheduling is kept. */
+export function updateFlashcard(id: number, input: { front?: string; back?: string; submodule_id?: number | null }) {
+  return patchJson<Flashcard>(`/flashcards/${id}`, input)
 }
 
 export function deleteFlashcard(id: number) {

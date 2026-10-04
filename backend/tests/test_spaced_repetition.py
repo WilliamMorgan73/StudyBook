@@ -1,7 +1,12 @@
 from datetime import UTC, datetime, timedelta
 
 import app.models  # noqa: F401  registers relationship string refs before we touch the mapper
-from app.crud.spaced_repetition import apply_review, review_card
+from app.crud.spaced_repetition import (
+    RATING_QUALITIES,
+    apply_review,
+    preview_intervals,
+    review_card,
+)
 from app.models.flashcard import Flashcard
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
@@ -71,3 +76,17 @@ def test_review_card_reschedules_and_records_history_row():
     assert review.quality == 3
     assert review.reviewed_at == NOW
     assert card.due_at == NOW + timedelta(days=1)
+
+
+def test_preview_intervals_match_apply_review_and_leave_the_card_alone():
+    def fresh():
+        return Flashcard(ease_factor=2.5, interval_days=6, repetitions=2)
+
+    card = fresh()
+    preview = preview_intervals(card)
+
+    for quality in RATING_QUALITIES:
+        reviewed = fresh()
+        apply_review(reviewed, quality)
+        assert preview[quality] == reviewed.interval_days
+    assert (card.interval_days, card.repetitions, card.ease_factor) == (6, 2, 2.5)

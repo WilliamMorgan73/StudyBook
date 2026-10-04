@@ -172,7 +172,7 @@ export function FlashcardsDueWidget() {
                   {moduleName(moduleId)}
                 </Link>
                 <span className="shrink-0 text-muted-foreground tabular-nums">{count} due</span>
-                <StudySession scope={{ moduleId }} title={moduleName(moduleId)} onFinished={due.refetch} />
+                <StudySession scope={{ moduleId }} title={moduleName(moduleId)} color={moduleColor(moduleId)} onFinished={due.refetch} />
               </li>
             ))}
           </ul>
