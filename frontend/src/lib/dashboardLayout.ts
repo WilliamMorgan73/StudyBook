@@ -1,7 +1,9 @@
-// The Overview dashboard's widget registry and layout rules. A layout is a list of
-// react-grid-layout items on a 12-column grid, saved as `app_settings.dashboard_layout`
-// (null = DEFAULT_LAYOUT). The backend only checks the shape; widget ids are owned here, so
-// everything read back from storage goes through `normalizeLayout`.
+// Dashboard boards and their layout rules. A board is a widget registry plus a default layout;
+// the Overview's lives here (OVERVIEW_BOARD, saved as `app_settings.dashboard_layout`) and the
+// module page's in `lib/moduleLayout.ts` (saved per module as `modules.dashboard_layout`). A layout
+// is a list of react-grid-layout items on a 12-column grid, stored as null when it's the board's
+// default. The backend only checks the shape; widget ids are owned here, so everything read back
+// from storage goes through `normalizeLayout`.
 //
 // The grid is a fixed board, DASHBOARD_COLUMNS wide and DASHBOARD_ROWS tall, stretched to fill the
 // screen: a widget's size is a share of the screen, so a layout looks the same on any display and
@@ -29,8 +31,8 @@ export type WidgetId =
   | 'revisionToday'
   | 'flashcardsDue'
 
-export interface LayoutItem {
-  i: WidgetId
+export interface LayoutItem<Id extends string = string> {
+  i: Id
   x: number
   y: number
   w: number
@@ -45,6 +47,12 @@ export interface WidgetInfo {
   minH: number
   defaultW: number
   defaultH: number
+}
+
+/** A widget registry and the layout a board starts with (and resets to). */
+export interface Board<Id extends string> {
+  widgets: Record<Id, WidgetInfo>
+  defaultLayout: LayoutItem<Id>[]
 }
 
 export const WIDGETS: Record<WidgetId, WidgetInfo> = {
@@ -104,7 +112,7 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
 export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]
 
 /** Today's page: Calendar over its day agenda, two columns of two cards, Modules across the bottom. */
-export const DEFAULT_LAYOUT: LayoutItem[] = [
+export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
   { i: 'calendar', x: 0, y: 0, w: 6, h: 7 },
   { i: 'agenda', x: 0, y: 7, w: 6, h: 3 },
   { i: 'upcoming', x: 6, y: 0, w: 3, h: 5 },
@@ -114,8 +122,10 @@ export const DEFAULT_LAYOUT: LayoutItem[] = [
   { i: 'modules', x: 0, y: 10, w: 12, h: 4 },
 ]
 
-function isWidgetId(value: unknown): value is WidgetId {
-  return typeof value === 'string' && Object.hasOwn(WIDGETS, value)
+export const OVERVIEW_BOARD: Board<WidgetId> = { widgets: WIDGETS, defaultLayout: DEFAULT_LAYOUT }
+
+function isWidgetId<Id extends string>(board: Board<Id>, value: unknown): value is Id {
+  return typeof value === 'string' && Object.hasOwn(board.widgets, value)
 }
 
 function toInt(value: unknown): number | null {
@@ -126,19 +136,19 @@ function toInt(value: unknown): number | null {
  * A usable layout from whatever was stored: unknown, duplicate or malformed items are dropped,
  * each item is clamped to its widget's minimum size and the board, and a layout taller than the
  * board is scaled down to fit it. Null, non-arrays and layouts left with no widgets fall back to
- * DEFAULT_LAYOUT.
+ * the board's default layout.
  */
-export function normalizeLayout(raw: unknown): LayoutItem[] {
-  if (!Array.isArray(raw)) return DEFAULT_LAYOUT
-  const seen = new Set<WidgetId>()
-  const items: LayoutItem[] = []
+export function normalizeLayout<Id extends string>(board: Board<Id>, raw: unknown): LayoutItem<Id>[] {
+  if (!Array.isArray(raw)) return board.defaultLayout
+  const seen = new Set<Id>()
+  const items: LayoutItem<Id>[] = []
   for (const entry of raw) {
     if (typeof entry !== 'object' || entry === null) continue
     const { i, x, y, w, h } = entry as Record<string, unknown>
     const nums = [toInt(x), toInt(y), toInt(w), toInt(h)]
-    if (!isWidgetId(i) || seen.has(i) || nums.some((n) => n === null)) continue
+    if (!isWidgetId(board, i) || seen.has(i) || nums.some((n) => n === null)) continue
     const [nx, ny, nw, nh] = nums as number[]
-    const info = WIDGETS[i]
+    const info = board.widgets[i]
     const width = Math.min(DASHBOARD_COLUMNS, Math.max(info.minW, nw))
     items.push({
       i,
@@ -149,7 +159,7 @@ export function normalizeLayout(raw: unknown): LayoutItem[] {
     })
     seen.add(i)
   }
-  return items.length > 0 ? fitToBoard(items) : DEFAULT_LAYOUT
+  return items.length > 0 ? fitToBoard(board, items) : board.defaultLayout
 }
 
 /** How many rows the layout uses. */
@@ -158,30 +168,30 @@ export function layoutBottom(layout: LayoutItem[]): number {
 }
 
 /** Squeezes a layout taller than the board (one saved before the board existed) down onto it. */
-function fitToBoard(layout: LayoutItem[]): LayoutItem[] {
+function fitToBoard<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[]): LayoutItem<Id>[] {
   const bottom = layoutBottom(layout)
   if (bottom <= DASHBOARD_ROWS) return layout
   const scale = DASHBOARD_ROWS / bottom
   const scaled = layout.map((item) => ({
     ...item,
     y: Math.round(item.y * scale),
-    h: Math.max(WIDGETS[item.i].minH, Math.round(item.h * scale)),
+    h: Math.max(board.widgets[item.i].minH, Math.round(item.h * scale)),
   }))
   // Rounding can leave overlaps or gaps; compacting settles every widget as high as it fits.
   return verticalCompactor.compact(scaled, DASHBOARD_COLUMNS).map(({ i, x, y, w, h }) => ({
-    i: i as WidgetId,
+    i: i as Id,
     x,
     y,
     w,
     // Whatever still hangs off the bottom shrinks, as far as its minimum allows.
-    h: Math.max(WIDGETS[i as WidgetId].minH, Math.min(h, DASHBOARD_ROWS - y)),
+    h: Math.max(board.widgets[i as Id].minH, Math.min(h, DASHBOARD_ROWS - y)),
   }))
 }
 
 /** Widgets not on the layout, in registry order: what "Add widget" offers. */
-export function hiddenWidgets(layout: LayoutItem[]): WidgetId[] {
+export function hiddenWidgets<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[]): Id[] {
   const placed = new Set(layout.map((item) => item.i))
-  return WIDGET_IDS.filter((id) => !placed.has(id))
+  return (Object.keys(board.widgets) as Id[]).filter((id) => !placed.has(id))
 }
 
 function overlaps(a: Omit<LayoutItem, 'i'>, b: LayoutItem): boolean {
@@ -193,8 +203,8 @@ function overlaps(a: Omit<LayoutItem, 'i'>, b: LayoutItem): boolean {
  * size it can have, from its default size down to its minimum. Null if there's no room even at
  * its minimum.
  */
-function findSpace(layout: LayoutItem[], id: WidgetId): Omit<LayoutItem, 'i'> | null {
-  const { minW, minH, defaultW, defaultH } = WIDGETS[id]
+function findSpace<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): Omit<LayoutItem, 'i'> | null {
+  const { minW, minH, defaultW, defaultH } = board.widgets[id]
   for (let h = defaultH; h >= minH; h--) {
     for (let w = defaultW; w >= minW; w--) {
       for (let y = 0; y + h <= DASHBOARD_ROWS; y++) {
@@ -209,26 +219,26 @@ function findSpace(layout: LayoutItem[], id: WidgetId): Omit<LayoutItem, 'i'> | 
 }
 
 /** Whether `addWidget` would find room for the widget. */
-export function canAddWidget(layout: LayoutItem[], id: WidgetId): boolean {
-  return findSpace(layout, id) !== null
+export function canAddWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): boolean {
+  return findSpace(board, layout, id) !== null
 }
 
 /**
  * Adds a widget in the board's free space (see `findSpace`). Unchanged if it's already placed or
  * there's no room for it.
  */
-export function addWidget(layout: LayoutItem[], id: WidgetId): LayoutItem[] {
+export function addWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): LayoutItem<Id>[] {
   if (layout.some((item) => item.i === id)) return layout
-  const spot = findSpace(layout, id)
+  const spot = findSpace(board, layout, id)
   return spot ? [...layout, { i: id, ...spot }] : layout
 }
 
-export function removeWidget(layout: LayoutItem[], id: WidgetId): LayoutItem[] {
+export function removeWidget<Id extends string>(layout: LayoutItem<Id>[], id: Id): LayoutItem<Id>[] {
   return layout.filter((item) => item.i !== id)
 }
 
 /** Reading order (top to bottom, then left to right), for the single-column layout on narrow screens. */
-export function stackedOrder(layout: LayoutItem[]): LayoutItem[] {
+export function stackedOrder<Id extends string>(layout: LayoutItem<Id>[]): LayoutItem<Id>[] {
   return [...layout].sort((a, b) => a.y - b.y || a.x - b.x)
 }
 

@@ -9,8 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { progressRingSegments } from '@/lib/progress'
 import { useElementSize } from '@/lib/useElementSize'
 
-/** The ring grows with the widget, between these sizes (px). */
-const RING_MIN = 136
+/** The ring grows with the widget up to RING_MAX (px). Below RING_FULL there's no room for its
+ * caption, and it never gets smaller than RING_FLOOR. */
+const RING_FLOOR = 40
+const RING_FULL = 136
 const RING_MAX = 320
 
 export function ProgressWidget() {
@@ -50,12 +52,15 @@ export function ProgressWidget() {
   const legendModules = (modules.data ?? []).filter((m) => m.assignment_progress.total > 0)
   const activeModule = legendModules.find((m) => m.id === activeModuleId) ?? null
 
-  // Leave room under the ring for the legend: a line per few modules, more when it wraps less.
-  const legendRoom = 24 + Math.ceil(legendModules.length / 2) * 22
-  const ringSize = Math.round(
-    Math.min(RING_MAX, Math.max(RING_MIN, Math.min(size.width, size.height - legendRoom))),
-  )
-  const scale = ringSize / RING_MIN
+  // Room under the ring for the legend: a line per few modules, more when it wraps less. When even
+  // a full-size ring wouldn't leave that room, the legend goes and the ring takes the whole widget,
+  // so the widget never needs to scroll.
+  const legendRoom = 24 + Math.ceil(Math.max(1, legendModules.length) / 2) * 22
+  const showLegend = Math.min(size.width, size.height - legendRoom) >= RING_FULL
+  const room = Math.min(size.width, showLegend ? size.height - legendRoom : size.height)
+  const ringSize = Math.round(Math.min(RING_MAX, Math.max(RING_FLOOR, room)))
+  const showCaption = ringSize >= RING_FULL
+  const scale = ringSize / RING_FULL
 
   return (
     <div ref={sizeRef} className="flex min-h-0 flex-1 items-center justify-center">
@@ -86,40 +91,42 @@ export function ProgressWidget() {
                     </>
                   )}
                 </p>
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={activeModule?.id ?? 'overall'}
-                    initial={{ opacity: 0, y: 3 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -3 }}
-                    transition={{ duration: 0.12 }}
-                    className="w-full text-xs"
-                  >
-                    {activeModule ? (
-                      <>
-                        <p className="truncate font-medium" style={{ color: activeModule.color }}>
-                          {activeModule.name}
-                        </p>
-                        <p className="text-muted-foreground">
-                          {Math.round(activeModule.completion_progress.completed_fraction * 100)}% submitted
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-muted-foreground">achieved</p>
-                        {totalWeight > 0 && (
-                          <p className="text-muted-foreground/70">
-                            {Math.round(overallCompletion.completed * 100)}% submitted
+                {showCaption && (
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                      key={activeModule?.id ?? 'overall'}
+                      initial={{ opacity: 0, y: 3 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -3 }}
+                      transition={{ duration: 0.12 }}
+                      className="w-full text-xs"
+                    >
+                      {activeModule ? (
+                        <>
+                          <p className="truncate font-medium" style={{ color: activeModule.color }}>
+                            {activeModule.name}
                           </p>
-                        )}
-                      </>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
+                          <p className="text-muted-foreground">
+                            {Math.round(activeModule.completion_progress.completed_fraction * 100)}% submitted
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-muted-foreground">achieved</p>
+                          {totalWeight > 0 && (
+                            <p className="text-muted-foreground/70">
+                              {Math.round(overallCompletion.completed * 100)}% submitted
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                )}
               </div>
             </div>
 
-            {totalWeight === 0 ? (
+            {!showLegend ? null : totalWeight === 0 ? (
               <p className="text-xs text-muted-foreground">No modules yet.</p>
             ) : (
               <ul

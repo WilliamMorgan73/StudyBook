@@ -25,6 +25,7 @@ export function DashboardWidget({
   onRemove,
   action,
   bodyClassName = '',
+  scroll = true,
   children,
 }: {
   title: string
@@ -35,6 +36,8 @@ export function DashboardWidget({
   /** Extra header content on the right, hidden while editing. */
   action?: ReactNode
   bodyClassName?: string
+  /** False for a body that fits itself to the widget (like a ring) and should never scroll. */
+  scroll?: boolean
   children: ReactNode
 }) {
   return (
@@ -69,7 +72,7 @@ export function DashboardWidget({
         )}
       </CardHeader>
       <CardContent
-        className={`@container flex min-h-0 flex-1 flex-col overflow-y-auto ${editing ? 'pointer-events-none select-none' : ''} ${bodyClassName}`}
+        className={`@container flex min-h-0 flex-1 flex-col ${scroll ? 'overflow-y-auto' : 'overflow-hidden'} ${editing ? 'pointer-events-none select-none' : ''} ${bodyClassName}`}
       >
         {children}
       </CardContent>

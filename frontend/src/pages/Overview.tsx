@@ -1,52 +1,36 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
-import { BookOpen, Check, LayoutDashboard, Plus, RotateCcw, Settings } from 'lucide-react'
+import { BookOpen, Settings } from 'lucide-react'
 
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
+import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
 import {
   FlashcardsDueWidget,
   ModulesWidget,
   RevisionTodayWidget,
+  TodoWidget,
   UpcomingWidget,
 } from '@/components/dashboard/ListWidgets'
 import { OverviewContext, type OverviewData } from '@/components/dashboard/overviewContext'
 import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
+import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel, useOverviewCalendar } from '@/components/dashboard/useOverviewCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { QuickNotepad } from '@/components/QuickNotepad'
-import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
-import {
-  addWidget,
-  canAddWidget,
-  DEFAULT_LAYOUT,
-  hiddenWidgets,
-  normalizeLayout,
-  removeWidget,
-  sameLayout,
-  WIDGETS,
-  type LayoutItem,
-  type WidgetId,
-} from '@/lib/dashboardLayout'
+import { OVERVIEW_BOARD, WIDGETS, type WidgetId } from '@/lib/dashboardLayout'
 import { useAsync } from '@/lib/useAsync'
 
 const WIDGET_BODIES: Record<WidgetId, ReactNode> = {
   calendar: <CalendarWidget />,
   agenda: <AgendaWidget />,
   upcoming: <UpcomingWidget />,
-  todo: <QuickTodoList />,
+  todo: <TodoWidget />,
   progress: <ProgressWidget />,
   notepad: <QuickNotepad />,
   modules: <ModulesWidget />,
@@ -56,19 +40,16 @@ const WIDGET_BODIES: Record<WidgetId, ReactNode> = {
 
 export function Overview() {
   const [settingsOpen, setSettingsOpen] = useState(false)
-  // The layout being edited; null when not in edit mode.
-  const [draft, setDraft] = useState<LayoutItem[] | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
 
   const modules = useAsync(() => listModules(), [])
   const appSettings = useAsync(() => getAppSettings(), [])
   const calendar = useOverviewCalendar()
 
-  const saved = useMemo(() => normalizeLayout(appSettings.data?.dashboard_layout ?? null), [appSettings.data])
-  const editing = draft !== null
-  const layout = draft ?? saved
-  const hidden = hiddenWidgets(layout)
+  const editor = useLayoutEditor(OVERVIEW_BOARD, appSettings.data?.dashboard_layout ?? null, async (layout) => {
+    await updateAppSettings({ dashboard_layout: layout })
+    await appSettings.refetch()
+  })
+  const { layout, editing } = editor
 
   const overview: OverviewData = {
     modules,
@@ -79,34 +60,15 @@ export function Overview() {
     moduleColor: (id) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)',
   }
 
-  function startEditing() {
-    setSaveError(null)
-    setDraft(saved)
-  }
-
-  async function saveLayout() {
-    if (draft === null) return
-    setSaving(true)
-    setSaveError(null)
-    try {
-      // The default is stored as null, so it keeps tracking DEFAULT_LAYOUT if that changes.
-      await updateAppSettings({ dashboard_layout: sameLayout(draft, DEFAULT_LAYOUT) ? null : draft })
-      await appSettings.refetch()
-      setDraft(null)
-    } catch {
-      setSaveError("Couldn't save the layout.")
-    } finally {
-      setSaving(false)
-    }
-  }
-
   function renderWidget(id: WidgetId, slot: number) {
     return (
       <DashboardWidget
         title={id === 'agenda' ? selectedDayLabel(calendar.selected) : WIDGETS[id].title}
         slot={slot}
         editing={editing}
-        onRemove={() => setDraft((current) => removeWidget(current ?? saved, id))}
+        onRemove={() => editor.remove(id)}
+        // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
+        scroll={id !== 'progress'}
       >
         {WIDGET_BODIES[id]}
       </DashboardWidget>
@@ -123,65 +85,15 @@ export function Overview() {
           </div>
         }
         right={
-          editing ? (
-            <div className="flex items-center gap-2">
-              {saveError && <span className="text-sm text-destructive">{saveError}</span>}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" disabled={hidden.length === 0}>
-                    <Plus /> Add widget
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-72">
-                  <DropdownMenuLabel>Add to your overview</DropdownMenuLabel>
-                  {hidden.map((id) => {
-                    const fits = canAddWidget(layout, id)
-                    return (
-                      <DropdownMenuItem
-                        key={id}
-                        disabled={!fits}
-                        onSelect={() => setDraft((current) => addWidget(current ?? saved, id))}
-                        className="flex-col items-start gap-0"
-                      >
-                        <span>{WIDGETS[id].title}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {fits ? WIDGETS[id].description : 'No room left. Shrink or remove a widget first.'}
-                        </span>
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setDraft(DEFAULT_LAYOUT)}
-                disabled={sameLayout(layout, DEFAULT_LAYOUT)}
-              >
-                <RotateCcw /> Reset
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setDraft(null)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={saveLayout}
-                // An empty layout would load back as the default, so ask for at least one widget.
-                disabled={saving || layout.length === 0}
-              >
-                <Check /> Done
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" onClick={startEditing} disabled={appSettings.data === null}>
-                <LayoutDashboard /> Edit layout
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-                <Settings /> Settings
-              </Button>
-            </div>
-          )
+          <LayoutEditControls
+            editor={editor}
+            menuLabel="Add to your overview"
+            disabled={appSettings.data === null}
+          >
+            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+              <Settings /> Settings
+            </Button>
+          </LayoutEditControls>
         }
       />
 
@@ -196,7 +108,13 @@ export function Overview() {
                 something on it.
               </p>
             )}
-            <DashboardGrid layout={layout} editing={editing} onLayoutChange={setDraft} renderWidget={renderWidget} />
+            <DashboardGrid
+              widgets={WIDGETS}
+              layout={layout}
+              editing={editing}
+              onLayoutChange={editor.setDraft}
+              renderWidget={renderWidget}
+            />
           </OverviewContext>
         )}
       </div>

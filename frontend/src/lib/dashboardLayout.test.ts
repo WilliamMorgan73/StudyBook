@@ -15,35 +15,42 @@ import {
   removeWidget,
   sameLayout,
   stackedOrder,
+  OVERVIEW_BOARD,
   WIDGET_IDS,
   WIDGETS,
+  type Board,
   type LayoutItem,
+  type WidgetId,
 } from '@/lib/dashboardLayout'
+import { MODULE_BOARD } from '@/lib/moduleLayout'
 
-describe('DEFAULT_LAYOUT', () => {
+describe.each<[string, Board<string>]>([
+  ['the Overview', OVERVIEW_BOARD],
+  ['a module page', MODULE_BOARD],
+])("%s's default layout", (_name, board) => {
   it('fills the board exactly and respects every minimum size', () => {
-    expect(layoutBottom(DEFAULT_LAYOUT)).toBe(DASHBOARD_ROWS)
-    for (const item of DEFAULT_LAYOUT) {
+    expect(layoutBottom(board.defaultLayout)).toBe(DASHBOARD_ROWS)
+    for (const item of board.defaultLayout) {
       expect(item.x + item.w).toBeLessThanOrEqual(DASHBOARD_COLUMNS)
-      expect(item.w).toBeGreaterThanOrEqual(WIDGETS[item.i].minW)
-      expect(item.h).toBeGreaterThanOrEqual(WIDGETS[item.i].minH)
+      expect(item.w).toBeGreaterThanOrEqual(board.widgets[item.i].minW)
+      expect(item.h).toBeGreaterThanOrEqual(board.widgets[item.i].minH)
     }
   })
 
   it('survives normalizing unchanged', () => {
-    expect(normalizeLayout(DEFAULT_LAYOUT)).toEqual(DEFAULT_LAYOUT)
+    expect(normalizeLayout(board, board.defaultLayout)).toEqual(board.defaultLayout)
   })
 })
 
 describe('normalizeLayout', () => {
   it('falls back to the default for null, non-arrays and empty layouts', () => {
-    expect(normalizeLayout(null)).toBe(DEFAULT_LAYOUT)
-    expect(normalizeLayout({ calendar: 1 })).toBe(DEFAULT_LAYOUT)
-    expect(normalizeLayout([])).toBe(DEFAULT_LAYOUT)
+    expect(normalizeLayout(OVERVIEW_BOARD, null)).toBe(DEFAULT_LAYOUT)
+    expect(normalizeLayout(OVERVIEW_BOARD, { calendar: 1 })).toBe(DEFAULT_LAYOUT)
+    expect(normalizeLayout(OVERVIEW_BOARD, [])).toBe(DEFAULT_LAYOUT)
   })
 
   it('drops unknown ids, duplicates and malformed items', () => {
-    const layout = normalizeLayout([
+    const layout = normalizeLayout(OVERVIEW_BOARD, [
       { i: 'calendar', x: 0, y: 0, w: 6, h: 9 },
       { i: 'calendar', x: 6, y: 0, w: 6, h: 9 },
       { i: 'weather', x: 0, y: 9, w: 4, h: 4 },
@@ -56,12 +63,16 @@ describe('normalizeLayout', () => {
     expect(layout).toEqual([{ i: 'calendar', x: 0, y: 0, w: 6, h: 9 }])
   })
 
+  it("drops another board's widgets", () => {
+    expect(normalizeLayout(MODULE_BOARD, [{ i: 'calendar', x: 0, y: 0, w: 6, h: 9 }])).toBe(MODULE_BOARD.defaultLayout)
+  })
+
   it('falls back to the default when nothing usable is left', () => {
-    expect(normalizeLayout([{ i: 'weather', x: 0, y: 0, w: 4, h: 4 }])).toBe(DEFAULT_LAYOUT)
+    expect(normalizeLayout(OVERVIEW_BOARD, [{ i: 'weather', x: 0, y: 0, w: 4, h: 4 }])).toBe(DEFAULT_LAYOUT)
   })
 
   it('clamps sizes to the widget minimum and the grid width', () => {
-    const [small, wide, offGrid] = normalizeLayout([
+    const [small, wide, offGrid] = normalizeLayout(OVERVIEW_BOARD, [
       { i: 'calendar', x: 0, y: 0, w: 1, h: 1 },
       { i: 'modules', x: 0, y: 8, w: 40, h: 6 },
       { i: 'notepad', x: 11, y: -3, w: 4, h: 6 },
@@ -73,7 +84,7 @@ describe('normalizeLayout', () => {
   })
 
   it('scales a layout taller than the board down onto it', () => {
-    const layout = normalizeLayout([
+    const layout = normalizeLayout(OVERVIEW_BOARD, [
       { i: 'calendar', x: 0, y: 0, w: 6, h: 9 },
       { i: 'agenda', x: 0, y: 9, w: 6, h: 4 },
       { i: 'progress', x: 6, y: 0, w: 6, h: 13 },
@@ -87,18 +98,18 @@ describe('normalizeLayout', () => {
 })
 
 describe('adding and removing widgets', () => {
-  const layout: LayoutItem[] = [
+  const layout: LayoutItem<WidgetId>[] = [
     { i: 'calendar', x: 0, y: 0, w: 8, h: 10 },
     { i: 'notepad', x: 8, y: 0, w: 4, h: 14 },
   ]
 
   it('lists only the widgets that are not placed, in registry order', () => {
-    expect(hiddenWidgets(layout)).toEqual(WIDGET_IDS.filter((id) => id !== 'calendar' && id !== 'notepad'))
+    expect(hiddenWidgets(OVERVIEW_BOARD, layout)).toEqual(WIDGET_IDS.filter((id) => id !== 'calendar' && id !== 'notepad'))
   })
 
   it('adds a widget at its default size in the first free space on the board', () => {
-    const partial: LayoutItem[] = [{ i: 'calendar', x: 0, y: 0, w: 8, h: 10 }]
-    expect(addWidget(partial, 'flashcardsDue').at(-1)).toEqual({
+    const partial: LayoutItem<WidgetId>[] = [{ i: 'calendar', x: 0, y: 0, w: 8, h: 10 }]
+    expect(addWidget(OVERVIEW_BOARD, partial, 'flashcardsDue').at(-1)).toEqual({
       i: 'flashcardsDue',
       x: 8,
       y: 0,
@@ -109,22 +120,22 @@ describe('adding and removing widgets', () => {
 
   it('shrinks a widget towards its minimum size to fit the space left', () => {
     // Four rows free under the calendar, but the modules widget defaults to the full width.
-    expect(addWidget(layout, 'modules').at(-1)).toEqual({ i: 'modules', x: 0, y: 10, w: 8, h: 4 })
+    expect(addWidget(OVERVIEW_BOARD, layout, 'modules').at(-1)).toEqual({ i: 'modules', x: 0, y: 10, w: 8, h: 4 })
   })
 
   it('leaves the layout alone when there is no room, even at the minimum size', () => {
-    const full: LayoutItem[] = [{ i: 'notepad', x: 0, y: 0, w: 12, h: DASHBOARD_ROWS }]
-    expect(canAddWidget(full, 'todo')).toBe(false)
-    expect(addWidget(full, 'todo')).toBe(full)
-    expect(canAddWidget(layout, 'todo')).toBe(true)
+    const full: LayoutItem<WidgetId>[] = [{ i: 'notepad', x: 0, y: 0, w: 12, h: DASHBOARD_ROWS }]
+    expect(canAddWidget(OVERVIEW_BOARD, full, 'todo')).toBe(false)
+    expect(addWidget(OVERVIEW_BOARD, full, 'todo')).toBe(full)
+    expect(canAddWidget(OVERVIEW_BOARD, layout, 'todo')).toBe(true)
   })
 
   it('does not add a widget twice', () => {
-    expect(addWidget(layout, 'calendar')).toBe(layout)
+    expect(addWidget(OVERVIEW_BOARD, layout, 'calendar')).toBe(layout)
   })
 
   it('places the first widget of an empty layout at the top', () => {
-    expect(addWidget([], 'todo')[0]).toMatchObject({ x: 0, y: 0 })
+    expect(addWidget(OVERVIEW_BOARD, [], 'todo')[0]).toMatchObject({ x: 0, y: 0 })
   })
 
   it('removes a widget', () => {

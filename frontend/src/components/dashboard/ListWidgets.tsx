@@ -9,6 +9,7 @@ import { AssignmentItem } from '@/components/AssignmentItem'
 import { useOverview } from '@/components/dashboard/overviewContext'
 import { LoadSwap } from '@/components/LoadSwap'
 import { ModuleCard } from '@/components/ModuleCard'
+import { QuickTodoList } from '@/components/QuickTodoList'
 import { StudySession } from '@/components/StudySession'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -43,6 +44,12 @@ export function UpcomingWidget() {
       </LoadSwap>
     </>
   )
+}
+
+/** General to-dos, and each module's own under its name, with a filter. */
+export function TodoWidget() {
+  const { modules } = useOverview()
+  return <QuickTodoList modules={modules.data ?? []} />
 }
 
 /** Module cards in as many columns as the widget's width allows, so a narrow widget is a column. */

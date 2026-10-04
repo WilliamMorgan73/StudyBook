@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { DaySwap, PopIn, SelectionRing } from '@/components/CalendarEffects'
+import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
 import { EventMarker } from '@/components/EventMarker'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { Assignment, Lecture, RevisionSession } from '@/lib/api'
@@ -41,29 +42,14 @@ export function weekCalendarRange(today: Date) {
   return { start, end: addDays(start, 14) }
 }
 
-/**
- * A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures, exams and
- * revision sessions. Sessions can be ticked done here; `onRevisionDone` saves the tick.
- */
-export function ModuleWeekCalendar({
-  lectures,
-  exams,
-  revisionSessions,
-  onRevisionDone,
-  color,
-}: {
+interface ModuleEvents {
   lectures: Lecture[]
   exams: Assignment[]
   revisionSessions: RevisionSession[]
-  onRevisionDone: (session: RevisionSession, done: boolean) => void
   color: string
-}) {
-  const today = useState(() => new Date())[0]
-  const weekStart = startOfWeek(today)
-  const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i))
-  const [selected, setSelected] = useState(today)
-  const uid = useId()
+}
 
+function eventsByDay({ lectures, exams, revisionSessions }: ModuleEvents) {
   const lecturesByDay = (day: Date) =>
     lectures
       .filter((l) => isSameDay(new Date(l.scheduled_at), day))
@@ -79,14 +65,36 @@ export function ModuleWeekCalendar({
       .filter((s) => isSameDay(new Date(s.starts_at), day))
       .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
 
-  const selectedLectures = lecturesByDay(selected)
-  const selectedExams = examsByDay(selected)
-  const selectedSessions = sessionsByDay(selected)
+  return { lecturesByDay, examsByDay, sessionsByDay }
+}
+
+/**
+ * A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures, exams and
+ * revision sessions; click a day to select it. With `showDay`, the selected day's events sit beside
+ * the fortnight (under it when narrow); without it, they're left to a separate `ModuleDayList`.
+ */
+export function ModuleWeekCalendar({
+  selected,
+  onSelect,
+  showDay,
+  onRevisionDone,
+  ...events
+}: ModuleEvents & {
+  selected: Date
+  onSelect: (day: Date) => void
+  showDay: boolean
+  onRevisionDone: (session: RevisionSession, done: boolean) => void
+}) {
+  const today = useState(() => new Date())[0]
+  const weekStart = startOfWeek(today)
+  const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i))
+  const uid = useId()
+  const { lecturesByDay, examsByDay, sessionsByDay } = eventsByDay(events)
+  const { color } = events
 
   return (
-    // On wide screens the selected day sits beside the fortnight rather than under it, to keep the
-    // module page short enough to fit the window.
-    <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-6">
+    // On wide widgets the selected day sits beside the fortnight rather than under it.
+    <div className={showDay ? '@3xl:grid @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] @3xl:gap-6' : ''}>
       <div>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-border bg-border text-xs text-muted-foreground">
           {WEEKDAYS.map((d) => (
@@ -107,7 +115,7 @@ export function ModuleWeekCalendar({
               <button
                 key={day.toISOString()}
                 type="button"
-                onClick={() => setSelected(day)}
+                onClick={() => onSelect(day)}
                 className="relative flex min-h-12 flex-col items-center justify-center gap-1 bg-card p-1.5 transition-colors hover:bg-muted"
               >
                 {isSelected && <SelectionRing layoutId={`${uid}-selection`} />}
@@ -143,72 +151,94 @@ export function ModuleWeekCalendar({
         </div>
       </div>
 
-      <div className="mt-3 border-t pt-3 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-        <p className="mb-1.5 text-sm font-medium">
-          {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
-        <DaySwap dayKey={selected.toDateString()}>
-          {selectedLectures.length === 0 && selectedExams.length === 0 && selectedSessions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
-          ) : (
-            <ul className="max-h-24 space-y-1 overflow-y-auto pr-1">
-              {selectedLectures.map((l) => {
-                const start = new Date(l.scheduled_at)
-                return (
-                  <li key={l.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="min-w-0 truncate font-medium">{l.title}</span>
-                    <span className="shrink-0 text-muted-foreground">
-                      {formatTime(start)}
-                      {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
-                      {l.location && ` · ${l.location}`}
-                    </span>
-                  </li>
-                )
-              })}
-              {selectedExams.map((exam) => {
-                const start = new Date(exam.due_at!)
-                const end = examEndsAt(exam.due_at!, exam.duration_minutes)
-                return (
-                  <li key={`exam-${exam.id}`} className="flex items-center justify-between gap-3 text-sm">
-                    <Link
-                      to={`/modules/${exam.module_id}/assignments/${exam.id}`}
-                      className="flex min-w-0 items-center gap-2 font-medium hover:underline"
-                    >
-                      <EventMarker kind="exam" color={color} className="shrink-0" />
-                      <span className="truncate">{exam.title}</span>
-                    </Link>
-                    <span className="shrink-0 text-muted-foreground">
-                      {formatTime(start)}
-                      {end && ` – ${formatTime(end)}`}
-                      {exam.location && ` · ${exam.location}`}
-                    </span>
-                  </li>
-                )
-              })}
-              {selectedSessions.map((s) => (
-                <li key={`revision-${s.id}`} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Checkbox
-                      checked={s.done}
-                      aria-label={s.done ? 'Mark not done' : 'Mark done'}
-                      onCheckedChange={(checked) => onRevisionDone(s, checked === true)}
-                    />
-                    <Link
-                      to={revisionSessionUrl(s)}
-                      className={`truncate font-medium hover:underline ${s.done ? 'text-muted-foreground line-through' : ''}`}
-                    >
-                      Revise: {s.submodules.map((t) => t.title).join(', ')}
-                    </Link>
-                  </span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {formatTime(new Date(s.starts_at))} – {formatTime(new Date(s.ends_at))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </DaySwap>
-      </div>
+      {showDay && (
+        <div className="mt-3 border-t pt-3 @3xl:mt-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-6">
+          <p className="mb-1.5 text-sm font-medium">{selectedDayLabel(selected)}</p>
+          <ModuleDayList day={selected} onRevisionDone={onRevisionDone} listClassName="max-h-24" {...events} />
+        </div>
+      )}
     </div>
+  )
+}
+
+/** One day's lectures, exams and revision sessions; sessions can be ticked done here. */
+export function ModuleDayList({
+  day,
+  onRevisionDone,
+  listClassName = '',
+  ...events
+}: ModuleEvents & {
+  day: Date
+  onRevisionDone: (session: RevisionSession, done: boolean) => void
+  listClassName?: string
+}) {
+  const { lecturesByDay, examsByDay, sessionsByDay } = eventsByDay(events)
+  const { color } = events
+  const selectedLectures = lecturesByDay(day)
+  const selectedExams = examsByDay(day)
+  const selectedSessions = sessionsByDay(day)
+
+  return (
+    <DaySwap dayKey={day.toDateString()}>
+      {selectedLectures.length === 0 && selectedExams.length === 0 && selectedSessions.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
+      ) : (
+        <ul className={`space-y-1 overflow-y-auto pr-1 ${listClassName}`}>
+          {selectedLectures.map((l) => {
+            const start = new Date(l.scheduled_at)
+            return (
+              <li key={l.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate font-medium">{l.title}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {formatTime(start)}
+                  {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
+                  {l.location && ` · ${l.location}`}
+                </span>
+              </li>
+            )
+          })}
+          {selectedExams.map((exam) => {
+            const start = new Date(exam.due_at!)
+            const end = examEndsAt(exam.due_at!, exam.duration_minutes)
+            return (
+              <li key={`exam-${exam.id}`} className="flex items-center justify-between gap-3 text-sm">
+                <Link
+                  to={`/modules/${exam.module_id}/assignments/${exam.id}`}
+                  className="flex min-w-0 items-center gap-2 font-medium hover:underline"
+                >
+                  <EventMarker kind="exam" color={color} className="shrink-0" />
+                  <span className="truncate">{exam.title}</span>
+                </Link>
+                <span className="shrink-0 text-muted-foreground">
+                  {formatTime(start)}
+                  {end && ` – ${formatTime(end)}`}
+                  {exam.location && ` · ${exam.location}`}
+                </span>
+              </li>
+            )
+          })}
+          {selectedSessions.map((s) => (
+            <li key={`revision-${s.id}`} className="flex items-center justify-between gap-3 text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                <Checkbox
+                  checked={s.done}
+                  aria-label={s.done ? 'Mark not done' : 'Mark done'}
+                  onCheckedChange={(checked) => onRevisionDone(s, checked === true)}
+                />
+                <Link
+                  to={revisionSessionUrl(s)}
+                  className={`truncate font-medium hover:underline ${s.done ? 'text-muted-foreground line-through' : ''}`}
+                >
+                  Revise: {s.submodules.map((t) => t.title).join(', ')}
+                </Link>
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {formatTime(new Date(s.starts_at))} – {formatTime(new Date(s.ends_at))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </DaySwap>
   )
 }

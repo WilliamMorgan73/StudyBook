@@ -1,92 +1,99 @@
 import { Settings, ArrowLeft } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
-import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
-import { Countdown } from '@/components/Countdown'
-import { ModuleProgressRing } from '@/components/ModuleProgressRing'
-import { AnimatedNumber } from '@/components/RadialProgress'
-import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
-import { ModuleWeekCalendar, weekCalendarRange } from '@/components/ModuleWeekCalendar'
-import { PageHeader } from '@/components/PageHeader'
-import { StudySession } from '@/components/StudySession'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
+import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
+import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
+import { ModuleContext, type ModuleData } from '@/components/dashboard/moduleContext'
 import {
-  ASSIGNMENT_STATUS_LABEL,
-  getModule,
-  listRevisionSessions,
-  updateRevisionSession,
-  type Assignment,
-  type Submodule,
-} from '@/lib/api'
-import { enter, fadeUpAt } from '@/lib/motion'
+  AssignmentsAction,
+  AssignmentsWidget,
+  DayAgendaWidget,
+  ExamsWidget,
+  FlashcardsAction,
+  FlashcardsWidget,
+  GradesWidget,
+  LecturesWidget,
+  ModuleNotepadWidget,
+  ModuleProgressWidget,
+  ModuleTodoWidget,
+  OpenTodosWidget,
+  RelatedModulesWidget,
+  RevisionWidget,
+  ScheduleWidget,
+  SubmodulesAction,
+  SubmodulesWidget,
+} from '@/components/dashboard/ModuleWidgets'
+import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
+import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
+import { ModuleBanner } from '@/components/ModuleBanner'
+import { ModuleBannerDialog } from '@/components/ModuleBannerDialog'
+import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
+import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
+import { PageHeader } from '@/components/PageHeader'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { getModule, listRevisionSessions, updateModule, updateRevisionSession, type RevisionSession } from '@/lib/api'
+import { MODULE_BOARD, MODULE_WIDGETS, type ModuleWidgetId } from '@/lib/moduleLayout'
+import { normalizeBanner } from '@/lib/moduleBanner'
+import { enter } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
 
-const MotionCard = motion.create(Card)
+/** How far ahead the Upcoming revision widget looks. */
+const UPCOMING_REVISION_DAYS = 14
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode; scroll?: boolean }> = {
+  schedule: { body: <ScheduleWidget /> },
+  dayAgenda: { body: <DayAgendaWidget /> },
+  submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
+  assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
+  flashcards: { body: <FlashcardsWidget />, action: <FlashcardsAction /> },
+  revision: { body: <RevisionWidget /> },
+  // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
+  progress: { body: <ModuleProgressWidget />, scroll: false },
+  exams: { body: <ExamsWidget /> },
+  lectures: { body: <LecturesWidget /> },
+  grades: { body: <GradesWidget /> },
+  openTodos: { body: <OpenTodosWidget /> },
+  todo: { body: <ModuleTodoWidget /> },
+  notepad: { body: <ModuleNotepadWidget /> },
+  related: { body: <RelatedModulesWidget /> },
 }
 
-function AssignmentRow({ moduleId, assignment }: { moduleId: number; assignment: Assignment }) {
-  const overdue =
-    assignment.status !== 'graded' && assignment.due_at !== null && new Date(assignment.due_at) < new Date()
-
-  return (
-    <li className="py-2">
-      <Link
-        to={`/modules/${moduleId}/assignments/${assignment.id}`}
-        className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1 transition-colors hover:bg-muted"
-      >
-        <div className="min-w-0">
-          <p className="truncate font-medium">{assignment.title}</p>
-          <p className="text-sm text-muted-foreground">
-            {assignment.due_at
-              ? `${assignment.kind === 'exam' ? 'Exam' : 'Due'} ${formatDate(assignment.due_at)}`
-              : 'No due date'}{' '}
-            &middot;{' '}
-            {assignment.weight_percent}% of grade
-          </p>
-        </div>
-        <Badge variant={overdue ? 'destructive' : assignment.status === 'graded' ? 'secondary' : 'outline'}>
-          {overdue ? 'Overdue' : ASSIGNMENT_STATUS_LABEL[assignment.status]}
-        </Badge>
-      </Link>
-    </li>
-  )
-}
-
-function SubmoduleRow({ moduleId, submodule }: { moduleId: number; submodule: Submodule }) {
-  return (
-    <li className="py-2">
-      <Link to={`/modules/${moduleId}/submodules/${submodule.id}`} className="block hover:underline">
-        <p className="font-medium">{submodule.title}</p>
-      </Link>
-      <p className="text-sm text-muted-foreground">
-        {submodule.attachments.length > 0 &&
-          `${submodule.attachments.length} file${submodule.attachments.length === 1 ? '' : 's'} · `}
-        Updated {formatDate(submodule.updated_at)}
-      </p>
-    </li>
-  )
+function upcomingRevisionRange(today: Date) {
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + UPCOMING_REVISION_DAYS)
+  return { start, end }
 }
 
 export function ModulePage() {
   const { moduleId } = useParams()
-  const id = Number(moduleId)
+  // Keyed by module, so a layout being edited doesn't carry over to the next module.
+  return <ModuleView key={moduleId} id={Number(moduleId)} />
+}
+
+function ModuleView({ id }: { id: number }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [bannerOpen, setBannerOpen] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(() => new Date())
   const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
   const weekRange = useMemo(() => weekCalendarRange(new Date()), [])
-  const revisionSessions = useAsync(
+  const upcomingRange = useMemo(() => upcomingRevisionRange(new Date()), [])
+  const weekSessions = useAsync(
     () => listRevisionSessions({ moduleId: id, start: weekRange.start, end: weekRange.end }),
     [id, weekRange],
   )
-  const slotProps = (i: number) => ({ variants: fadeUpAt, custom: i })
+  const upcomingSessions = useAsync(
+    () => listRevisionSessions({ moduleId: id, start: upcomingRange.start, end: upcomingRange.end }),
+    [id, upcomingRange],
+  )
+  const editor = useLayoutEditor(MODULE_BOARD, module?.dashboard_layout ?? null, async (layout) => {
+    await updateModule(id, { dashboard_layout: layout })
+    await refetch()
+  })
+  const { layout, editing } = editor
 
   if (loading && !module) {
     return (
@@ -110,12 +117,35 @@ export function ModulePage() {
     )
   }
 
-  const dueFlashcards = module.flashcards.filter((f) => new Date(f.due_at) <= new Date()).length
-  const sortedAssignments = [...module.assignments].sort((a, b) => {
-    if (!a.due_at) return 1
-    if (!b.due_at) return -1
-    return new Date(a.due_at).getTime() - new Date(b.due_at).getTime()
-  })
+  const data: ModuleData = {
+    module,
+    refetch,
+    weekSessions,
+    upcomingSessions,
+    setRevisionDone: async (session: RevisionSession, done: boolean) => {
+      await updateRevisionSession(session.id, { done })
+      await Promise.all([weekSessions.refetch(), upcomingSessions.refetch()])
+    },
+    selectedDay,
+    setSelectedDay,
+    dayAgendaPlaced: layout.some((item) => item.i === 'dayAgenda'),
+  }
+
+  function renderWidget(widgetId: ModuleWidgetId, slot: number) {
+    const { body, action, scroll } = WIDGET_CONTENT[widgetId]
+    return (
+      <DashboardWidget
+        title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}
+        slot={slot + 1}
+        editing={editing}
+        onRemove={() => editor.remove(widgetId)}
+        action={action}
+        scroll={scroll}
+      >
+        {body}
+      </DashboardWidget>
+    )
+  }
 
   return (
     <motion.div className="flex h-full flex-col overflow-hidden" {...enter}>
@@ -127,148 +157,40 @@ export function ModulePage() {
           </Link>
         }
         right={
-          <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
-            <Settings /> Settings
-          </Button>
+          <LayoutEditControls editor={editor} menuLabel="Add to this module">
+            <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+              <Settings /> Settings
+            </Button>
+          </LayoutEditControls>
         }
       />
 
-      <motion.div className="shrink-0 border-b" style={{ backgroundColor: `${module.color}1f` }} {...slotProps(0)}>
-        <div className="flex items-center gap-5 px-6 py-4">
-          <ModuleProgressRing progress={module.completion_progress} color={module.color} size={56} strokeWidth={7} />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-semibold">{module.name}</h1>
-            {(module.code || module.term || module.credits !== null) && (
-              <p className="text-sm text-muted-foreground">
-                {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
-                  .filter(Boolean)
-                  .join(', ')}
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-8 text-right">
-            <div>
-              <p className="text-2xl font-semibold tabular-nums">
-                {module.current_grade !== null ? (
-                  <>
-                    <AnimatedNumber value={module.current_grade} decimals={1} />%
-                  </>
-                ) : (
-                  '—'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground">Current grade</p>
-            </div>
-            <div>
-              <Countdown target={module.next_lecture_at} />
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
-              </p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <ModuleBanner
+        module={module}
+        config={normalizeBanner(module.banner)}
+        editing={editing}
+        onCustomise={() => setBannerOpen(true)}
+      />
 
-      {/* Fits the viewport on large screens, with the lists scrolling inside their cards; when the
-          cards stack, this area scrolls instead. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
-        <MotionCard size="sm" className="shrink-0" {...slotProps(1)}>
-          <CardHeader>
-            <CardTitle>Schedule</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ModuleWeekCalendar
-              lectures={module.lectures}
-              exams={module.assignments.filter((a) => a.kind === 'exam')}
-              revisionSessions={revisionSessions.data ?? []}
-              onRevisionDone={async (session, done) => {
-                await updateRevisionSession(session.id, { done })
-                await revisionSessions.refetch()
-              }}
-              color={module.color}
-            />
-          </CardContent>
-        </MotionCard>
-
-        <div className="grid gap-4 max-lg:shrink-0 lg:min-h-40 lg:flex-1 lg:grid-cols-3 lg:grid-rows-[minmax(0,1fr)]">
-          <MotionCard size="sm" {...slotProps(2)}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Submodules</CardTitle>
-                <AddSubmoduleDialog moduleId={module.id} onCreated={refetch} />
-              </div>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto">
-              {module.submodules.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No submodules yet.</p>
-              ) : (
-                <ul className="divide-y">
-                  {module.submodules.map((s) => (
-                    <SubmoduleRow key={s.id} moduleId={module.id} submodule={s} />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </MotionCard>
-
-          <MotionCard size="sm" {...slotProps(3)}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Assignments</CardTitle>
-                <AddAssignmentDialog moduleId={module.id} submodules={module.submodules} onCreated={refetch} />
-              </div>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto">
-              {sortedAssignments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No assignments yet.</p>
-              ) : (
-                <ul className="divide-y">
-                  {sortedAssignments.map((a) => (
-                    <AssignmentRow key={a.id} moduleId={module.id} assignment={a} />
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </MotionCard>
-
-          <MotionCard size="sm" {...slotProps(4)}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Flashcards</CardTitle>
-                <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
-              </div>
-            </CardHeader>
-            <CardContent className="min-h-0 flex-1 overflow-y-auto">
-              {module.flashcards.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No flashcards yet.</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
-                  {dueFlashcards > 0 && `, ${dueFlashcards} due for review`}
-                </p>
-              )}
-            </CardContent>
-          </MotionCard>
-        </div>
-
-        {module.related_modules.length > 0 && (
-          <MotionCard size="sm" className="shrink-0" {...slotProps(5)}>
-            <CardHeader>
-              <CardTitle>Related modules</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {module.related_modules.map((related) => (
-                  <Link key={related.id} to={`/modules/${related.id}`}>
-                    <Badge variant="outline">{related.name}</Badge>
-                  </Link>
-                ))}
-              </div>
-            </CardContent>
-          </MotionCard>
-        )}
+      <div className="min-h-0 flex-1 px-6 py-4">
+        <ModuleContext value={data}>
+          {editing && layout.length === 0 && (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              This page is empty. Use <span className="font-medium text-foreground">Add widget</span> to put something
+              on it.
+            </p>
+          )}
+          <DashboardGrid
+            widgets={MODULE_WIDGETS}
+            layout={layout}
+            editing={editing}
+            onLayoutChange={editor.setDraft}
+            renderWidget={renderWidget}
+          />
+        </ModuleContext>
       </div>
 
+      <ModuleBannerDialog module={module} open={bannerOpen} onOpenChange={setBannerOpen} onSaved={refetch} />
       <ModuleSettingsDialog
         module={module}
         open={settingsOpen}

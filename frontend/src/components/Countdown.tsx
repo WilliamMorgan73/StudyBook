@@ -13,11 +13,16 @@ export function Countdown({
   target,
   noneLabel = 'None scheduled',
   arrivedLabel = 'Starting now',
+  size = 'md',
 }: {
   target: string | null
   noneLabel?: string
   arrivedLabel?: string
+  /** `sm` for tight spots, like a compact module banner. */
+  size?: 'sm' | 'md'
 }) {
+  const number = size === 'sm' ? 'text-base font-semibold' : 'text-2xl font-semibold'
+
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -26,35 +31,35 @@ export function Countdown({
   }, [])
 
   if (!target) {
-    return <p className="text-base text-muted-foreground">{noneLabel}</p>
+    return <p className={`${size === 'sm' ? 'text-sm' : 'text-base'} text-muted-foreground`}>{noneLabel}</p>
   }
 
   const diff = new Date(target).getTime() - now
   if (diff <= 0) {
-    return <p className="text-lg font-semibold">{arrivedLabel}</p>
+    return <p className={`${size === 'sm' ? 'text-base' : 'text-lg'} font-semibold`}>{arrivedLabel}</p>
   }
 
   const { days, hours, minutes, seconds } = diffParts(diff)
 
   return (
-    <div className="flex items-baseline gap-3 tabular-nums">
+    <div className={`flex items-baseline tabular-nums ${size === 'sm' ? 'gap-2' : 'gap-3'}`}>
       {days > 0 && (
         <span>
-          <span className="text-2xl font-semibold">{days}</span>
+          <span className={number}>{days}</span>
           <span className="ml-1 text-sm text-muted-foreground">{days === 1 ? 'day' : 'days'}</span>
         </span>
       )}
       <span>
-        <span className="text-2xl font-semibold">{String(hours).padStart(2, '0')}</span>
+        <span className={number}>{String(hours).padStart(2, '0')}</span>
         <span className="ml-1 text-sm text-muted-foreground">hr</span>
       </span>
       <span>
-        <span className="text-2xl font-semibold">{String(minutes).padStart(2, '0')}</span>
+        <span className={number}>{String(minutes).padStart(2, '0')}</span>
         <span className="ml-1 text-sm text-muted-foreground">min</span>
       </span>
       {days === 0 && (
         <span>
-          <span className="text-2xl font-semibold">{String(seconds).padStart(2, '0')}</span>
+          <span className={number}>{String(seconds).padStart(2, '0')}</span>
           <span className="ml-1 text-sm text-muted-foreground">sec</span>
         </span>
       )}
