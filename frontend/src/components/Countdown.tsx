@@ -31,7 +31,7 @@ export function Countdown({
 
   const diff = new Date(target).getTime() - now
   if (diff <= 0) {
-    return <p className="text-xl font-semibold">{arrivedLabel}</p>
+    return <p className="text-lg font-semibold">{arrivedLabel}</p>
   }
 
   const { days, hours, minutes, seconds } = diffParts(diff)
@@ -40,21 +40,21 @@ export function Countdown({
     <div className="flex items-baseline gap-3 tabular-nums">
       {days > 0 && (
         <span>
-          <span className="text-3xl font-semibold">{days}</span>
+          <span className="text-2xl font-semibold">{days}</span>
           <span className="ml-1 text-sm text-muted-foreground">{days === 1 ? 'day' : 'days'}</span>
         </span>
       )}
       <span>
-        <span className="text-3xl font-semibold">{String(hours).padStart(2, '0')}</span>
+        <span className="text-2xl font-semibold">{String(hours).padStart(2, '0')}</span>
         <span className="ml-1 text-sm text-muted-foreground">hr</span>
       </span>
       <span>
-        <span className="text-3xl font-semibold">{String(minutes).padStart(2, '0')}</span>
+        <span className="text-2xl font-semibold">{String(minutes).padStart(2, '0')}</span>
         <span className="ml-1 text-sm text-muted-foreground">min</span>
       </span>
       {days === 0 && (
         <span>
-          <span className="text-3xl font-semibold">{String(seconds).padStart(2, '0')}</span>
+          <span className="text-2xl font-semibold">{String(seconds).padStart(2, '0')}</span>
           <span className="ml-1 text-sm text-muted-foreground">sec</span>
         </span>
       )}

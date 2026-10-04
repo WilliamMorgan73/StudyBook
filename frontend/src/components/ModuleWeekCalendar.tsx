@@ -84,62 +84,66 @@ export function ModuleWeekCalendar({
   const selectedSessions = sessionsByDay(selected)
 
   return (
-    <div>
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-border bg-border text-xs text-muted-foreground">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="bg-card px-1 py-1.5 text-center">
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border">
-        {days.map((day) => {
-          const dayLectures = lecturesByDay(day)
-          const dayExams = examsByDay(day)
-          const daySessions = sessionsByDay(day)
-          const isToday = isSameDay(day, today)
-          const isSelected = isSameDay(day, selected)
+    // On wide screens the selected day sits beside the fortnight rather than under it, to keep the
+    // module page short enough to fit the window.
+    <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-6">
+      <div>
+        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-border bg-border text-xs text-muted-foreground">
+          {WEEKDAYS.map((d) => (
+            <div key={d} className="bg-card px-1 py-1.5 text-center">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border">
+          {days.map((day) => {
+            const dayLectures = lecturesByDay(day)
+            const dayExams = examsByDay(day)
+            const daySessions = sessionsByDay(day)
+            const isToday = isSameDay(day, today)
+            const isSelected = isSameDay(day, selected)
 
-          return (
-            <button
-              key={day.toISOString()}
-              type="button"
-              onClick={() => setSelected(day)}
-              className="relative flex min-h-16 flex-col items-center justify-center gap-1 bg-card p-1.5 transition-colors hover:bg-muted"
-            >
-              {isSelected && <SelectionRing layoutId={`${uid}-selection`} />}
-              <span
-                className={`flex size-6 items-center justify-center rounded-full text-xs ${
-                  isToday ? 'bg-foreground text-background' : ''
-                }`}
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => setSelected(day)}
+                className="relative flex min-h-12 flex-col items-center justify-center gap-1 bg-card p-1.5 transition-colors hover:bg-muted"
               >
-                {day.getDate()}
-              </span>
-              {(dayLectures.length > 0 || dayExams.length > 0 || daySessions.length > 0) && (
-                <span className="flex items-center gap-1">
-                  {dayLectures.length > 0 && (
-                    <PopIn>
-                      <EventMarker kind="lecture" color={color} />
-                    </PopIn>
-                  )}
-                  {dayExams.length > 0 && (
-                    <PopIn>
-                      <EventMarker kind="exam" color={color} />
-                    </PopIn>
-                  )}
-                  {daySessions.length > 0 && (
-                    <PopIn>
-                      <EventMarker kind="revision" color={color} done={daySessions.every((s) => s.done)} />
-                    </PopIn>
-                  )}
+                {isSelected && <SelectionRing layoutId={`${uid}-selection`} />}
+                <span
+                  className={`flex size-6 items-center justify-center rounded-full text-xs ${
+                    isToday ? 'bg-foreground text-background' : ''
+                  }`}
+                >
+                  {day.getDate()}
                 </span>
-              )}
-            </button>
-          )
-        })}
+                {(dayLectures.length > 0 || dayExams.length > 0 || daySessions.length > 0) && (
+                  <span className="flex items-center gap-1">
+                    {dayLectures.length > 0 && (
+                      <PopIn>
+                        <EventMarker kind="lecture" color={color} />
+                      </PopIn>
+                    )}
+                    {dayExams.length > 0 && (
+                      <PopIn>
+                        <EventMarker kind="exam" color={color} />
+                      </PopIn>
+                    )}
+                    {daySessions.length > 0 && (
+                      <PopIn>
+                        <EventMarker kind="revision" color={color} done={daySessions.every((s) => s.done)} />
+                      </PopIn>
+                    )}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <div className="mt-3 border-t pt-3">
+      <div className="mt-3 border-t pt-3 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
         <p className="mb-1.5 text-sm font-medium">
           {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>
@@ -147,7 +151,7 @@ export function ModuleWeekCalendar({
           {selectedLectures.length === 0 && selectedExams.length === 0 && selectedSessions.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nothing scheduled this day.</p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="max-h-24 space-y-1 overflow-y-auto pr-1">
               {selectedLectures.map((l) => {
                 const start = new Date(l.scheduled_at)
                 return (

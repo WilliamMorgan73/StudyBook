@@ -19,7 +19,7 @@ function App() {
           no exit: waiting on an exit would make every navigation feel slower. */}
       <motion.div
         key={location.pathname}
-        className="min-h-full"
+        className="h-full"
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}

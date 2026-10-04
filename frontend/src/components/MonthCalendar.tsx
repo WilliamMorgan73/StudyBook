@@ -125,6 +125,8 @@ export function MonthCalendar({
 
   const [gridRef, gridSize] = useElementSize<HTMLDivElement>()
   const lines = fill ? titleLines(gridSize.width / 7, gridSize.height / 6) : 0
+  // Too short to stack the date over its markers, so a stretched cell puts them side by side.
+  const short = fill && gridSize.height > 0 && gridSize.height / 6 < 40
 
   // Which way the last month change went (0 before any), so the new grid slides in from that side.
   const [shownMonth, setShownMonth] = useState(month)
@@ -135,7 +137,7 @@ export function MonthCalendar({
   }
 
   return (
-    <div className={fill ? 'flex flex-1 flex-col' : undefined}>
+    <div className={fill ? 'flex min-h-0 flex-1 flex-col' : undefined}>
       <div className="mb-3 flex items-center justify-between">
         <p className="font-medium">{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p>
         <div className="flex items-center gap-1">
@@ -177,7 +179,7 @@ export function MonthCalendar({
         transition={{ duration: 0.2 }}
         className={`grid grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-t-0 border-border bg-border ${
           // Rows share the height but never shrink below a day cell's own minimum.
-          fill ? 'flex-1 grid-rows-[repeat(6,minmax(2.75rem,1fr))]' : ''
+          fill ? 'min-h-0 flex-1 grid-rows-[repeat(6,minmax(1.75rem,1fr))]' : ''
         }`}
       >
         {days.map((day) => {
@@ -191,7 +193,9 @@ export function MonthCalendar({
               key={day.toISOString()}
               type="button"
               onClick={() => onSelect(day)}
-              className={`relative flex min-h-11 min-w-0 flex-col items-start gap-1 overflow-hidden bg-card p-1.5 text-left transition-colors hover:bg-muted ${
+              className={`relative flex min-w-0 gap-1 overflow-hidden bg-card text-left transition-colors hover:bg-muted ${
+                short ? 'flex-row items-center p-1' : 'flex-col items-start p-1.5'
+              } ${fill ? '' : 'min-h-11'} ${
                 inMonth ? '' : 'opacity-40'
               }`}
             >
