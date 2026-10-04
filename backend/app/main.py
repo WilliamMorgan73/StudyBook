@@ -10,6 +10,7 @@ from app.api.routes import (
     app_settings,
     assignments,
     attachments,
+    backup,
     calendar,
     calendar_feeds,
     flashcards,
@@ -57,6 +58,7 @@ app.include_router(personal_events.router)
 app.include_router(revision.router)
 app.include_router(quick_todos.router)
 app.include_router(quick_note.router)
+app.include_router(backup.router)
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

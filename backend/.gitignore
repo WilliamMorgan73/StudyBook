@@ -3,5 +3,6 @@ __pycache__/
 *.pyc
 .env
 uploads/
+backups/
 .pytest_cache/
 .ruff_cache/

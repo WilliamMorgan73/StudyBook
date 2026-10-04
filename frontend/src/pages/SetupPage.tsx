@@ -4,11 +4,13 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
+import { RestoreBackup } from '@/components/BackupSettings'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
 import { ErrorState } from '@/components/ErrorState'
 import { LayoutPreviewDialog } from '@/components/setup/LayoutPreview'
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -124,6 +126,7 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
   const navigate = useNavigate()
   const [stepIndex, setStepIndex] = useState(0)
   const [finishing, setFinishing] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
   const modules = useAsync(() => listModules(), [])
   const step = STEPS[stepIndex]
   const last = stepIndex === STEPS.length - 1
@@ -150,10 +153,28 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-4 border-b px-6 py-3">
         <span className="font-medium">Set up StudyBook</span>
-        <Button variant="ghost" size="sm" onClick={finish} disabled={finishing}>
-          Skip setup
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setRestoreOpen(true)}>
+            Restore from a backup
+          </Button>
+          <Button variant="ghost" size="sm" onClick={finish} disabled={finishing}>
+            Skip setup
+          </Button>
+        </div>
       </header>
+
+      {/* A restored backup brings its own settings (setup done, usually), so the app reloads from `/`. */}
+      <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restore from a backup</DialogTitle>
+            <DialogDescription>
+              Moving from another computer, or reinstalling? Pick a backup downloaded from Settings → Data. It replaces anything set up here so far.
+            </DialogDescription>
+          </DialogHeader>
+          <RestoreBackup showHeading={false} />
+        </DialogContent>
+      </Dialog>
 
       {/* Fits the viewport: steps fill what's left under the title, and only a list or a long
           panel scrolls, inside itself. */}

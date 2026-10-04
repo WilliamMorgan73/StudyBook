@@ -6,6 +6,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://studybook:studybook@localhost:5432/studybook"
     upload_dir: str = "uploads"
+    # Where a restore saves its automatic copy of the data it replaces.
+    backup_dir: str = "backups"
     cors_origins: list[str] = ["http://localhost:5173"]
     # Fallback Anthropic key (env var ANTHROPIC_API_KEY or .env), used when the key saved in
     # AppSettings is empty. The saved key wins.

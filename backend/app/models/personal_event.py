@@ -1,6 +1,6 @@
 from datetime import date, datetime, time
 
-from sqlalchemy import ARRAY, Integer, String
+from sqlalchemy import ARRAY, JSON, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -17,8 +17,9 @@ class PersonalEvent(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(200))
-    # Python `date.weekday()` numbering: 0 = Monday ... 6 = Sunday.
-    weekdays: Mapped[list[int]] = mapped_column(ARRAY(Integer))
+    # Python `date.weekday()` numbering: 0 = Monday ... 6 = Sunday. A Postgres int array; JSON on other
+    # databases (SQLite in tests).
+    weekdays: Mapped[list[int]] = mapped_column(JSON().with_variant(ARRAY(Integer), "postgresql"))
     # Naive wall-clock times, like every other stored datetime. An end before the start means
     # the event runs past midnight into the next day.
     start_time: Mapped[time]
