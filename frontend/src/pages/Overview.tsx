@@ -67,6 +67,8 @@ export function Overview() {
         slot={slot}
         editing={editing}
         onRemove={() => editor.remove(id)}
+        // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
+        scroll={id !== 'progress'}
       >
         {WIDGET_BODIES[id]}
       </DashboardWidget>
