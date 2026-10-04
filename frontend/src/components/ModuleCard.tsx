@@ -27,15 +27,22 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
     <Link to={`/modules/${module.id}`}>
       <Card size="sm" className="h-full transition-colors hover:ring-foreground/20">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-baseline gap-1.5">
-                <CardTitle className="truncate">{module.name}</CardTitle>
+          {/* min-w-0 at every level down to the title (CardHeader is a grid, whose items otherwise
+              grow to fit their content), so a long name truncates instead of pushing the code and
+              ring out of the card. */}
+          <div className="flex min-w-0 items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <CardTitle className="min-w-0 truncate" title={module.name}>
+                  {module.name}
+                </CardTitle>
                 {module.code && <span className="shrink-0 text-sm font-normal text-muted-foreground">{module.code}</span>}
               </div>
               <CardDescription>{credits ?? module.term ?? ' '}</CardDescription>
             </div>
-            <ModuleProgressRing progress={module.completion_progress} color={module.color} size={40} strokeWidth={5} />
+            <span className="shrink-0">
+              <ModuleProgressRing progress={module.completion_progress} color={module.color} size={40} strokeWidth={5} />
+            </span>
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">

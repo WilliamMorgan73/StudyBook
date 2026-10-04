@@ -140,9 +140,11 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
         </Button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-6 py-10">
-          <ol className="mb-10 flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Setup steps">
+      {/* Fits the viewport: steps fill what's left under the title, and only a list or a long
+          panel scrolls, inside itself. */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <div className="mx-auto flex h-full max-w-5xl flex-col px-6 pt-8 pb-4">
+          <ol className="mb-6 flex shrink-0 flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Setup steps">
             {STEPS.map((s, i) => (
               <li key={s.id}>
                 <button
@@ -177,18 +179,27 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               aria-labelledby="setup-step-title"
+              className="flex min-h-0 flex-1 flex-col"
             >
               <h1 id="setup-step-title" className="text-3xl font-semibold tracking-tight text-balance">
                 {step.title}
               </h1>
-              <p className="mt-2 max-w-prose text-muted-foreground">{step.intro}</p>
-              <div className="mt-8">
+              <p className="mt-2 max-w-prose shrink-0 text-muted-foreground">{step.intro}</p>
+              <div className="mt-6 min-h-0 flex-1">
                 {step.id === 'appearance' && <AppearanceStep settings={settings} />}
                 {step.id === 'modules' && <ModulesStep modules={modules.data} onChanged={modules.refetch} />}
                 {step.id === 'layout' && <LayoutStep page="module" settings={settings} accent={accent} />}
                 {step.id === 'overview' && <LayoutStep page="overview" settings={settings} accent={accent} />}
-                {step.id === 'ai' && <AIStep settings={settings} />}
-                {step.id === 'calendars' && <CalendarFeedsSettings onChanged={() => {}} />}
+                {step.id === 'ai' && (
+                  <div className="h-full max-w-3xl overflow-y-auto pr-1">
+                    <AIStep settings={settings} />
+                  </div>
+                )}
+                {step.id === 'calendars' && (
+                  <div className="h-full max-w-3xl overflow-y-auto pr-1">
+                    <CalendarFeedsSettings onChanged={() => {}} />
+                  </div>
+                )}
               </div>
             </motion.section>
           </AnimatePresence>
@@ -196,7 +207,7 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
       </div>
 
       <footer className="border-t px-6 py-3">
-        <div className="mx-auto flex max-w-3xl items-center gap-2">
+        <div className="mx-auto flex max-w-5xl items-center gap-2">
           <Button variant="ghost" onClick={() => setStepIndex((i) => i - 1)} disabled={stepIndex === 0}>
             Back
           </Button>
@@ -311,8 +322,8 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
   }
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleAdd} className="space-y-4 rounded-xl bg-muted/40 p-4">
+    <div className="flex h-full max-w-3xl flex-col gap-4">
+      <form onSubmit={handleAdd} className="shrink-0 space-y-4 rounded-xl bg-muted/40 p-4">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_6rem]">
           <div className="space-y-1.5">
             <Label htmlFor="setup-module-name">Name</Label>
@@ -350,7 +361,7 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
       </form>
 
       {modules && modules.length > 0 ? (
-        <ul className="divide-y rounded-xl border">
+        <ul className="min-h-0 divide-y overflow-y-auto rounded-xl border">
           <AnimatePresence initial={false}>
             {modules.map((m) => (
               <motion.li
@@ -377,9 +388,11 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
           </AnimatePresence>
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">No modules yet. Add one above, or skip this and add them from the Overview.</p>
+        <p className="shrink-0 text-sm text-muted-foreground">
+          No modules yet. Add one above, or skip this and add them from the Overview.
+        </p>
       )}
-      <p className="text-sm text-muted-foreground">
+      <p className="shrink-0 text-sm text-muted-foreground">
         Add lectures, assignments and topics from each module’s page once you’re in.
       </p>
     </div>
@@ -420,8 +433,8 @@ function LayoutStep({ page, settings, accent }: { page: 'module' | 'overview'; s
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
+    <div className="flex h-full flex-col gap-4">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
         <p className="text-sm">
           {chosenPreset ? (
             <>
@@ -435,7 +448,8 @@ function LayoutStep({ page, settings, accent }: { page: 'module' | 'overview'; s
           <Eye /> Preview with sample data
         </Button>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* One row of four on a wide screen; on a narrow one the grid scrolls inside itself. */}
+      <div className="grid min-h-0 content-start gap-3 overflow-y-auto p-0.5 sm:grid-cols-2 lg:grid-cols-4">
         {presets.map((preset) => {
           const selected = sameLayout(chosen, preset.layout)
           return (
@@ -455,7 +469,7 @@ function LayoutStep({ page, settings, accent }: { page: 'module' | 'overview'; s
                   {preset.label}
                   {selected && <Check className="size-4" aria-hidden />}
                 </span>
-                <span className="block text-sm text-muted-foreground">{preset.description}</span>
+                <span className="block text-xs text-muted-foreground">{preset.description}</span>
               </span>
             </button>
           )
@@ -494,7 +508,7 @@ function LayoutThumbnail({
 }) {
   return (
     <span
-      className="grid aspect-[12/7] w-full gap-1 rounded-lg bg-muted p-1.5"
+      className="grid aspect-[12/10] w-full gap-1 rounded-lg bg-muted p-1.5"
       style={{ gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gridTemplateRows: 'repeat(14, minmax(0, 1fr))' }}
       aria-hidden
     >
