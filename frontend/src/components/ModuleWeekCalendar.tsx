@@ -200,7 +200,13 @@ export function ModuleDayList({
                     {l.location && ` · ${l.location}`}
                   </span>
                 </div>
-                <LectureSubmodules lecture={l} options={submodules} onChanged={onLectureChanged} className="mt-0.5" />
+                <LectureSubmodules
+                  lecture={l}
+                  options={submodules}
+                  moduleLectures={events.lectures}
+                  onChanged={onLectureChanged}
+                  className="mt-0.5"
+                />
               </li>
             )
           })}

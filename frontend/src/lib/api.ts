@@ -647,6 +647,15 @@ export function updateLecture(id: number, input: LectureUpdateInput) {
   return patchJson<Lecture>(`/lectures/${id}`, input)
 }
 
+/** Gives every listed lecture (one module's) exactly these Submodules, replacing what each had. */
+export function setLecturesSubmodules(lectureIds: number[], submoduleIds: number[]) {
+  return request<Lecture[]>('/lectures/submodules', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lecture_ids: lectureIds, submodule_ids: submoduleIds }),
+  })
+}
+
 export function deleteLecture(id: number) {
   return request<void>(`/lectures/${id}`, { method: 'DELETE' })
 }

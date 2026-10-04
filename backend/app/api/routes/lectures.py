@@ -5,7 +5,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.lecture import Lecture
 from app.models.submodule import Submodule
-from app.schemas.lecture import LectureCreate, LectureRead, LectureUpdate
+from app.schemas.lecture import (
+    LectureCreate,
+    LectureRead,
+    LecturesSubmodulesUpdate,
+    LectureUpdate,
+)
 
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
@@ -45,6 +50,24 @@ def create_lecture(payload: LectureCreate, db: Session = Depends(get_db)) -> Lec
     db.commit()
     db.refresh(lecture)
     return lecture
+
+
+@router.put("/submodules", response_model=list[LectureRead])
+def set_lectures_submodules(payload: LecturesSubmodulesUpdate, db: Session = Depends(get_db)) -> list[Lecture]:
+    """Applies one set of Submodules to many lectures of one Module at once (e.g. every Wednesday's),
+    replacing what each had."""
+    ids = set(payload.lecture_ids)
+    lectures = list(db.scalars(select(Lecture).where(Lecture.id.in_(ids)).order_by(Lecture.scheduled_at)).all())
+    if not ids or len(lectures) != len(ids):
+        raise HTTPException(422, "Unknown lecture")
+    module_ids = {lecture.module_id for lecture in lectures}
+    if len(module_ids) > 1:
+        raise HTTPException(422, "The lectures must all belong to one module")
+    submodules = _lecture_submodules(db, module_ids.pop(), payload.submodule_ids)
+    for lecture in lectures:
+        lecture.submodules = list(submodules)
+    db.commit()
+    return lectures
 
 
 @router.get("/{lecture_id}", response_model=LectureRead)
