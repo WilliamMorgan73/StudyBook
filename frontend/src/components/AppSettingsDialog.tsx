@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
+import { BackupSettings } from '@/components/BackupSettings'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
 import { KeybindInput } from '@/components/KeybindInput'
 import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
@@ -307,14 +308,7 @@ export function AppSettingsDialog({
 
             {category === 'ai' && <AISettingsPanel settings={aiSettings} onSaved={setAISettings} />}
 
-            {category === 'data' && (
-              <div className="space-y-1.5">
-                <p className="text-sm font-medium">Data export is coming soon</p>
-                <p className="text-sm text-muted-foreground">
-                  Exporting your notes, flashcards, and attachments as a backup isn't available yet.
-                </p>
-              </div>
-            )}
+            {category === 'data' && <BackupSettings />}
           </motion.div>
         </div>
       </DialogContent>

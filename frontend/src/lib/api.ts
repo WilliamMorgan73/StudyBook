@@ -911,3 +911,20 @@ export function getQuickNote() {
 export function updateQuickNote(content: string) {
   return patchJson<QuickNote>('/quick-note', { content })
 }
+
+/** `GET /backup`: a zip of every table and uploaded file, served as a download (link to it, don't fetch it). */
+export const BACKUP_DOWNLOAD_URL = `${API_BASE}/backup`
+
+export interface RestoreResult {
+  /** When the restored backup was made (UTC ISO). */
+  created_at: string
+  /** Rows restored, per table. */
+  counts: Record<string, number>
+  /** Where the automatic copy of the replaced data was saved, on the server's disk. */
+  pre_restore_backup: string
+}
+
+/** Replaces everything with the backup's data and files, after the server saves a copy of the current data. */
+export function restoreBackup(file: File) {
+  return uploadFile<RestoreResult>('/backup/restore', file)
+}
