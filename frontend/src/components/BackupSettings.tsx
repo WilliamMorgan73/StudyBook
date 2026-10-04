@@ -3,14 +3,24 @@ import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { BACKUP_DOWNLOAD_URL, restoreBackup, type RestoreResult } from '@/lib/api'
+import { BACKUP_DOWNLOAD_URL, getDataLocation, restoreBackup, type RestoreResult } from '@/lib/api'
 import { formatBackupDate, summarizeCounts } from '@/lib/backup'
 import { isDesktop, onDownloadFinished, type DownloadFinished } from '@/lib/desktop'
+import { useAsync } from '@/lib/useAsync'
 
 /** Settings → Data: download a backup, or restore one. */
 export function BackupSettings({ onRestored }: { onRestored?: () => void }) {
+  const location = useAsync(() => getDataLocation(), [])
   return (
     <div className="space-y-8">
+      {location.data && (
+        <div className="space-y-1.5">
+          <Label>Where your data is</Label>
+          <p className="text-xs break-all text-muted-foreground">
+            Everything is stored on this computer in <span className="font-mono">{location.data.data_dir}</span>
+          </p>
+        </div>
+      )}
       <div className="space-y-1.5">
         <Label>Back up</Label>
         <p className="text-xs text-muted-foreground">

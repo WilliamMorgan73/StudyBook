@@ -15,6 +15,7 @@ const RESULT: RestoreResult = {
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
   restoreBackup: vi.fn(async () => RESULT),
+  getDataLocation: vi.fn(async () => ({ data_dir: '/home/me/.local/share/com.willmorgan.studybook' })),
 }))
 
 const backupFile = () => new File(['zip'], 'studybook-backup-2026-10-04.zip', { type: 'application/zip' })
@@ -28,6 +29,11 @@ describe('BackupSettings', () => {
   afterEach(() => {
     cleanup()
     vi.useRealTimers()
+  })
+
+  it('shows where the data is stored', async () => {
+    render(<BackupSettings />)
+    expect(await screen.findByText('/home/me/.local/share/com.willmorgan.studybook')).toBeTruthy()
   })
 
   it('downloads the backup through a plain link', () => {

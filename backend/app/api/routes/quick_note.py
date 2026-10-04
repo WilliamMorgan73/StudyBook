@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,7 +14,11 @@ def _get_or_create(db: Session) -> QuickNote:
     if note is None:
         note = QuickNote(id=1, content=None)
         db.add(note)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:  # a concurrent first request created it (see `get_or_create_settings`)
+            db.rollback()
+            return db.get(QuickNote, 1)
         db.refresh(note)
     return note
 

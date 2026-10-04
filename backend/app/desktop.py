@@ -10,6 +10,8 @@ Development doesn't use this: it runs `uvicorn app.main:app` behind Vite.
 
 import argparse
 import os
+import sys
+import threading
 from pathlib import Path
 
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -57,6 +59,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data-dir", type=Path, required=True, help="where the database, uploads and backups live")
     parser.add_argument("--frontend-dist", type=Path, default=_DEFAULT_FRONTEND_DIST)
+    parser.add_argument(
+        "--exit-with-stdin",
+        action="store_true",
+        help="exit when stdin closes: the desktop app holds the other end, so this dies with it, even after a crash",
+    )
     args = parser.parse_args(argv)
 
     data_dir = args.data_dir.expanduser().resolve()
@@ -68,9 +75,17 @@ def main(argv: list[str] | None = None) -> None:
     os.environ["UPLOAD_DIR"] = str(data_dir / "uploads")
     os.environ["BACKUP_DIR"] = str(data_dir / "backups")
 
+    if args.exit_with_stdin:
+        threading.Thread(target=_exit_when_stdin_closes, daemon=True).start()
+
     import uvicorn
 
     uvicorn.run(create_app(args.frontend_dist.resolve()), host="127.0.0.1", port=args.port, log_level="info")
+
+
+def _exit_when_stdin_closes() -> None:
+    sys.stdin.read()  # returns at EOF, i.e. once the parent's end of the pipe is gone
+    os._exit(0)
 
 
 if __name__ == "__main__":

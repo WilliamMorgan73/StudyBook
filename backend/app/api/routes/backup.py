@@ -26,6 +26,16 @@ class RestoreResult(BaseModel):
     pre_restore_backup: str
 
 
+class DataLocation(BaseModel):
+    data_dir: str
+    """Absolute path of the folder holding the database, uploads and backups."""
+
+
+@router.get("/location", response_model=DataLocation)
+def data_location() -> DataLocation:
+    return DataLocation(data_dir=str(Path(settings.data_dir).resolve()))
+
+
 @router.get("")
 def download_backup(db: Session = Depends(get_db)) -> FileResponse:
     with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:

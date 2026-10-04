@@ -912,6 +912,11 @@ export function updateQuickNote(content: string) {
   return patchJson<QuickNote>('/quick-note', { content })
 }
 
+/** The folder holding the database, uploads and backups (absolute, on the server's disk). */
+export function getDataLocation() {
+  return request<{ data_dir: string }>('/backup/location')
+}
+
 /** `GET /backup`: a zip of every table and uploaded file, served as a download (link to it, don't fetch it). */
 export const BACKUP_DOWNLOAD_URL = `${API_BASE}/backup`
 

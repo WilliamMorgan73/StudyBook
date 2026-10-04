@@ -93,7 +93,16 @@ Maturity (`lib/flashcards.ts::cardMaturity`) is new / learning (< 7 days) / know
 
 ## Desktop shell (`frontend/src-tauri/`)
 
-Optional dev-only Tauri wrapper around the same Vite dev server (`localhost:5173`). `pnpm tauri dev` from `frontend/` (starts the dev server itself; needs a Rust toolchain). `pnpm tauri build` produces `.deb`/`.rpm`; AppImage fails (linuxdeploy needs fuse2) and isn't a current goal.
+`pnpm tauri dev` from `frontend/` wraps the Vite dev server (`localhost:5173`; start the backend by hand). `pnpm tauri build` makes the installable app: `beforeBuildCommand` runs `pnpm build`, then `backend/packaging/build.py` (PyInstaller onedir from `packaging/studybook-backend.spec` into `src-tauri/resources/backend/`, and `dist` copied to `resources/frontend/`, both gitignored and bundled as resources). `build.rs` creates empty placeholders so dev builds and `cargo check` work without them. Locally, `--bundles deb` (AppImage needs fuse2).
+
+In packaged builds only (`!cfg!(debug_assertions)`), `src-tauri/src/backend.rs` runs the server:
+- The window opens on `splash/index.html` (`frontendDist`; frameless, so it's a drag region with its own close button).
+- A thread picks port 47613, or a random free one if that's taken. Browser storage is per origin, so a stable port keeps it across launches.
+- It spawns `resources/backend/studybook-backend --port N --data-dir <app_data_dir> --frontend-dist resources/frontend --exit-with-stdin` (no console window on Windows), with output to `<app_data_dir>/backend.log`.
+- It polls `GET /api/health` (60 s), then `navigate`s the window to `http://127.0.0.1:N/`. If the server exits or times out, it calls the splash's `showStartupError` instead.
+- `RunEvent::Exit` kills the server. The server also exits when its stdin closes, so it dies with the app even after a crash or SIGTERM.
+- `tauri-plugin-single-instance` focuses the existing window instead of starting a second server on the same database.
+- `capabilities/default.json` lists `remote.urls: http://127.0.0.1:*`, so the window controls and the `download-finished` event work on the server's origin.
 
 The window is frameless (`decorations: false`), so the page draws its own title bar. `lib/desktop.ts::isDesktop` (`__TAURI_INTERNALS__` present) gates all of it, and a browser renders exactly as before:
 - `PageHeader` and the setup page header carry `data-tauri-drag-region="deep"`: dragging any non-interactive part moves the window, and double-clicking maximises. Buttons, links and inputs keep working because Tauri's drag script skips clickable elements.

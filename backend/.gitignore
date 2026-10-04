@@ -8,3 +8,4 @@ backups/
 .ruff_cache/
 studybook.db
 studybook.db-*
+build/

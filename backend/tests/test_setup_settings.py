@@ -60,3 +60,29 @@ def test_default_module_layout_round_trips_and_resets(client: TestClient) -> Non
     assert client.patch("/settings", json={"default_module_layout": LAYOUT}).json()["default_module_layout"] == LAYOUT
     assert client.patch("/settings", json={"theme_mode": "dark"}).json()["default_module_layout"] == LAYOUT
     assert client.patch("/settings", json={"default_module_layout": None}).json()["default_module_layout"] is None
+
+
+@pytest.mark.parametrize("model", ["settings", "quick_note"])
+def test_losing_the_race_to_create_the_single_row_returns_the_winners(db: Session, monkeypatch, model) -> None:
+    # A new install's first page load asks for these several times at once: each request sees no row, and
+    # all but one fail to insert id=1. Simulated here: the row exists, but this request's first lookup missed it.
+    from app.api.routes.quick_note import _get_or_create
+    from app.crud.app_settings import get_or_create_settings
+    from app.models.quick_note import QuickNote
+
+    cls, get_or_create = (AppSettings, get_or_create_settings) if model == "settings" else (QuickNote, _get_or_create)
+    cls.__table__.create(db.get_bind(), checkfirst=True)
+    db.execute(cls.__table__.insert().values(id=1))
+    db.commit()
+    real_get, calls = Session.get, []
+
+    def first_lookup_misses(self, entity, ident, **kw):
+        calls.append(ident)
+        return None if len(calls) == 1 else real_get(self, entity, ident, **kw)
+
+    monkeypatch.setattr(Session, "get", first_lookup_misses)
+
+    row = get_or_create(db)
+
+    assert row is not None and row.id == 1
+    assert db.query(cls).count() == 1

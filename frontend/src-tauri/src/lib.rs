@@ -1,6 +1,8 @@
+mod backend;
+
 use serde::Serialize;
 use tauri::webview::DownloadEvent;
-use tauri::{Emitter, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, RunEvent, WebviewWindowBuilder};
 
 /// Sent to the page as `download-finished`: the webview saves downloads (to ~/Downloads on Linux)
 /// without any visible sign, so the page shows its own "Saved to …" message.
@@ -14,6 +16,14 @@ struct DownloadFinished {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    // First, so a second launch just focuses this window: two servers on one database would conflict.
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+      }
+    }))
+    .manage(backend::Backend::default())
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -23,8 +33,8 @@ pub fn run() {
         )?;
       }
 
-      // The main window is built here rather than from the config (`create: false`) only so it can
-      // have a download handler; its size, title and frameless look still come from tauri.conf.json.
+      // The main window is built here rather than from the config (`create: false`) so it can have a
+      // download handler; its size, title and frameless look still come from tauri.conf.json.
       let config = app
         .config()
         .app
@@ -32,7 +42,7 @@ pub fn run() {
         .first()
         .expect("tauri.conf.json defines the main window")
         .clone();
-      WebviewWindowBuilder::from_config(app.handle(), &config)?
+      let window = WebviewWindowBuilder::from_config(app.handle(), &config)?
         .on_download(|webview, event| {
           if let DownloadEvent::Finished { url, path, success } = event {
             let _ = webview.emit(
@@ -47,8 +57,18 @@ pub fn run() {
           true // keep the default destination
         })
         .build()?;
+
+      // Packaged builds start the bundled server; `tauri dev` uses the Vite dev server instead.
+      if !cfg!(debug_assertions) {
+        backend::start(app.handle(), window);
+      }
       Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running tauri application");
+    .build(tauri::generate_context!())
+    .expect("error while building tauri application")
+    .run(|app, event| {
+      if let RunEvent::Exit = event {
+        app.state::<backend::Backend>().stop();
+      }
+    });
 }
