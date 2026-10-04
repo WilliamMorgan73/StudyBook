@@ -25,6 +25,7 @@ from app.crud.calendar_feeds import (
     parse_feed,
     refresh_feed,
     refresh_stale_feeds,
+    suggested_module_id,
 )
 from app.main import app as fastapi_app
 from app.models import CalendarFeed, CalendarFeedEvent, Lecture, Module, Submodule
@@ -416,8 +417,8 @@ def upload(client, text: str, name: str = "Timetable"):
     )
 
 
-def make_module(db: Session) -> Module:
-    module = Module(name="Algorithms", created_at=utc_now())
+def make_module(db: Session, code: str | None = None) -> Module:
+    module = Module(name="Algorithms", code=code, created_at=utc_now())
     db.add(module)
     db.commit()
     return module
@@ -654,3 +655,78 @@ def test_calendar_lectures_carry_their_submodules(client, db):
     params = {"start": at(1, 0).isoformat(), "end": at(5, 0).isoformat()}
     events = [e for e in client.get("/calendar", params=params).json() if e["kind"] == "lecture"]
     assert [[s["title"] for s in e["submodules"]] for e in events] == [["Graphs"], ["Graphs", "Sorting"], []]
+
+
+# --- suggesting a series' Module from its course code ---------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "expected"),
+    [
+        ("COMP3001 Lecture", 1),
+        ("comp3001: Algorithms - Lab", 1),  # any case
+        ("COMP30011 Lecture", None),  # a longer code, not this one
+        ("COMP3001-A Seminar", 3),  # the longest matching code wins
+        ("Lecture COMP3001", None),  # the code must start the title
+    ],
+)
+def test_a_series_is_suggested_for_the_module_whose_code_starts_its_title(title, expected):
+    modules = [
+        Module(id=1, name="Algorithms", code=" COMP3001 "),
+        Module(id=2, name="No code", code=None),
+        Module(id=3, name="Algorithms A", code="COMP3001-A"),
+    ]
+    assert suggested_module_id(title, modules) == expected
+
+
+def test_series_suggest_a_module_until_linked(client, db):
+    module = make_module(db, code="COMP3001")
+    feed_id = upload(client, timetable()).json()["id"]
+
+    series = client.get(f"/calendar-feeds/{feed_id}/series").json()
+    # Every kind of event is suggested, not only lectures.
+    assert [(s["title"], s["suggested_module_id"]) for s in series] == [
+        ("COMP3001 Lab", module.id),
+        ("COMP3001 Lecture", module.id),
+    ]
+
+    link(client, feed_id, module.id)
+    lecture, lab = reversed(client.get(f"/calendar-feeds/{feed_id}/series").json())
+    assert (lecture["module_id"], lecture["suggested_module_id"]) == (module.id, None)
+    assert (lab["module_id"], lab["suggested_module_id"]) == (None, module.id)
+
+
+def test_linking_one_series_leaves_the_others_alone(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id, title="COMP3001 Lab")
+
+    body = client.post(f"/calendar-feeds/{feed_id}/link", json={"title": "COMP3001 Lecture", "module_id": module.id}).json()
+    assert body["linked_lecture_count"] == 5 and body["event_count"] == 0
+
+    body = client.post(f"/calendar-feeds/{feed_id}/link", json={"title": "COMP3001 Lab", "module_id": None}).json()
+    assert body["linked_lecture_count"] == 3
+    assert busy_titles(client) == ["COMP3001 Lab", "COMP3001 Lab"]
+
+
+def test_linking_one_series_rejects_unknown_titles_and_modules(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+
+    assert client.post(f"/calendar-feeds/{feed_id}/link", json={"title": "Nope", "module_id": module.id}).status_code == 422
+    assert client.post(f"/calendar-feeds/{feed_id}/link", json={"title": "COMP3001 Lab", "module_id": 999}).status_code == 422
+    assert lectures(client, module.id) == []
+
+
+def test_all_series_come_with_their_feed(client, db):
+    module = make_module(db, code="COMP3001")
+    timetable_id = upload(client, timetable(), name="Uni").json()["id"]
+    work_id = client.post("/calendar-feeds", json=FEED).json()["id"]  # one "Shift" (from the fake fetch)
+
+    rows = client.get("/calendar-feeds/series").json()
+
+    assert [(r["feed_id"], r["feed_name"], r["title"], r["suggested_module_id"]) for r in rows] == [
+        (timetable_id, "Uni", "COMP3001 Lab", module.id),
+        (timetable_id, "Uni", "COMP3001 Lecture", module.id),
+        (work_id, "Work", "Shift", None),
+    ]

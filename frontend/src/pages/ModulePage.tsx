@@ -199,6 +199,7 @@ function ModuleView({ id }: { id: number }) {
           setSettingsOpen(false)
           refetch()
         }}
+        onLecturesChanged={refetch}
       />
     </motion.div>
   )

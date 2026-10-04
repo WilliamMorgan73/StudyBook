@@ -17,11 +17,13 @@ import {
   deleteLecture,
   deleteModule,
   getAppSettings,
-  listCalendarFeeds,
+  linkFeedSeries,
+  listAllFeedSeries,
   listLectures,
   listModules,
   toNaiveDateTime,
   updateModule,
+  type CalendarSeries,
   type Lecture,
   type ModuleDetail,
 } from '@/lib/api'
@@ -337,21 +339,122 @@ function SeriesTopics({ lectures, submodules, onTopicsChanged }: TopicsProps & {
 }
 
 /** A series synced from a calendar feed: read-only (but for its topics), managed in Settings → Calendars. */
-function FeedLectureCard({ group, feedName, ...topics }: TopicsProps & { group: FeedLectureGroup; feedName: string }) {
+function FeedLectureCard({
+  group,
+  feedName,
+  onUnlink,
+  ...topics
+}: TopicsProps & { group: FeedLectureGroup; feedName: string; onUnlink: () => Promise<void> }) {
   const { lectures, next } = group
   const location = lectures.find((l) => l.location)?.location
+  const [unlinking, setUnlinking] = useState(false)
   return (
     <li className="py-2">
-      <p className="truncate font-medium">{group.title}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 truncate font-medium">{group.title}</p>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={unlinking}
+          onClick={() => {
+            setUnlinking(true)
+            onUnlink().finally(() => setUnlinking(false))
+          }}
+        >
+          {unlinking ? 'Unlinking…' : 'Unlink'}
+        </Button>
+      </div>
       <p className="text-sm text-muted-foreground">
         {lectures.length} {lectures.length === 1 ? 'lecture' : 'lectures'}
         {location && ` — ${location}`} &middot; {next ? `next ${formatLectureDay(next.scheduled_at)}` : 'finished'}
       </p>
       <p className="text-xs text-muted-foreground">
-        From the calendar “{feedName}”. Change or unlink it in Settings → Calendars.
+        Synced from the calendar “{feedName}”; unlinking turns it back into busy time.
       </p>
       <SeriesTopics lectures={lectures} {...topics} />
     </li>
+  )
+}
+
+/**
+ * Calendar series this module could take on as lectures: the ones whose title starts with its course
+ * code (one-click Link), and a picker for any other unlinked series.
+ */
+function CalendarSeriesPicker({
+  moduleCode,
+  hasLinkedSeries,
+  series,
+  onLink,
+}: {
+  moduleCode: string | null
+  /** Some series is already this module's, so "nothing matches" would mislead. */
+  hasLinkedSeries: boolean
+  /** Unlinked series from every feed; `suggested_module_id` marks this module's. */
+  series: { suggested: CalendarSeries[]; others: CalendarSeries[] }
+  onLink: (s: CalendarSeries) => Promise<void>
+}) {
+  const [linking, setLinking] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const { suggested, others } = series
+  if (suggested.length === 0 && others.length === 0) return null
+
+  async function link(s: CalendarSeries) {
+    setLinking(`${s.feed_id}-${s.title}`)
+    setError(null)
+    try {
+      await onLink(s)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not link the series.')
+    } finally {
+      setLinking(null)
+    }
+  }
+
+  return (
+    <div className="space-y-2 rounded-xl bg-muted/50 p-3">
+      <p className="text-sm font-medium">From your calendars</p>
+      {suggested.length > 0 ? (
+        <ul className="space-y-2">
+          {suggested.map((s) => (
+            <li key={`${s.feed_id}-${s.title}`} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm">{s.title}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {s.count} × from {formatLectureDay(s.first_starts_at)}
+                  {s.location && ` · ${s.location}`} · {s.feed_name}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" disabled={linking !== null} onClick={() => link(s)}>
+                {linking === `${s.feed_id}-${s.title}` ? 'Linking…' : 'Link'}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : !moduleCode ? (
+        <p className="text-xs text-muted-foreground">
+          Add a course code in General to get calendar events that start with it suggested here.
+        </p>
+      ) : (
+        !hasLinkedSeries && (
+          <p className="text-xs text-muted-foreground">No calendar events start with “{moduleCode}”.</p>
+        )
+      )}
+      {others.length > 0 && (
+        <Select value="" onValueChange={(i) => link(others[Number(i)])} disabled={linking !== null}>
+          <SelectTrigger className="w-full" aria-label="Add a series from a calendar">
+            <SelectValue placeholder="Add another series from a calendar…" />
+          </SelectTrigger>
+          <SelectContent>
+            {others.map((s, i) => (
+              <SelectItem key={`${s.feed_id}-${s.title}`} value={String(i)}>
+                {s.title} ({s.count}×, {s.feed_name})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   )
 }
 
@@ -447,11 +550,15 @@ export function ModuleSettingsDialog({
   open,
   onOpenChange,
   onChanged,
+  onLecturesChanged,
 }: {
   module: ModuleDetail
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** After a General save; the page closes the dialog. */
   onChanged: () => void
+  /** After any lecture change (series, topics, calendar links), which leaves the dialog open. */
+  onLecturesChanged: () => void
 }) {
   const navigate = useNavigate()
   const [category, setCategory] = useState<Category>('general')
@@ -460,20 +567,24 @@ export function ModuleSettingsDialog({
   const { data: lectures, loading, refetch: refetchLectures } = useAsync(() => listLectures(module.id), [module.id])
   const { manual: manualLectures, feedGroups } = splitFeedLectures(lectures ?? [])
   const groups = groupLectures(manualLectures)
-  // Only needed to name the calendars that feed lectures come from.
-  const { data: feeds } = useAsync(
-    () => (feedGroups.length > 0 ? listCalendarFeeds() : Promise.resolve([])),
-    [feedGroups.length > 0],
-  )
-  const feedName = (feedId: number) => feeds?.find((f) => f.id === feedId)?.name ?? 'a calendar'
-  // Topics save straight away, so the module page behind the dialog refreshes too.
-  const topics: TopicsProps = {
-    submodules: module.submodules,
-    onTopicsChanged: async () => {
-      onChanged()
-      await refetchLectures()
-    },
+  // Suggestions follow the course code, so a code saved in General shows its matches straight away.
+  const { data: calendarSeries, refetch: refetchSeries } = useAsync(() => listAllFeedSeries(), [module.code])
+  const feedName = (feedId: number) => calendarSeries?.find((s) => s.feed_id === feedId)?.feed_name ?? 'a calendar'
+  const unlinkedSeries = (calendarSeries ?? []).filter((s) => s.module_id === null)
+  const pickable = {
+    suggested: unlinkedSeries.filter((s) => s.suggested_module_id === module.id),
+    others: unlinkedSeries.filter((s) => s.suggested_module_id !== module.id),
   }
+  // Lecture changes save straight away, so the module page behind the dialog refreshes too.
+  async function lecturesChanged() {
+    onLecturesChanged()
+    await refetchLectures()
+  }
+  async function setSeriesLink(feedId: number, title: string, moduleId: number | null) {
+    await linkFeedSeries(feedId, title, moduleId)
+    await Promise.all([lecturesChanged(), refetchSeries()])
+  }
+  const topics: TopicsProps = { submodules: module.submodules, onTopicsChanged: lecturesChanged }
 
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
   const { data: allModules } = useAsync(() => listModules(), [])
@@ -613,11 +724,18 @@ export function ModuleSettingsDialog({
                     moduleId={module.id}
                     onSaved={() => {
                       setAddingNew(false)
-                      refetchLectures()
+                      void lecturesChanged()
                     }}
                     onCancel={() => setAddingNew(false)}
                   />
                 )}
+
+                <CalendarSeriesPicker
+                  moduleCode={module.code}
+                  hasLinkedSeries={feedGroups.length > 0}
+                  series={pickable}
+                  onLink={(s) => setSeriesLink(s.feed_id, s.title, module.id)}
+                />
 
                 {loading && <Skeleton className="h-24 w-full" />}
                 {feedGroups.length > 0 && (
@@ -627,6 +745,7 @@ export function ModuleSettingsDialog({
                         key={`${group.feedId}-${group.title}`}
                         group={group}
                         feedName={feedName(group.feedId)}
+                        onUnlink={() => setSeriesLink(group.feedId, group.title, null)}
                         {...topics}
                       />
                     ))}
@@ -642,7 +761,7 @@ export function ModuleSettingsDialog({
                         key={seriesKey(group)}
                         moduleId={module.id}
                         group={group}
-                        onChanged={refetchLectures}
+                        onChanged={lecturesChanged}
                         {...topics}
                       />
                     ))}

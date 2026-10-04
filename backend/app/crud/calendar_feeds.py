@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, contains_eager
 from app.core.clock import local_now
 from app.models.calendar_feed import CalendarFeed, CalendarFeedEvent
 from app.models.lecture import Lecture
+from app.models.module import Module
 
 # How much of a feed is cached, relative to the time of the refresh.
 WINDOW_PAST = timedelta(days=30)
@@ -302,6 +303,24 @@ def feed_series(feed: CalendarFeed, now: datetime | None = None) -> list[FeedSer
         )
         for title, occs in sorted(by_title.items(), key=lambda item: item[0].lower())
     ]
+
+
+def suggested_module_id(title: str, modules: Iterable[Module]) -> int | None:
+    """The Module a series title looks like it belongs to: one whose course code starts the title
+    (ignoring case) and isn't followed by a letter or digit, so "COMP4177" matches "COMP4177: Networks
+    - Lecture" but not "COMP41770". The longest matching code wins; Modules without a code never match."""
+    best: tuple[int, int] | None = None
+    folded = title.casefold()
+    for module in modules:
+        code = (module.code or "").strip().casefold()
+        if not code or not folded.startswith(code):
+            continue
+        rest = folded[len(code):]
+        if rest and rest[0].isalnum():
+            continue
+        if best is None or len(code) > best[0]:
+            best = (len(code), module.id)
+    return best[1] if best else None
 
 
 def is_stale(feed: CalendarFeed, utc_now: datetime) -> bool:

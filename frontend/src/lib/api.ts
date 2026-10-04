@@ -182,6 +182,14 @@ export interface FeedSeries {
   location: string | null
   /** The module the series is linked to (its events are that module's lectures), or null (busy time). */
   module_id: number | null
+  /** For an unlinked series, the module whose course code starts its title, if any. */
+  suggested_module_id: number | null
+}
+
+/** A series from any feed (`GET /calendar-feeds/series`). */
+export interface CalendarSeries extends FeedSeries {
+  feed_id: number
+  feed_name: string
 }
 
 export interface RevisionPlanInput {
@@ -745,6 +753,16 @@ export function replaceCalendarFeedFile(id: number, file: File) {
 
 export function listFeedSeries(id: number) {
   return request<FeedSeries[]>(`/calendar-feeds/${id}/series`)
+}
+
+/** Every feed's series, feeds by name. */
+export function listAllFeedSeries() {
+  return request<CalendarSeries[]>('/calendar-feeds/series')
+}
+
+/** Links one series to a module (`null` unlinks it), keeping the feed's other links. */
+export function linkFeedSeries(feedId: number, title: string, moduleId: number | null) {
+  return postJson<CalendarFeed>(`/calendar-feeds/${feedId}/link`, { title, module_id: moduleId })
 }
 
 /** Replaces the feed's series → module links; titles not listed are unlinked (back to busy time). */

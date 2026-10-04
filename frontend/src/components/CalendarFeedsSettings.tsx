@@ -21,6 +21,7 @@ import {
   updateCalendarFeed,
   uploadCalendarFeed,
   type CalendarFeed,
+  type FeedSeries,
 } from '@/lib/api'
 import { formatSyncedAgo } from '@/lib/calendarFeeds'
 import { MODULE_COLOR_SWATCHES } from '@/lib/colors'
@@ -180,7 +181,12 @@ function FeedLinksPanel({ feed, onSaved, onCancel }: { feed: CalendarFeed; onSav
   const [error, setError] = useState<string | null>(null)
 
   const moduleList = modules.data ?? []
-  const choiceFor = (title: string, linked: number | null) => choices[title] ?? (linked === null ? NOT_LINKED : String(linked))
+  // An unlinked series starts on the module its course code suggests; saving links it.
+  const defaultChoice = (s: FeedSeries) => {
+    const id = s.module_id ?? s.suggested_module_id
+    return id === null ? NOT_LINKED : String(id)
+  }
+  const choiceFor = (s: FeedSeries) => choices[s.title] ?? defaultChoice(s)
 
   async function handleSave() {
     if (!series.data) return
@@ -190,7 +196,7 @@ function FeedLinksPanel({ feed, onSaved, onCancel }: { feed: CalendarFeed; onSav
       await setFeedLinks(
         feed.id,
         series.data.map((s) => {
-          const choice = choiceFor(s.title, s.module_id)
+          const choice = choiceFor(s)
           return { title: s.title, module_id: choice === NOT_LINKED ? null : Number(choice) }
         }),
       )
@@ -224,10 +230,13 @@ function FeedLinksPanel({ feed, onSaved, onCancel }: { feed: CalendarFeed; onSav
                 <p className="truncate text-xs text-muted-foreground">
                   {s.count} × from {formatDay(s.first_starts_at)}
                   {s.location && ` · ${s.location}`}
+                  {s.module_id === null && s.suggested_module_id !== null && choiceFor(s) === String(s.suggested_module_id) && (
+                    <span className="text-foreground"> · Suggested by course code</span>
+                  )}
                 </p>
               </div>
               <Select
-                value={choiceFor(s.title, s.module_id)}
+                value={choiceFor(s)}
                 onValueChange={(v) => setChoices((c) => ({ ...c, [s.title]: v }))}
               >
                 <SelectTrigger className="w-44 shrink-0" aria-label={`Module for ${s.title}`}>
