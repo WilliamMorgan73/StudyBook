@@ -7,6 +7,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { LoadSwap } from '@/components/LoadSwap'
 import { MonthCalendar } from '@/components/MonthCalendar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { calendarEventColor } from '@/lib/calendarFeeds'
 
 const LEGEND = [
   { kind: 'lecture', label: 'Lecture' },
@@ -35,7 +36,7 @@ export function CalendarWidget() {
               events={events}
               selected={selected}
               onSelect={selectDay}
-              eventColor={(event) => moduleColor(event.module_id)}
+              eventColor={(event) => calendarEventColor(event, moduleColor)}
               fill
             />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

@@ -32,6 +32,9 @@ function event(kind: CalendarEvent['kind'], id: number, startsAt: string): Calen
     location: null,
     url: kind === 'busy' ? null : '/modules/1',
     done: null,
+    feed_id: null,
+    color: null,
+    all_day: false,
   }
 }
 
@@ -129,6 +132,12 @@ describe('calendar busy events', () => {
 
   it('gives each occurrence of the same personal event its own key', () => {
     expect(calendarEventKey(busyMon)).not.toBe(calendarEventKey(busyTue))
+  })
+
+  it('keys calendar-feed events apart from personal events with the same id and start', () => {
+    const personal = event('busy', 3, '2026-10-05T09:00:00')
+    const fromFeed = { ...personal, feed_id: 1, color: '#0ea5e9' }
+    expect(calendarEventKey(personal)).not.toBe(calendarEventKey(fromFeed))
   })
 
   it('drops busy events only when hidden, otherwise keeping order', () => {

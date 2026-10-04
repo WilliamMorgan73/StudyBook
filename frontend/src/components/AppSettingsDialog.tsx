@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { useState } from 'react'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
+import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
 import { KeybindInput } from '@/components/KeybindInput'
 import { PersonalEventsSettings } from '@/components/PersonalEventsSettings'
 import { SettingsNav } from '@/components/SettingsNav'
@@ -133,12 +134,12 @@ export function AppSettingsDialog({
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-[30rem]">
+        <div className="flex min-h-[30rem] min-w-0">
           <SettingsNav categories={CATEGORIES} value={category} onChange={setCategory} />
 
           <motion.div
             key={category}
-            className="flex-1 space-y-6 p-5"
+            className="max-h-[calc(100dvh-10rem)] min-w-0 flex-1 space-y-6 overflow-y-auto p-5"
             initial={{ opacity: 0, x: 6 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.18 }}
@@ -256,7 +257,12 @@ export function AppSettingsDialog({
               </div>
             )}
 
-            {category === 'calendars' && <PersonalEventsSettings onChanged={() => onCalendarChanged?.()} />}
+            {category === 'calendars' && (
+              <div className="space-y-8">
+                <CalendarFeedsSettings onChanged={() => onCalendarChanged?.()} />
+                <PersonalEventsSettings onChanged={() => onCalendarChanged?.()} />
+              </div>
+            )}
 
             {category === 'ai' && <AISettingsPanel settings={aiSettings} onSaved={setAISettings} />}
 

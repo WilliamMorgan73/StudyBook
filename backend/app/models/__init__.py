@@ -1,6 +1,7 @@
 from app.models.app_settings import AppSettings
 from app.models.assignment import Assignment
 from app.models.attachment import Attachment
+from app.models.calendar_feed import CalendarFeed, CalendarFeedEvent
 from app.models.flashcard import Flashcard, FlashcardReview
 from app.models.lecture import Lecture
 from app.models.module import Module, ModuleLink
@@ -16,6 +17,8 @@ __all__ = [
     "Assignment",
     "AssignmentTodo",
     "Attachment",
+    "CalendarFeed",
+    "CalendarFeedEvent",
     "Flashcard",
     "FlashcardReview",
     "Lecture",

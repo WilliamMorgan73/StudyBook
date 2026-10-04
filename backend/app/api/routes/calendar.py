@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.database import get_db
 from app.crud.busy_time import BusyOccurrence, expand_personal_events
+from app.crud.calendar_feeds import feed_events_between
 from app.models.assignment import Assignment
+from app.models.calendar_feed import CalendarFeedEvent
 from app.models.enums import AssignmentKind
 from app.models.lecture import Lecture
 from app.models.personal_event import PersonalEvent
@@ -43,6 +45,21 @@ def _busy_event(occ: BusyOccurrence) -> CalendarEvent:
         starts_at=occ.starts_at,
         ends_at=occ.ends_at,
         url=None,
+    )
+
+
+def _feed_event(event: CalendarFeedEvent) -> CalendarEvent:
+    return CalendarEvent(
+        kind="busy",
+        id=event.id,
+        module_id=None,
+        title=event.title,
+        starts_at=event.starts_at,
+        ends_at=event.ends_at,
+        url=None,
+        feed_id=event.feed_id,
+        color=event.feed.color,
+        all_day=event.all_day,
     )
 
 
@@ -104,5 +121,8 @@ def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) 
     ] + [
         _busy_event(occ)
         for occ in expand_personal_events(personal_events, start, end)
+    ] + [
+        _feed_event(e)
+        for e in feed_events_between(db, start, end)
     ]
     return sorted(events, key=lambda e: e.starts_at)

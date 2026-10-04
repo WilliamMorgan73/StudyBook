@@ -11,7 +11,7 @@ const SHAPE: Record<CalendarEvent['kind'], string> = {
 /**
  * The calendar glyph for an event kind: dot = lecture, diamond = assignment due, square = exam,
  * dash = busy, ring = revision session (filled in once `done`). Busy time belongs to no module, so
- * it's always muted and ignores `color`.
+ * it's always muted: grey, or faded `color` for a calendar feed's events.
  */
 export function EventMarker({
   kind,
@@ -24,7 +24,15 @@ export function EventMarker({
   done?: boolean
   className?: string
 }) {
-  if (kind === 'busy') return <span className={`${SHAPE.busy} bg-muted-foreground/50 ${className}`} aria-hidden />
+  if (kind === 'busy') {
+    return (
+      <span
+        className={`${SHAPE.busy} ${color ? 'opacity-60' : 'bg-muted-foreground/50'} ${className}`}
+        style={color ? { backgroundColor: color } : undefined}
+        aria-hidden
+      />
+    )
+  }
   if (kind === 'revision') {
     return (
       <span

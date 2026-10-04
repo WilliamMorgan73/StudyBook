@@ -8,6 +8,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { CalendarEvent } from '@/lib/api'
 import { calendarEventKey } from '@/lib/busyTime'
+import { calendarEventColor } from '@/lib/calendarFeeds'
 
 /** Height + fade for a panel that opens below its row. */
 const reveal = {
@@ -57,7 +58,7 @@ export function DayAgenda() {
                 >
                   <EventMarker
                     kind={event.kind}
-                    color={moduleColor(event.module_id)}
+                    color={calendarEventColor(event, moduleColor)}
                     done={event.done === true}
                     className="shrink-0"
                   />
@@ -70,18 +71,26 @@ export function DayAgenda() {
                     <span className="truncate text-muted-foreground">{moduleName(event.module_id)}</span>
                   )}
                   <span className="ml-auto shrink-0 text-muted-foreground">
-                    {event.kind === 'assignment_due' ? 'Due' : formatTime(event.starts_at)}
+                    {event.kind === 'assignment_due' ? 'Due' : event.all_day ? 'All day' : formatTime(event.starts_at)}
                   </span>
                 </button>
                 <AnimatePresence initial={false}>
                   {isExpanded && event.kind !== 'assignment_due' && (
                     <motion.div {...reveal} className="ml-4 space-y-0.5 px-2 pb-2 text-xs text-muted-foreground">
                       <p>
-                        {formatTime(event.starts_at)}
-                        {event.ends_at && ` – ${formatTime(event.ends_at)}`}
+                        {event.all_day ? (
+                          'All day'
+                        ) : (
+                          <>
+                            {formatTime(event.starts_at)}
+                            {event.ends_at && ` – ${formatTime(event.ends_at)}`}
+                          </>
+                        )}
                       </p>
                       {event.location && <p>{event.location}</p>}
-                      {isBusy && <p>Personal event (Settings → Calendars)</p>}
+                      {isBusy && (
+                        <p>{event.feed_id != null ? 'Calendar feed' : 'Personal event'} (Settings → Calendars)</p>
+                      )}
                       {event.kind === 'revision' && (
                         <label className="flex w-fit cursor-pointer items-center gap-1.5 text-foreground">
                           <Checkbox

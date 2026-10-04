@@ -7,6 +7,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.crud.busy_time import busy_intervals
+from app.crud.calendar_feeds import feed_events_between
 from app.crud.revision_planner import (
     NotEnoughTime,
     ProposedSession,
@@ -32,7 +33,8 @@ def _span(starts_at: datetime, duration_minutes: int | None) -> tuple[datetime, 
 
 def blocking_intervals(db: Session, start: datetime, end: datetime, exam_id: int) -> list[tuple[datetime, datetime]]:
     """Everything a session for `exam_id` must avoid within [start, end): every Lecture, busy time
-    (personal events), every other exam, and other exams' revision sessions. Not merged or clipped.
+    (personal events and enabled calendar feeds' timed events; all-day ones don't block), every other
+    exam, and other exams' revision sessions. Not merged or clipped.
     """
     # A day's slack either side catches long or overnight blocks that straddle the range edges.
     lo, hi = start - timedelta(days=1), end + timedelta(days=1)
@@ -63,6 +65,7 @@ def blocking_intervals(db: Session, start: datetime, end: datetime, exam_id: int
         + [_span(exam.due_at, exam.duration_minutes) for exam in exams]
         + [_span(s.starts_at, s.duration_minutes) for s in other_sessions]
         + busy_intervals(personal_events, start, end)
+        + [(e.starts_at, e.ends_at) for e in feed_events_between(db, start, end, include_all_day=False)]
     )
 
 

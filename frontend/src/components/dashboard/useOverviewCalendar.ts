@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { calendarGridRange } from '@/components/MonthCalendar'
-import { getCalendar, updateRevisionSession } from '@/lib/api'
+import { getCalendar, refreshStaleCalendarFeeds, updateRevisionSession } from '@/lib/api'
 import { visibleCalendarEvents } from '@/lib/busyTime'
 import { useAsync } from '@/lib/useAsync'
 
@@ -61,6 +61,25 @@ export function useOverviewCalendar() {
   const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange], {
     keepPreviousData: true,
   })
+
+  // Calendar feeds sync when the calendar is viewed, if over an hour old. The cached events show
+  // meanwhile; refetch only when something actually synced. A failure keeps the cached copy.
+  // The latest refetch, since the user may page to another month while the sync is in flight.
+  const refetchRef = useRef(calendar.refetch)
+  useEffect(() => {
+    refetchRef.current = calendar.refetch
+  }, [calendar.refetch])
+  useEffect(() => {
+    let cancelled = false
+    refreshStaleCalendarFeeds()
+      .then(({ refreshed }) => {
+        if (!cancelled && refreshed > 0) void refetchRef.current()
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function setRevisionDone(sessionId: number, done: boolean) {
     await updateRevisionSession(sessionId, { done })
