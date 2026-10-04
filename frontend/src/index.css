@@ -232,6 +232,19 @@
   #root {
     @apply h-full;
     }
+  /* The Linux desktop app's frameless, transparent window (lib/desktop.ts::setUpWindowFrame): the page
+     draws rounded corners. On body, not #root, so dialogs and popovers (portalled into body) are clipped
+     too; `contain: paint` makes body clip its fixed-position descendants as well. */
+  html[data-frame='rounded'] {
+    @apply overflow-hidden bg-transparent;
+    }
+  html[data-frame='rounded'] body {
+    contain: paint;
+    @apply rounded-[10px] border;
+    }
+  html[data-frame='rounded'][data-maximized] body {
+    @apply rounded-none border-0;
+    }
   /* Thin, theme-aware scrollbar everywhere (page scroll and any internal overflow container)
      instead of the browser default. Firefox reads scrollbar-width/-color; everything else reads
      the ::-webkit-scrollbar-* pseudo-elements below. */
