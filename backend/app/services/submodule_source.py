@@ -49,6 +49,7 @@ class SourceAttachment:
     filename: str
     kind: AttachmentKind
     file_path: str
+    """Where the file is on disk (`Attachment.stored_path`)."""
     markdown: str
     """Extracted text; empty when extraction failed."""
     near_empty: bool
@@ -161,7 +162,7 @@ def gather_submodule_source(
             'attachment_id': attachment.id,
             'filename': attachment.filename,
             'kind': attachment.kind,
-            'file_path': attachment.file_path,
+            'file_path': attachment.stored_path,
         }
         try:
             extracted = extract(attachment)
@@ -172,7 +173,7 @@ def gather_submodule_source(
         raw_tokens = None
         if extracted.near_empty:
             raw_allowed.add(attachment.id)
-            raw_tokens = (count_pages(attachment.file_path) or 1) * pdf_tokens_per_page
+            raw_tokens = (count_pages(attachment.stored_path) or 1) * pdf_tokens_per_page
         attachments.append(
             SourceAttachment(
                 **base,

@@ -60,7 +60,7 @@ def attach(db: Session, upload_dir: Path, *, submodule_id: int | None = None, as
     path = folder / f"file{len(list(folder.iterdir()))}.pdf"
     path.write_bytes(b"%PDF")
     db.add(Attachment(submodule_id=submodule_id, assignment_id=assignment_id, kind=AttachmentKind.pdf,
-                      filename=path.name, file_path=str(path), uploaded_at=NOW))
+                      filename=path.name, file_path=path.relative_to(upload_dir).as_posix(), uploaded_at=NOW))
     db.commit()
     return path
 
@@ -98,7 +98,7 @@ def test_deleting_a_module_removes_files_of_its_submodules_and_assignments(clien
 def test_deleting_an_attachment_removes_its_file(client, db, upload_dir):
     path = attach(db, upload_dir, submodule_id=1)
     sibling = attach(db, upload_dir, submodule_id=1)
-    attachment_id = db.query(Attachment).filter_by(file_path=str(path)).one().id
+    attachment_id = db.query(Attachment).filter_by(file_path=path.relative_to(upload_dir).as_posix()).one().id
 
     assert client.delete(f"/attachments/{attachment_id}").status_code == 204
 

@@ -1,9 +1,12 @@
 """Gathering a Submodule's source material for AI features, on unsaved model instances with the
 extraction and page counting stubbed (no files, no DB)."""
 
+from pathlib import Path
+
 import pytest
 
 import app.models  # noqa: F401  registers relationship string refs before we touch the mapper
+from app.core.config import settings
 from app.crud.attachment_text import AttachmentExtractionFailedError, ExtractedText
 from app.models.attachment import Attachment
 from app.models.enums import AttachmentKind
@@ -20,7 +23,7 @@ SLIDES_TEXT = "Dijkstra's algorithm relaxes edges in order of distance using a p
 
 
 def attachment(id: int, filename: str, kind: AttachmentKind) -> Attachment:
-    return Attachment(id=id, submodule_id=1, kind=kind, filename=filename, file_path=f"uploads/{filename}")
+    return Attachment(id=id, submodule_id=1, kind=kind, filename=filename, file_path=f"submodules/1/{filename}")
 
 
 def submodule(note: str, *attachments: Attachment) -> Submodule:
@@ -98,7 +101,7 @@ def test_opted_in_raw_pdf_replaces_its_text_and_counts_pages():
     assert source.estimated_tokens == source.note_estimated_tokens + 2 * PDF_TOKENS_PER_PAGE
     [doc] = source.documents(read=lambda path: f"bytes of {path}".encode())
     assert doc.title == "scan.pdf"
-    assert doc.data == b"bytes of uploads/scan.pdf"
+    assert doc.data == f"bytes of {Path(settings.upload_dir) / 'submodules' / '1' / 'scan.pdf'}".encode()
 
 
 @pytest.mark.parametrize("raw_id", [1, 99])

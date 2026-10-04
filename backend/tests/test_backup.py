@@ -149,7 +149,7 @@ def seed(db: Session, upload_dir: Path) -> None:
             submodule=topic,
             kind=AttachmentKind.image,
             filename="x.png",
-            file_path=str(Path(settings.upload_dir) / "submodules" / "3" / "abc.png"),
+            file_path="submodules/3/abc.png",
             uploaded_at=T0,
         )
     )
@@ -355,3 +355,16 @@ def test_restore_endpoint_rejects_a_bad_file_untouched(client, db, upload_dir, t
     assert "isn't a StudyBook backup" in response.json()["detail"]
     assert db.get(Module, 9) is not None
     assert not (tmp_path / "backups").exists()
+
+
+def test_backup_of_an_old_database_makes_its_upload_folder_paths_relative(db, upload_dir, tmp_path):
+    # Before c3d9e5a1b7f2, file_path included the upload folder; the automatic pre-upgrade backup sees those.
+    seed(db, upload_dir)
+    db.get(Attachment, 21).file_path = str(upload_dir / "submodules" / "3" / "abc.png")
+    db.commit()
+    out = tmp_path / "backup.zip"
+
+    write_backup(db, out, upload_dir=upload_dir)
+
+    with zipfile.ZipFile(out) as zf:
+        assert json.loads(zf.read("tables/attachments.json"))[0]["file_path"] == "submodules/3/abc.png"

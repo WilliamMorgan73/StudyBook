@@ -95,3 +95,29 @@ def test_paths_default_to_inside_the_data_folder(tmp_path, monkeypatch):
     assert derived.database_url == f"sqlite:///{tmp_path / 'studybook.db'}"
     assert derived.upload_dir == str(tmp_path / "uploads")
     assert derived.backup_dir == str(tmp_path / "backups")
+
+
+def test_upgrade_makes_attachment_paths_relative_to_the_upload_folder(data_dir):
+    # A real run of the first SQLite-era migration (c3d9e5a1b7f2), from the revision before it.
+    engine = create_sqlite_engine(f"sqlite:///{data_dir / 'studybook.db'}")
+    migrate.ensure_schema(engine)
+    uploads = Path(settings.upload_dir)
+    with engine.begin() as connection:
+        connection.execute(text("INSERT INTO modules (id, name, color) VALUES (1, 'Algorithms', '#000000')"))
+        connection.execute(text("INSERT INTO submodules (id, module_id, title, content_markdown) VALUES (1, 1, 'Graphs', '')"))
+        for id_, path in [(1, str(uploads / "submodules" / "1" / "a.pdf")), (2, "uploads/submodules/1/b.pdf")]:
+            connection.execute(
+                text(
+                    "INSERT INTO attachments (id, submodule_id, kind, filename, file_path) "
+                    "VALUES (:id, 1, 'pdf', 'x.pdf', :path)"
+                ),
+                {"id": id_, "path": path},
+            )
+        connection.execute(text("UPDATE alembic_version SET version_num = '711f992b2d9e'"))
+
+    migrate.ensure_schema(engine)
+
+    assert version(engine) == current_revision()
+    with engine.connect() as connection:
+        paths = connection.execute(text("SELECT file_path FROM attachments ORDER BY id")).scalars().all()
+    assert paths == ["submodules/1/a.pdf", "submodules/1/b.pdf"]

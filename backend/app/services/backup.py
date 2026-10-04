@@ -170,10 +170,10 @@ def write_backup(db: Session, out_path: Path, *, upload_dir: Path, revision: str
 
 
 def _relative_upload_path(file_path: str, upload_root: Path) -> str:
-    path = Path(file_path).resolve()
-    if path.is_relative_to(upload_root):
-        return path.relative_to(upload_root).as_posix()
-    return file_path  # outside the upload folder (shouldn't happen); kept as-is, rejected on restore
+    """Before revision `c3d9e5a1b7f2`, `file_path` included the upload folder (`uploads/submodules/...`); the
+    automatic pre-upgrade backup still sees those. Current paths are already relative and kept as-is."""
+    resolved = Path(file_path).resolve()
+    return resolved.relative_to(upload_root).as_posix() if resolved.is_relative_to(upload_root) else file_path
 
 
 # --- reading ---------------------------------------------------------------------------------------------
@@ -296,9 +296,6 @@ def _replace_rows(db: Session, backup: ParsedBackup, upload_dir: Path) -> None:
         db.execute(table.delete())
     for table in tables:
         rows = backup.rows[table.name]
-        if table.name == "attachments":
-            # The same form `store_upload` writes: the configured upload folder joined with the file's path.
-            rows = [{**row, "file_path": str(upload_dir / row["file_path"])} for row in rows]
         if rows:
             db.execute(table.insert(), rows)
 
