@@ -124,6 +124,50 @@ export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
 
 export const OVERVIEW_BOARD: Board<WidgetId> = { widgets: WIDGETS, defaultLayout: DEFAULT_LAYOUT }
 
+/** Starting points for the Overview offered by the setup page, all within the 12 × 14 board. */
+export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: string; layout: LayoutItem<WidgetId>[] }[] = [
+  {
+    id: 'classic',
+    label: 'Classic',
+    description: 'Calendar and its day, deadlines, to-dos, progress and a notepad, with modules underneath.',
+    layout: DEFAULT_LAYOUT,
+  },
+  {
+    id: 'planner',
+    label: 'Planner',
+    description: 'A big calendar, with the day and what’s due beside it.',
+    layout: [
+      { i: 'calendar', x: 0, y: 0, w: 8, h: 10 },
+      { i: 'agenda', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
+      { i: 'modules', x: 0, y: 10, w: 12, h: 4 },
+    ],
+  },
+  {
+    id: 'study',
+    label: 'Study',
+    description: 'Today’s revision and due flashcards first, then the calendar.',
+    layout: [
+      { i: 'revisionToday', x: 0, y: 0, w: 4, h: 5 },
+      { i: 'flashcardsDue', x: 4, y: 0, w: 4, h: 5 },
+      { i: 'progress', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'calendar', x: 0, y: 5, w: 6, h: 9 },
+      { i: 'upcoming', x: 6, y: 5, w: 3, h: 9 },
+      { i: 'todo', x: 9, y: 5, w: 3, h: 9 },
+    ],
+  },
+  {
+    id: 'simple',
+    label: 'Simple',
+    description: 'Your modules, what’s due, and a to-do list. Nothing else.',
+    layout: [
+      { i: 'modules', x: 0, y: 0, w: 12, h: 6 },
+      { i: 'upcoming', x: 0, y: 6, w: 6, h: 8 },
+      { i: 'todo', x: 6, y: 6, w: 6, h: 8 },
+    ],
+  },
+]
+
 function isWidgetId<Id extends string>(board: Board<Id>, value: unknown): value is Id {
   return typeof value === 'string' && Object.hasOwn(board.widgets, value)
 }

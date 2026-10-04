@@ -1,31 +1,13 @@
 import { Settings, ArrowLeft, Star } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
 import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
 import { ModuleContext, type ModuleData } from '@/components/dashboard/moduleContext'
-import {
-  AssignmentsAction,
-  AssignmentsWidget,
-  DayAgendaWidget,
-  ExamsWidget,
-  FlashcardsAction,
-  FlashcardsWidget,
-  GradesWidget,
-  LecturesWidget,
-  ModuleNotepadWidget,
-  ModuleProgressWidget,
-  ModuleTodoWidget,
-  OpenTodosWidget,
-  RelatedModulesWidget,
-  RevisionWidget,
-  ScheduleWidget,
-  SubmodulesAction,
-  SubmodulesWidget,
-} from '@/components/dashboard/ModuleWidgets'
+import { MODULE_WIDGET_CONTENT } from '@/components/dashboard/moduleWidgetContent'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
 import { ModuleBanner } from '@/components/ModuleBanner'
@@ -54,23 +36,6 @@ import { useAsync } from '@/lib/useAsync'
 /** How far ahead the Upcoming revision widget looks. */
 const UPCOMING_REVISION_DAYS = 14
 
-const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode; scroll?: boolean }> = {
-  schedule: { body: <ScheduleWidget /> },
-  dayAgenda: { body: <DayAgendaWidget /> },
-  submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
-  assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
-  flashcards: { body: <FlashcardsWidget />, action: <FlashcardsAction /> },
-  revision: { body: <RevisionWidget /> },
-  // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
-  progress: { body: <ModuleProgressWidget />, scroll: false },
-  exams: { body: <ExamsWidget /> },
-  lectures: { body: <LecturesWidget /> },
-  grades: { body: <GradesWidget /> },
-  openTodos: { body: <OpenTodosWidget /> },
-  todo: { body: <ModuleTodoWidget /> },
-  notepad: { body: <ModuleNotepadWidget /> },
-  related: { body: <RelatedModulesWidget /> },
-}
 
 function upcomingRevisionRange(today: Date) {
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -160,7 +125,7 @@ function ModuleView({ id }: { id: number }) {
   }
 
   function renderWidget(widgetId: ModuleWidgetId, slot: number) {
-    const { body, action, scroll } = WIDGET_CONTENT[widgetId]
+    const { body, action, scroll } = MODULE_WIDGET_CONTENT[widgetId]
     return (
       <DashboardWidget
         title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}

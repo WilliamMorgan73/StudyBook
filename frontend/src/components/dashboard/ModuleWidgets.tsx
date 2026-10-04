@@ -241,7 +241,7 @@ export function FlashcardsWidget() {
   return (
     <>
       {rows.length === 0 ? (
-        <div className="flex h-full flex-col items-start justify-center gap-2">
+        <div className="flex flex-col items-start gap-2">
           <p className="text-sm text-muted-foreground">No flashcards yet. Add some to start studying.</p>
           <Button size="sm" variant="outline" onClick={() => setBrowsing({ topic: 'all', startNew: true })}>
             <Plus /> New card

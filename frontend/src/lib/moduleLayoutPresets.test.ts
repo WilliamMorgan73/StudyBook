@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeLayout } from '@/lib/dashboardLayout'
+import { normalizeLayout, OVERVIEW_BOARD, OVERVIEW_LAYOUT_PRESETS } from '@/lib/dashboardLayout'
 import { MODULE_BOARD, MODULE_DEFAULT_LAYOUT, MODULE_LAYOUT_PRESETS, moduleBoard } from '@/lib/moduleLayout'
 
 describe('module layout presets', () => {
@@ -28,5 +28,11 @@ describe('moduleBoard', () => {
 
   it('falls back to the built-in layout when the stored default is unusable', () => {
     expect(moduleBoard([{ i: 'nope', x: 0, y: 0, w: 1, h: 1 }]).defaultLayout).toEqual(MODULE_DEFAULT_LAYOUT)
+  })
+})
+
+describe('overview layout presets', () => {
+  it.each(OVERVIEW_LAYOUT_PRESETS.map((p) => [p.label, p.layout] as const))('%s fits the board as drawn', (_label, layout) => {
+    expect(normalizeLayout(OVERVIEW_BOARD, layout)).toEqual(layout)
   })
 })

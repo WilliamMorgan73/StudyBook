@@ -34,6 +34,8 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 **First-run setup** (`pages/SetupPage.tsx`, route `/setup`):
 - `App` loads settings and, while `setup_completed` is false, redirects every other path to `/setup`. It renders nothing until settings load, and if they fail it carries on normally.
 - The steps are Appearance (theme and skin, applied immediately), Modules (quick add), Module layout (`MODULE_LAYOUT_PRESETS` drawn as to-scale thumbnails in the first module's colour; this sets `default_module_layout`), AI (`AISettingsPanel`) and Calendars (`CalendarFeedsSettings`).
+- Both layout steps (module pages and the Overview, with `MODULE_LAYOUT_PRESETS` / `OVERVIEW_LAYOUT_PRESETS`) have **Preview with sample data**. `components/setup/LayoutPreview.tsx` renders the real widgets, using the shared `MODULE_WIDGET_CONTENT` / `OVERVIEW_WIDGET_CONTENT` tables, inside an `inert` dialog. They read from contexts filled by `lib/sampleData.ts::buildSampleData`: a full module plus two others, dated relative to today.
+- A few widgets fetch their own data: Upcoming, Today's revision, Flashcards due, Notepad, To-do and the Overview calendar. Under `SampleDataContext` they read it from `useSampleData()` instead, and the calendar skips its feed sync. A new self-fetching widget needs the same, or its preview shows real data.
 - Every step is skippable. "Skip setup" or "Finish setup" PATCHes `setup_completed: true`, then awaits `App`'s settings refetch (`onFinished`) before navigating, so the redirect doesn't bounce back.
 - Only modules added during this visit can be removed there.
 - The backend marks a brand-new settings row as already set up if modules exist, and the migration did the same for existing installs.

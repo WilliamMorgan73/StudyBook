@@ -1,42 +1,22 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 
 import { BookOpen, Settings } from 'lucide-react'
 
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
-import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
 import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
-import {
-  FlashcardsDueWidget,
-  ModulesWidget,
-  RevisionTodayWidget,
-  TodoWidget,
-  UpcomingWidget,
-} from '@/components/dashboard/ListWidgets'
+import { OVERVIEW_WIDGET_CONTENT } from '@/components/dashboard/overviewWidgetContent'
 import { OverviewContext, type OverviewData } from '@/components/dashboard/overviewContext'
-import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel, useOverviewCalendar } from '@/components/dashboard/useOverviewCalendar'
 import { PageHeader } from '@/components/PageHeader'
-import { QuickNotepad } from '@/components/QuickNotepad'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
 import { OVERVIEW_BOARD, WIDGETS, type WidgetId } from '@/lib/dashboardLayout'
 import { useAsync } from '@/lib/useAsync'
 
-const WIDGET_BODIES: Record<WidgetId, ReactNode> = {
-  calendar: <CalendarWidget />,
-  agenda: <AgendaWidget />,
-  upcoming: <UpcomingWidget />,
-  todo: <TodoWidget />,
-  progress: <ProgressWidget />,
-  notepad: <QuickNotepad />,
-  modules: <ModulesWidget />,
-  revisionToday: <RevisionTodayWidget />,
-  flashcardsDue: <FlashcardsDueWidget />,
-}
 
 export function Overview() {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -70,7 +50,7 @@ export function Overview() {
         // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
         scroll={id !== 'progress'}
       >
-        {WIDGET_BODIES[id]}
+        {OVERVIEW_WIDGET_CONTENT[id]}
       </DashboardWidget>
     )
   }

@@ -1,10 +1,11 @@
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Eye, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
+import { LayoutPreviewDialog } from '@/components/setup/LayoutPreview'
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,20 +25,21 @@ import {
   type ThemeMode,
 } from '@/lib/api'
 import { MODULE_COLOR_SWATCHES } from '@/lib/colors'
-import type { LayoutItem } from '@/lib/dashboardLayout'
-import { sameLayout } from '@/lib/dashboardLayout'
 import {
-  MODULE_DEFAULT_LAYOUT,
-  MODULE_LAYOUT_PRESETS,
-  MODULE_WIDGETS,
-  moduleBoard,
-  type ModuleWidgetId,
-} from '@/lib/moduleLayout'
+  DEFAULT_LAYOUT,
+  normalizeLayout,
+  OVERVIEW_BOARD,
+  OVERVIEW_LAYOUT_PRESETS,
+  sameLayout,
+  WIDGETS,
+  type LayoutItem,
+} from '@/lib/dashboardLayout'
+import { MODULE_DEFAULT_LAYOUT, MODULE_LAYOUT_PRESETS, MODULE_WIDGETS, moduleBoard } from '@/lib/moduleLayout'
 import { applyTheme, SKINS } from '@/lib/theme'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
 
-type StepId = 'appearance' | 'modules' | 'layout' | 'ai' | 'calendars'
+type StepId = 'appearance' | 'modules' | 'layout' | 'overview' | 'ai' | 'calendars'
 
 const STEPS: { id: StepId; label: string; title: string; intro: string }[] = [
   {
@@ -57,6 +59,12 @@ const STEPS: { id: StepId; label: string; title: string; intro: string }[] = [
     label: 'Module layout',
     title: 'Choose a starting layout for module pages',
     intro: 'Every module starts with this. Rearrange any of them later with Edit layout.',
+  },
+  {
+    id: 'overview',
+    label: 'Overview',
+    title: 'And for the Overview',
+    intro: 'The Overview is your home page: the calendar and what’s due across every module.',
   },
   {
     id: 'ai',
@@ -177,7 +185,8 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
               <div className="mt-8">
                 {step.id === 'appearance' && <AppearanceStep settings={settings} />}
                 {step.id === 'modules' && <ModulesStep modules={modules.data} onChanged={modules.refetch} />}
-                {step.id === 'layout' && <LayoutStep settings={settings} accent={accent} />}
+                {step.id === 'layout' && <LayoutStep page="module" settings={settings} accent={accent} />}
+                {step.id === 'overview' && <LayoutStep page="overview" settings={settings} accent={accent} />}
                 {step.id === 'ai' && <AIStep settings={settings} />}
                 {step.id === 'calendars' && <CalendarFeedsSettings onChanged={() => {}} />}
               </div>
@@ -377,16 +386,33 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
   )
 }
 
-function LayoutStep({ settings, accent }: { settings: AppSettings; accent: string }) {
-  const [chosen, setChosen] = useState(() => moduleBoard(settings.default_module_layout).defaultLayout)
+/**
+ * Pick a starting layout for module pages (`default_module_layout`) or the Overview
+ * (`dashboard_layout`), each drawn as a to-scale map, and preview the pick full of sample data.
+ */
+function LayoutStep({ page, settings, accent }: { page: 'module' | 'overview'; settings: AppSettings; accent: string }) {
+  const presets: LayoutPreset[] = page === 'module' ? MODULE_LAYOUT_PRESETS : OVERVIEW_LAYOUT_PRESETS
+  const builtIn = page === 'module' ? MODULE_DEFAULT_LAYOUT : DEFAULT_LAYOUT
+  const titles: Record<string, string> = Object.fromEntries(
+    Object.entries(page === 'module' ? MODULE_WIDGETS : WIDGETS).map(([id, info]) => [id, info.title]),
+  )
+  const [chosen, setChosen] = useState<LayoutItem<string>[]>(() =>
+    page === 'module'
+      ? moduleBoard(settings.default_module_layout).defaultLayout
+      : normalizeLayout(OVERVIEW_BOARD, settings.dashboard_layout),
+  )
   const [error, setError] = useState<string | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const chosenPreset = presets.find((p) => sameLayout(chosen, p.layout))
 
-  async function choose(layout: LayoutItem<ModuleWidgetId>[]) {
+  async function choose(layout: LayoutItem<string>[]) {
     const previous = chosen
     setChosen(layout)
     setError(null)
+    // The built-in layout is stored as null, so later changes to it reach this user too.
+    const value = sameLayout(layout, builtIn) ? null : layout
     try {
-      await updateAppSettings({ default_module_layout: sameLayout(layout, MODULE_DEFAULT_LAYOUT) ? null : layout })
+      await updateAppSettings(page === 'module' ? { default_module_layout: value } : { dashboard_layout: value })
     } catch {
       setChosen(previous)
       setError("Couldn't save that layout. Try again.")
@@ -394,9 +420,23 @@ function LayoutStep({ settings, accent }: { settings: AppSettings; accent: strin
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 px-4 py-3">
+        <p className="text-sm">
+          {chosenPreset ? (
+            <>
+              Chosen: <span className="font-medium">{chosenPreset.label}</span>
+            </>
+          ) : (
+            'Your current layout'
+          )}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => setPreviewing(true)}>
+          <Eye /> Preview with sample data
+        </Button>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {MODULE_LAYOUT_PRESETS.map((preset) => {
+        {presets.map((preset) => {
           const selected = sameLayout(chosen, preset.layout)
           return (
             <button
@@ -409,7 +449,7 @@ function LayoutStep({ settings, accent }: { settings: AppSettings; accent: strin
                 selected ? 'ring-2 ring-foreground' : 'ring-1 ring-border hover:ring-foreground/40',
               )}
             >
-              <LayoutThumbnail layout={preset.layout} accent={accent} />
+              <LayoutThumbnail layout={preset.layout} titles={titles} accent={accent} />
               <span className="block">
                 <span className="flex items-center gap-2 font-medium">
                   {preset.label}
@@ -422,12 +462,36 @@ function LayoutStep({ settings, accent }: { settings: AppSettings; accent: strin
         })}
       </div>
       {error && <p className="text-sm text-destructive">{error}</p>}
+      <LayoutPreviewDialog
+        open={previewing}
+        onOpenChange={setPreviewing}
+        page={page}
+        layout={chosen}
+        accent={accent}
+        label={chosenPreset?.label ?? 'Your'}
+        settings={settings}
+      />
     </div>
   )
 }
 
-/** A to-scale map of a module page layout (12 × 14 grid), each widget a labelled block. */
-function LayoutThumbnail({ layout, accent }: { layout: LayoutItem<ModuleWidgetId>[]; accent: string }) {
+interface LayoutPreset {
+  id: string
+  label: string
+  description: string
+  layout: LayoutItem<string>[]
+}
+
+/** A to-scale map of a page layout (12 × 14 grid), each widget a labelled block. */
+function LayoutThumbnail({
+  layout,
+  titles,
+  accent,
+}: {
+  layout: LayoutItem<string>[]
+  titles: Record<string, string>
+  accent: string
+}) {
   return (
     <span
       className="grid aspect-[12/7] w-full gap-1 rounded-lg bg-muted p-1.5"
@@ -445,7 +509,7 @@ function LayoutThumbnail({ layout, accent }: { layout: LayoutItem<ModuleWidgetId
             boxShadow: `inset 0 3px 0 ${accent}`,
           }}
         >
-          <span className="truncate text-foreground/80">{MODULE_WIDGETS[item.i].title}</span>
+          <span className="truncate text-foreground/80">{titles[item.i]}</span>
         </span>
       ))}
     </span>
