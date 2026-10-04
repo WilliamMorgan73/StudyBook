@@ -2,7 +2,7 @@
 (never the dev Postgres)."""
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -100,3 +100,31 @@ def test_rejects_blank_text(client, db):
 
 def test_missing_card_is_404(client):
     assert client.patch("/flashcards/999", json={"front": "x"}).status_code == 404
+
+
+def test_reviews_are_newest_first_and_capped(client, db):
+    card = make_card(db)  # one review at NOW
+    for day in range(1, 25):
+        card.reviews.append(FlashcardReview(quality=day % 6, reviewed_at=NOW + timedelta(days=day)))
+    db.commit()
+
+    reviews = client.get(f"/flashcards/{card.id}/reviews").json()
+
+    assert len(reviews) == 20
+    assert reviews[0]["reviewed_at"] == (NOW + timedelta(days=24)).isoformat()
+    assert [r["reviewed_at"] for r in reviews] == sorted((r["reviewed_at"] for r in reviews), reverse=True)
+
+
+def test_reviews_of_a_missing_card_is_404(client):
+    assert client.get("/flashcards/999/reviews").status_code == 404
+
+
+def test_due_can_be_limited_to_cards_without_a_topic(client, db):
+    card = make_card(db)  # on a topic
+    db.add(Flashcard(module_id=card.module_id, front="Loose", back="card", due_at=NOW))
+    db.add(Flashcard(module_id=card.module_id, submodule_id=card.submodule_id, front="Topic", back="card", due_at=NOW))
+    db.commit()
+
+    due = client.get("/flashcards/due", params={"module_id": card.module_id, "no_submodule": "true"}).json()
+
+    assert [c["front"] for c in due] == ["Loose"]

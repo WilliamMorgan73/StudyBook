@@ -38,6 +38,13 @@ class FlashcardRead(FlashcardBase):
     last_reviewed_at: datetime | None
 
 
+class FlashcardReviewRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quality: int
+    reviewed_at: datetime
+
+
 class FlashcardReviewCreate(BaseModel):
     """Grade of the last recall attempt, SM-2 scale 0-5 (>=3 counts as correct)."""
 

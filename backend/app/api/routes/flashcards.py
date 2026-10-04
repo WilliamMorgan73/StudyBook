@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud.spaced_repetition import review_card
-from app.models.flashcard import Flashcard
+from app.models.flashcard import Flashcard, FlashcardReview
 from app.models.submodule import Submodule
 from app.schemas.flashcard import (
     FlashcardCreate,
     FlashcardRead,
     FlashcardReviewCreate,
+    FlashcardReviewRead,
     FlashcardUpdate,
 )
 
@@ -32,14 +33,38 @@ def list_flashcards(
 
 @router.get("/due", response_model=list[FlashcardRead])
 def list_due(
-    module_id: int | None = None, submodule_id: int | None = None, db: Session = Depends(get_db)
+    module_id: int | None = None,
+    submodule_id: int | None = None,
+    no_submodule: bool = False,
+    db: Session = Depends(get_db),
 ) -> list[Flashcard]:
+    """Due cards, optionally within a Module, one Submodule, or (`no_submodule`) those on no topic."""
     stmt = select(Flashcard).where(Flashcard.due_at <= datetime.now(UTC).replace(tzinfo=None))
     if module_id is not None:
         stmt = stmt.where(Flashcard.module_id == module_id)
     if submodule_id is not None:
         stmt = stmt.where(Flashcard.submodule_id == submodule_id)
+    if no_submodule:
+        stmt = stmt.where(Flashcard.submodule_id.is_(None))
     return list(db.scalars(stmt.order_by(Flashcard.due_at, Flashcard.id)).all())
+
+
+# Enough for the browser's ratings strip; the revision planner reads the same window.
+REVIEW_HISTORY_LIMIT = 20
+
+
+@router.get("/{flashcard_id}/reviews", response_model=list[FlashcardReviewRead])
+def list_reviews(flashcard_id: int, db: Session = Depends(get_db)) -> list[FlashcardReview]:
+    """The card's latest reviews, newest first."""
+    if db.get(Flashcard, flashcard_id) is None:
+        raise HTTPException(404, "Flashcard not found")
+    stmt = (
+        select(FlashcardReview)
+        .where(FlashcardReview.flashcard_id == flashcard_id)
+        .order_by(FlashcardReview.reviewed_at.desc(), FlashcardReview.id.desc())
+        .limit(REVIEW_HISTORY_LIMIT)
+    )
+    return list(db.scalars(stmt).all())
 
 
 @router.post("", response_model=FlashcardRead, status_code=201)

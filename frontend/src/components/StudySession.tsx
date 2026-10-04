@@ -1,6 +1,6 @@
 import { CheckCircle2, GraduationCap } from 'lucide-react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 import { FlashcardFace } from '@/components/FlashcardFace'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,8 @@ const MotionButton = motion.create(Button)
 export interface StudyScope {
   moduleId?: number
   submoduleId?: number
+  /** Only the Module's cards that are on no topic. */
+  noTopic?: boolean
 }
 
 /**
@@ -28,28 +30,35 @@ export function StudySession({
   scope,
   title,
   onFinished,
+  trigger,
 }: {
   scope: StudyScope
   title: string
   onFinished?: () => void
+  /** Renders whatever opens the session, in place of the default Study button. */
+  trigger?: (open: () => void) => ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const reviewedRef = useRef(0)
+  const [reviewed, setReviewed] = useState(0)
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next) {
-      reviewedRef.current = 0
-    } else if (reviewedRef.current > 0) {
+      setReviewed(0)
+    } else if (reviewed > 0) {
       onFinished?.()
     }
   }
 
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
-        <GraduationCap /> Study
-      </Button>
+      {trigger ? (
+        trigger(() => handleOpenChange(true))
+      ) : (
+        <Button size="sm" variant="outline" onClick={() => handleOpenChange(true)}>
+          <GraduationCap /> Study
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={handleOpenChange}>
         {/* Keep focus off the close button, or Space/Enter would close the dialog instead of revealing. */}
         <DialogContent className="sm:max-w-2xl" onOpenAutoFocus={(e) => e.preventDefault()}>
@@ -61,7 +70,7 @@ export function StudySession({
           {open && (
             <SessionBody
               scope={scope}
-              onReviewed={() => (reviewedRef.current += 1)}
+              onReviewed={() => setReviewed((n) => n + 1)}
               onDone={() => handleOpenChange(false)}
             />
           )}

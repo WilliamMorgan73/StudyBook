@@ -1,9 +1,12 @@
+import { Layers, Pencil, Plus } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { AddAssignmentDialog } from '@/components/AddAssignmentDialog'
 import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
+import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
+import { MaturityBar, MaturityLegend } from '@/components/flashcards/MaturityBar'
 import { useModuleData } from '@/components/dashboard/moduleContext'
 import { Countdown } from '@/components/Countdown'
 import { EventMarker } from '@/components/EventMarker'
@@ -14,15 +17,18 @@ import { QuickTodoList } from '@/components/QuickTodoList'
 import { AnimatedNumber, RadialProgress } from '@/components/RadialProgress'
 import { StudySession } from '@/components/StudySession'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ASSIGNMENT_STATUS_LABEL, updateModule, updateTodo, type Assignment, type Submodule } from '@/lib/api'
+import { ASSIGNMENT_STATUS_LABEL, updateModule, updateTodo, type Assignment, type Flashcard, type Submodule } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
+import { isDue, maturityCounts } from '@/lib/flashcards'
 import { assignmentContribution, assignmentScore, targetOutlook, type TargetOutlook } from '@/lib/grades'
 import { assignmentRingSegments } from '@/lib/progress'
 import { revisionSessionUrl } from '@/lib/revision'
 import { useElementSize } from '@/lib/useElementSize'
+import { cn } from '@/lib/utils'
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -144,18 +150,123 @@ export function AssignmentsWidget() {
 
 export function FlashcardsAction() {
   const { module, refetch } = useModuleData()
-  return <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="flex gap-1.5">
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+        <Layers /> Cards
+      </Button>
+      <StudySession scope={{ moduleId: module.id }} title={module.name} onFinished={refetch} />
+      <FlashcardBrowser
+        open={open}
+        onOpenChange={setOpen}
+        moduleId={module.id}
+        topics={module.submodules}
+        color={module.color}
+        onChanged={refetch}
+      />
+    </div>
+  )
 }
 
+interface TopicCards {
+  /** null: the Module's cards that are on no topic. */
+  id: number | null
+  title: string
+  cards: Flashcard[]
+}
+
+/** The module's cards per topic (in the module's order, "No topic" last); empty topics left out. */
+function cardsByTopic(submodules: Submodule[], cards: Flashcard[]): TopicCards[] {
+  const rows: TopicCards[] = submodules.map((s) => ({ id: s.id, title: s.title, cards: [] }))
+  const loose: TopicCards = { id: null, title: 'No topic', cards: [] }
+  const byId = new Map(rows.map((r) => [r.id, r]))
+  for (const card of cards) (card.submodule_id === null ? loose : (byId.get(card.submodule_id) ?? loose)).cards.push(card)
+  return [...rows, loose].filter((r) => r.cards.length > 0)
+}
+
+/**
+ * Each topic's cards as a maturity bar and due count. The topic's name studies it; the pencil
+ * opens its cards in the browser. Cards on no topic get their own row, set apart so it doesn't
+ * read as a total.
+ */
 export function FlashcardsWidget() {
-  const { module } = useModuleData()
-  if (module.flashcards.length === 0) return <p className="text-sm text-muted-foreground">No flashcards yet.</p>
-  const due = module.flashcards.filter((f) => new Date(f.due_at) <= new Date()).length
+  const { module, refetch } = useModuleData()
+  const [browsing, setBrowsing] = useState<{ topic: number | 'module' | 'all'; startNew: boolean } | null>(null)
+  const rows = useMemo(() => cardsByTopic(module.submodules, module.flashcards), [module.submodules, module.flashcards])
+  const now = new Date()
+  const totalDue = module.flashcards.filter((c) => isDue(c, now)).length
+
+  function renderRow(row: TopicCards) {
+    const due = row.cards.filter((c) => isDue(c, now)).length
+    const scope = row.id === null ? { moduleId: module.id, noTopic: true } : { submoduleId: row.id }
+    return (
+      <li key={row.id ?? 'none'} className="grid grid-cols-[minmax(0,10rem)_minmax(3rem,1fr)_3.5rem_2rem] items-center gap-3">
+        <StudySession
+          scope={scope}
+          title={row.title}
+          onFinished={refetch}
+          trigger={(open) => (
+            <button
+              type="button"
+              onClick={open}
+              className={cn('truncate text-left text-sm hover:underline', row.id === null && 'text-muted-foreground')}
+              title={`Study ${row.title} (${row.cards.length} card${row.cards.length === 1 ? '' : 's'})`}
+            >
+              {row.title}
+            </button>
+          )}
+        />
+        <MaturityBar counts={maturityCounts(row.cards)} color={module.color} label={row.title} />
+        <span className={cn('text-right text-xs tabular-nums', due > 0 ? 'text-foreground' : 'text-muted-foreground')}>
+          {due > 0 ? `${due} due` : 'Done'}
+        </span>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label={`Edit ${row.title} cards`}
+          title={`Edit ${row.title} cards`}
+          onClick={() => setBrowsing({ topic: row.id ?? 'module', startNew: false })}
+        >
+          <Pencil />
+        </Button>
+      </li>
+    )
+  }
+
+  const topicRows = rows.filter((r) => r.id !== null)
+  const looseRow = rows.find((r) => r.id === null)
+
   return (
-    <p className="text-sm text-muted-foreground">
-      {module.flashcards.length} card{module.flashcards.length === 1 ? '' : 's'}
-      {due > 0 && `, ${due} due for review`}
-    </p>
+    <>
+      {rows.length === 0 ? (
+        <div className="flex h-full flex-col items-start justify-center gap-2">
+          <p className="text-sm text-muted-foreground">No flashcards yet. Add some to start studying.</p>
+          <Button size="sm" variant="outline" onClick={() => setBrowsing({ topic: 'all', startNew: true })}>
+            <Plus /> New card
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm tabular-nums">
+            {totalDue > 0 ? `${totalDue} due across the module` : 'All caught up'}
+          </p>
+          {topicRows.length > 0 && <ul className="space-y-1">{topicRows.map(renderRow)}</ul>}
+          {looseRow && <ul className={cn(topicRows.length > 0 && 'border-t pt-2')}>{renderRow(looseRow)}</ul>}
+          <MaturityLegend color={module.color} />
+        </div>
+      )}
+      <FlashcardBrowser
+        open={browsing !== null}
+        onOpenChange={(open) => !open && setBrowsing(null)}
+        moduleId={module.id}
+        topics={module.submodules}
+        color={module.color}
+        initialTopic={browsing && browsing.topic !== 'all' ? `${browsing.topic}` : 'all'}
+        startWithNewCard={browsing?.startNew}
+        onChanged={refetch}
+      />
+    </>
   )
 }
 
