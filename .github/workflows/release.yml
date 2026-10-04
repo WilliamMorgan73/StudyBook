@@ -49,7 +49,7 @@ jobs:
 
       # The backend is bundled by `beforeBuildCommand` (backend/packaging/build.py, PyInstaller), which
       # needs uv and the backend's `build` dependency group.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       - run: uv sync --locked --group build
