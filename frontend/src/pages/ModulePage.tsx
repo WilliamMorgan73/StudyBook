@@ -44,14 +44,15 @@ import { useAsync } from '@/lib/useAsync'
 /** How far ahead the Upcoming revision widget looks. */
 const UPCOMING_REVISION_DAYS = 14
 
-const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode }> = {
+const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode; scroll?: boolean }> = {
   schedule: { body: <ScheduleWidget /> },
   dayAgenda: { body: <DayAgendaWidget /> },
   submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
   assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
   flashcards: { body: <FlashcardsWidget />, action: <FlashcardsAction /> },
   revision: { body: <RevisionWidget /> },
-  progress: { body: <ModuleProgressWidget /> },
+  // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
+  progress: { body: <ModuleProgressWidget />, scroll: false },
   exams: { body: <ExamsWidget /> },
   lectures: { body: <LecturesWidget /> },
   grades: { body: <GradesWidget /> },
@@ -131,7 +132,7 @@ function ModuleView({ id }: { id: number }) {
   }
 
   function renderWidget(widgetId: ModuleWidgetId, slot: number) {
-    const { body, action } = WIDGET_CONTENT[widgetId]
+    const { body, action, scroll } = WIDGET_CONTENT[widgetId]
     return (
       <DashboardWidget
         title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}
@@ -139,6 +140,7 @@ function ModuleView({ id }: { id: number }) {
         editing={editing}
         onRemove={() => editor.remove(widgetId)}
         action={action}
+        scroll={scroll}
       >
         {body}
       </DashboardWidget>
