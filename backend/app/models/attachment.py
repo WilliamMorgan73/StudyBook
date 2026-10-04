@@ -4,6 +4,7 @@ from pathlib import Path
 from sqlalchemy import Enum, ForeignKey, String, Text, event, func
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
+from app.core.config import settings
 from app.core.database import Base
 from app.crud.attachments import remove_stored_file
 from app.models.enums import AttachmentKind
@@ -19,6 +20,7 @@ class Attachment(Base):
     assignment_id: Mapped[int | None] = mapped_column(ForeignKey("assignments.id", ondelete="CASCADE"))
     kind: Mapped[AttachmentKind] = mapped_column(Enum(AttachmentKind, native_enum=False))
     filename: Mapped[str] = mapped_column(String(300))
+    # Relative to the upload folder (`submodules/3/<uuid>.pdf`), so the data folder can move.
     file_path: Mapped[str] = mapped_column(String(500))
     uploaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     # Cache of the local PDF/PPTX -> markdown conversion (app/crud/attachment_text.py); None = not converted yet.
@@ -30,13 +32,18 @@ class Attachment(Base):
 
     @property
     def url(self) -> str:
-        return f"/{self.file_path}"
+        return f"/uploads/{self.file_path}"
+
+    @property
+    def stored_path(self) -> str:
+        """Where the file is on disk."""
+        return str(Path(settings.upload_dir) / self.file_path)
 
     @property
     def size_bytes(self) -> int | None:
         """The stored file's size, read from disk; None if the file has gone missing."""
         try:
-            return Path(self.file_path).stat().st_size
+            return Path(self.stored_path).stat().st_size
         except OSError:
             return None
 
@@ -56,7 +63,7 @@ _FILES_TO_REMOVE = "attachment_files_to_remove"
 
 @event.listens_for(Session, "after_flush")
 def _collect_deleted_attachment_files(session: Session, _flush_context) -> None:
-    paths = [obj.file_path for obj in session.deleted if isinstance(obj, Attachment)]
+    paths = [obj.stored_path for obj in session.deleted if isinstance(obj, Attachment)]
     if paths:
         session.info.setdefault(_FILES_TO_REMOVE, []).extend(paths)
 

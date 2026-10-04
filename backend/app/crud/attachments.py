@@ -28,7 +28,7 @@ _EXTENSION_KIND = {
 def store_upload(file: UploadFile, subdir: str) -> tuple[AttachmentKind, str, str]:
     """Save an uploaded file under uploads/<subdir>/ with a UUID filename.
 
-    Returns (kind, original filename, on-disk path) for building an Attachment row.
+    Returns (kind, original filename, path relative to the upload folder) for building an Attachment row.
     """
     suffix = Path(file.filename or "").suffix.lower()
     kind = _EXTENSION_KIND.get(suffix, AttachmentKind.other)
@@ -40,7 +40,7 @@ def store_upload(file: UploadFile, subdir: str) -> tuple[AttachmentKind, str, st
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    return kind, file.filename or stored_name, str(dest)
+    return kind, file.filename or stored_name, f"{subdir}/{stored_name}"
 
 
 def remove_stored_file(file_path: str) -> None:

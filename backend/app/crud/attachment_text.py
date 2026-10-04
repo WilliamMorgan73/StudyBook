@@ -76,7 +76,7 @@ def get_extracted_text(
         raise AttachmentNotExtractableError(f"Text extraction is not supported for {_describe(attachment)} files.")
 
     if attachment.extracted_markdown is None:
-        attachment.extracted_markdown = convert(attachment.file_path)
+        attachment.extracted_markdown = convert(attachment.stored_path)
 
     markdown = attachment.extracted_markdown
     return ExtractedText(

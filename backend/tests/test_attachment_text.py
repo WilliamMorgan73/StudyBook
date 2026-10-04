@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 import app.models  # noqa: F401  registers relationship string refs before we touch the mapper
+from app.core.config import settings
 from app.crud.attachment_text import (
     AttachmentExtractionFailedError,
     AttachmentNotExtractableError,
@@ -101,12 +102,12 @@ def test_get_extracted_text_converts_once_then_uses_cache():
         calls.append(path)
         return LECTURE_TEXT
 
-    attachment = make_attachment(AttachmentKind.pdf, "notes.pdf", "uploads/x.pdf")
+    attachment = make_attachment(AttachmentKind.pdf, "notes.pdf", "submodules/1/x.pdf")
 
     first = get_extracted_text(attachment, convert=fake_convert)
     second = get_extracted_text(attachment, convert=fake_convert)
 
-    assert calls == ["uploads/x.pdf"]
+    assert calls == [str(Path(settings.upload_dir) / "submodules" / "1" / "x.pdf")]  # read from the upload folder
     assert attachment.extracted_markdown == LECTURE_TEXT
     assert first == second
     assert first.markdown == LECTURE_TEXT
