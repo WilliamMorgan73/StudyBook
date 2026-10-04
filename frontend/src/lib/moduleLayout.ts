@@ -1,7 +1,7 @@
 // The module page's board: its widget registry and default layout, saved per module as
 // `modules.dashboard_layout` (null = MODULE_DEFAULT_LAYOUT). See `lib/dashboardLayout.ts`.
 
-import type { Board, LayoutItem, WidgetInfo } from '@/lib/dashboardLayout'
+import { normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
 
 export type ModuleWidgetId =
   | 'schedule'
@@ -101,3 +101,55 @@ export const MODULE_DEFAULT_LAYOUT: LayoutItem<ModuleWidgetId>[] = [
 ]
 
 export const MODULE_BOARD: Board<ModuleWidgetId> = { widgets: MODULE_WIDGETS, defaultLayout: MODULE_DEFAULT_LAYOUT }
+
+/**
+ * The module board with the user's default layout (AppSettings.default_module_layout) as the one
+ * uncustomised modules show and Reset returns to. Null or unusable: the built-in default.
+ */
+export function moduleBoard(userDefault: unknown): Board<ModuleWidgetId> {
+  if (userDefault == null) return MODULE_BOARD
+  return { widgets: MODULE_WIDGETS, defaultLayout: normalizeLayout(MODULE_BOARD, userDefault) }
+}
+
+/** Starting points offered by the setup page, all within the 12 × 14 board. */
+export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: string; layout: LayoutItem<ModuleWidgetId>[] }[] = [
+  {
+    id: 'classic',
+    label: 'Classic',
+    description: 'The week ahead, then topics, assignments and flashcards side by side.',
+    layout: MODULE_DEFAULT_LAYOUT,
+  },
+  {
+    id: 'revision',
+    label: 'Revision',
+    description: 'Flashcards and revision sessions up front, with exam countdowns.',
+    layout: [
+      { i: 'schedule', x: 0, y: 0, w: 8, h: 5 },
+      { i: 'exams', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'flashcards', x: 0, y: 5, w: 4, h: 9 },
+      { i: 'revision', x: 4, y: 5, w: 4, h: 9 },
+      { i: 'submodules', x: 8, y: 5, w: 4, h: 9 },
+    ],
+  },
+  {
+    id: 'deadlines',
+    label: 'Deadlines',
+    description: 'Assignments, their open to-dos and the grade breakdown.',
+    layout: [
+      { i: 'schedule', x: 0, y: 0, w: 12, h: 5 },
+      { i: 'assignments', x: 0, y: 5, w: 4, h: 9 },
+      { i: 'openTodos', x: 4, y: 5, w: 4, h: 9 },
+      { i: 'grades', x: 8, y: 5, w: 4, h: 9 },
+    ],
+  },
+  {
+    id: 'notes',
+    label: 'Notes first',
+    description: 'A tall list of topics, with flashcards and assignments beside it.',
+    layout: [
+      { i: 'submodules', x: 0, y: 0, w: 6, h: 14 },
+      { i: 'flashcards', x: 6, y: 0, w: 6, h: 7 },
+      { i: 'assignments', x: 6, y: 7, w: 6, h: 7 },
+    ],
+  },
+]

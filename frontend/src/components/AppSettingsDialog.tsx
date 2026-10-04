@@ -1,6 +1,7 @@
 import { CalendarDays, Database, Keyboard, Palette, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
@@ -46,6 +47,7 @@ export function AppSettingsDialog({
   /** Personal events changed, so calendars showing busy time should refetch. */
   onCalendarChanged?: () => void
 }) {
+  const navigate = useNavigate()
   const [category, setCategory] = useState<Category>('appearance')
   // Drafts for the fields that commit on save/blur rather than on click. Everything else reads
   // straight from `settings`, which the parent refetches (in place) after each change.
@@ -103,6 +105,11 @@ export function AppSettingsDialog({
     setSkin(nextSkin)
     applyTheme(themeMode, nextSkin)
     await updateAppSettings({ skin: nextSkin })
+    onChanged()
+  }
+
+  async function handleResetModuleLayout() {
+    await updateAppSettings({ default_module_layout: null })
     onChanged()
   }
 
@@ -234,6 +241,40 @@ export function AppSettingsDialog({
                 </p>
                 <Button size="sm" onClick={handleSaveCredits} disabled={savingCredits} className="mt-1">
                   {savingCredits ? 'Saving…' : 'Save'}
+                </Button>
+              </div>
+            )}
+            {category === 'general' && (
+              <div className="space-y-1.5">
+                <Label>Default module layout</Label>
+                <p className="text-xs text-muted-foreground">
+                  {settings.default_module_layout
+                    ? 'Modules you haven’t customised use your own default. Set it from any module with Edit layout, then Make default.'
+                    : 'Modules you haven’t customised use the built-in layout. Set your own from any module with Edit layout, then Make default.'}
+                </p>
+                {settings.default_module_layout && (
+                  <Button size="sm" variant="outline" onClick={handleResetModuleLayout} className="mt-1">
+                    Use the built-in layout
+                  </Button>
+                )}
+              </div>
+            )}
+            {category === 'general' && (
+              <div className="space-y-1.5">
+                <Label>Setup</Label>
+                <p className="text-xs text-muted-foreground">
+                  Go through the first-run steps again: appearance, modules, layout, AI and calendars.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-1"
+                  onClick={() => {
+                    onOpenChange(false)
+                    navigate('/setup')
+                  }}
+                >
+                  Run setup again
                 </Button>
               </div>
             )}

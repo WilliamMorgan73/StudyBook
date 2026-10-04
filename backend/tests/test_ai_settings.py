@@ -14,6 +14,7 @@ from app.api.deps import get_ai_client
 from app.core.database import get_db
 from app.main import app
 from app.models.app_settings import AppSettings
+from app.models.module import Module
 from app.services import ai
 from app.services.ai import AIError, FakeAIClient
 from app.services.ai_models import AI_MODEL_IDS, DEFAULT_AI_MODEL
@@ -26,6 +27,7 @@ GEMINI_SECRET = "AIza-test-0123456789abcdef"
 def db() -> Iterator[Session]:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     AppSettings.__table__.create(engine)
+    Module.__table__.create(engine)  # read by the first-run check when the settings row is created
     session = sessionmaker(bind=engine)()
     yield session
     session.close()

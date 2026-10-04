@@ -23,6 +23,7 @@ import {
 } from '@/lib/api'
 import { listItem } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
+import { useSampleData } from '@/lib/sampleData'
 
 function TodoRow({ todo, onChanged }: { todo: QuickTodo; onChanged: () => void }) {
   return (
@@ -94,7 +95,14 @@ export function QuickTodoList({ moduleId, modules = [] }: { moduleId?: number; m
   const [text, setText] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [hidden, setHidden] = useState<Category[]>(() => (moduleId === undefined ? readHidden() : []))
-  const todos = useAsync(() => listQuickTodos({ moduleId }), [moduleId])
+  const sample = useSampleData()
+  const todos = useAsync(
+    () =>
+      sample
+        ? Promise.resolve(sample.quickTodos.filter((t) => moduleId === undefined || t.module_id === moduleId))
+        : listQuickTodos({ moduleId }),
+    [moduleId],
+  )
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()

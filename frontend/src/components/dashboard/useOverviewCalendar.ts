@@ -4,6 +4,7 @@ import { calendarGridRange } from '@/components/MonthCalendar'
 import { getCalendar, refreshStaleCalendarFeeds, updateRevisionSession } from '@/lib/api'
 import { visibleCalendarEvents } from '@/lib/busyTime'
 import { useAsync } from '@/lib/useAsync'
+import { useSampleData } from '@/lib/sampleData'
 
 const SHOW_BUSY_KEY = 'studybook.overview.showBusy'
 
@@ -58,7 +59,8 @@ export function useOverviewCalendar() {
 
   const gridRange = useMemo(() => calendarGridRange(month), [month])
   // Keep the current month on screen until the next one loads, so paging doesn't blink.
-  const calendar = useAsync(() => getCalendar(gridRange.start, gridRange.end), [gridRange], {
+  const sample = useSampleData()
+  const calendar = useAsync(() => (sample ? Promise.resolve(sample.calendar) : getCalendar(gridRange.start, gridRange.end)), [gridRange], {
     keepPreviousData: true,
   })
 
@@ -70,6 +72,7 @@ export function useOverviewCalendar() {
     refetchRef.current = calendar.refetch
   }, [calendar.refetch])
   useEffect(() => {
+    if (sample) return // a preview: nothing to sync
     let cancelled = false
     refreshStaleCalendarFeeds()
       .then(({ refreshed }) => {
@@ -79,7 +82,7 @@ export function useOverviewCalendar() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [sample])
 
   async function setRevisionDone(sessionId: number, done: boolean) {
     await updateRevisionSession(sessionId, { done })

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { getQuickNote, updateQuickNote } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
+import { useSampleData } from '@/lib/sampleData'
 
 /** A borderless textarea that fills its widget and saves on blur when the text changed. */
 export function NotepadArea({ value, onSave }: { value: string; onSave: (content: string) => Promise<unknown> }) {
@@ -30,6 +31,7 @@ export function NotepadArea({ value, onSave }: { value: string; onSave: (content
 
 /** The Overview's notepad. */
 export function QuickNotepad() {
-  const note = useAsync(() => getQuickNote(), [])
+  const sample = useSampleData()
+  const note = useAsync(() => (sample ? Promise.resolve(sample.quickNote) : getQuickNote()), [])
   return <NotepadArea value={note.data?.content ?? ''} onSave={updateQuickNote} />
 }

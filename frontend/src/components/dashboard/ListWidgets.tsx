@@ -17,13 +17,18 @@ import { listDueFlashcards, listRevisionSessions, listUpcomingAssignments, updat
 import { enter, fadeUp, stagger } from '@/lib/motion'
 import { revisionSessionUrl } from '@/lib/revision'
 import { useAsync } from '@/lib/useAsync'
+import { useSampleData } from '@/lib/sampleData'
 
 /** Enough to fill a tall widget; it scrolls past that. */
 const UPCOMING_LIMIT = 20
 
 export function UpcomingWidget() {
   const { moduleName } = useOverview()
-  const assignments = useAsync(() => listUpcomingAssignments(UPCOMING_LIMIT), [])
+  const sample = useSampleData()
+  const assignments = useAsync(
+    () => (sample ? Promise.resolve(sample.upcomingAssignments) : listUpcomingAssignments(UPCOMING_LIMIT)),
+    [],
+  )
 
   return (
     <>
@@ -74,8 +79,9 @@ export function ModulesWidget() {
         }
       >
         {modules.data && (
-          // p-0.5 keeps the hover lift and focus rings from being clipped by the scrolling body.
-          <motion.div className={`${columns} p-0.5`} variants={stagger()} {...enter}>
+          // The padding keeps the hover lift (2px up) and focus rings from being clipped by the
+          // scrolling body; the top needs room for the lift plus the ring.
+          <motion.div className={`${columns} px-0.5 pt-1.5 pb-0.5`} variants={stagger()} {...enter}>
             {modules.data.map((m) => (
               <motion.div key={m.id} variants={fadeUp} whileHover={{ y: -2 }}>
                 <ModuleCard module={m} maxCredits={maxCredits} />
@@ -100,9 +106,13 @@ function startOfToday() {
 
 export function RevisionTodayWidget() {
   const { moduleColor, moduleName, calendar } = useOverview()
+  const sample = useSampleData()
   const sessions = useAsync(() => {
     const start = startOfToday()
     const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1)
+    if (sample) {
+      return Promise.resolve(sample.revisionSessions.filter((s) => new Date(s.starts_at) >= start && new Date(s.starts_at) < end))
+    }
     return listRevisionSessions({ start, end })
   }, [])
 
@@ -148,7 +158,8 @@ export function RevisionTodayWidget() {
 
 export function FlashcardsDueWidget() {
   const { modules, moduleColor, moduleName } = useOverview()
-  const due = useAsync(() => listDueFlashcards({}), [])
+  const sample = useSampleData()
+  const due = useAsync(() => (sample ? Promise.resolve(sample.dueFlashcards) : listDueFlashcards({})), [])
 
   // Due counts per module, in the modules list's order.
   const rows = useMemo(() => {

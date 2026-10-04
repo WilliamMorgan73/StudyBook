@@ -17,8 +17,9 @@ def get_settings(db: Session = Depends(get_db)) -> AppSettingsRead:
 def update_settings(payload: AppSettingsUpdate, db: Session = Depends(get_db)) -> AppSettingsRead:
     settings = get_or_create_settings(db)
     changes = payload.model_dump(exclude_unset=True)
-    if changes.get("ai_model", "") is None:
-        del changes["ai_model"]
+    for field in ("ai_model", "setup_completed"):  # not nullable: null means "leave it"
+        if changes.get(field, "") is None:
+            del changes[field]
     for field, value in changes.items():
         setattr(settings, field, value)
     db.commit()

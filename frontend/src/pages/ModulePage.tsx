@@ -1,31 +1,13 @@
-import { Settings, ArrowLeft } from 'lucide-react'
+import { Settings, ArrowLeft, Star } from 'lucide-react'
 import { motion } from 'motion/react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
 import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
 import { ModuleContext, type ModuleData } from '@/components/dashboard/moduleContext'
-import {
-  AssignmentsAction,
-  AssignmentsWidget,
-  DayAgendaWidget,
-  ExamsWidget,
-  FlashcardsAction,
-  FlashcardsWidget,
-  GradesWidget,
-  LecturesWidget,
-  ModuleNotepadWidget,
-  ModuleProgressWidget,
-  ModuleTodoWidget,
-  OpenTodosWidget,
-  RelatedModulesWidget,
-  RevisionWidget,
-  ScheduleWidget,
-  SubmodulesAction,
-  SubmodulesWidget,
-} from '@/components/dashboard/ModuleWidgets'
+import { MODULE_WIDGET_CONTENT } from '@/components/dashboard/moduleWidgetContent'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
 import { ModuleBanner } from '@/components/ModuleBanner'
@@ -36,8 +18,17 @@ import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getModule, listRevisionSessions, updateModule, updateRevisionSession, type RevisionSession } from '@/lib/api'
-import { MODULE_BOARD, MODULE_WIDGETS, type ModuleWidgetId } from '@/lib/moduleLayout'
+import {
+  getAppSettings,
+  getModule,
+  listRevisionSessions,
+  updateAppSettings,
+  updateModule,
+  updateRevisionSession,
+  type RevisionSession,
+} from '@/lib/api'
+import { sameLayout } from '@/lib/dashboardLayout'
+import { MODULE_DEFAULT_LAYOUT, MODULE_WIDGETS, moduleBoard, type ModuleWidgetId } from '@/lib/moduleLayout'
 import { normalizeBanner } from '@/lib/moduleBanner'
 import { enter } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
@@ -45,23 +36,6 @@ import { useAsync } from '@/lib/useAsync'
 /** How far ahead the Upcoming revision widget looks. */
 const UPCOMING_REVISION_DAYS = 14
 
-const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode; scroll?: boolean }> = {
-  schedule: { body: <ScheduleWidget /> },
-  dayAgenda: { body: <DayAgendaWidget /> },
-  submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
-  assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
-  flashcards: { body: <FlashcardsWidget />, action: <FlashcardsAction /> },
-  revision: { body: <RevisionWidget /> },
-  // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
-  progress: { body: <ModuleProgressWidget />, scroll: false },
-  exams: { body: <ExamsWidget /> },
-  lectures: { body: <LecturesWidget /> },
-  grades: { body: <GradesWidget /> },
-  openTodos: { body: <OpenTodosWidget /> },
-  todo: { body: <ModuleTodoWidget /> },
-  notepad: { body: <ModuleNotepadWidget /> },
-  related: { body: <RelatedModulesWidget /> },
-}
 
 function upcomingRevisionRange(today: Date) {
   const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -92,13 +66,29 @@ function ModuleView({ id }: { id: number }) {
     () => listRevisionSessions({ moduleId: id, start: upcomingRange.start, end: upcomingRange.end }),
     [id, upcomingRange],
   )
-  const editor = useLayoutEditor(MODULE_BOARD, module?.dashboard_layout ?? null, async (layout) => {
+  // Uncustomised modules (and Reset) use the user's default module layout, if they've set one.
+  const appSettings = useAsync(() => getAppSettings(), [])
+  const board = useMemo(() => moduleBoard(appSettings.data?.default_module_layout ?? null), [appSettings.data])
+  const [savingDefault, setSavingDefault] = useState(false)
+  const editor = useLayoutEditor(board, module?.dashboard_layout ?? null, async (layout) => {
     await updateModule(id, { dashboard_layout: layout })
     await refetch()
   })
   const { layout, editing } = editor
 
-  if (loading && !module) {
+  // Every module without its own layout starts from this one from now on.
+  async function makeDefault() {
+    setSavingDefault(true)
+    try {
+      await updateAppSettings({ default_module_layout: sameLayout(layout, MODULE_DEFAULT_LAYOUT) ? null : layout })
+      await appSettings.refetch()
+    } finally {
+      setSavingDefault(false)
+    }
+  }
+
+  // Wait for settings too, so an uncustomised module doesn't flash the built-in layout first.
+  if ((loading && !module) || (appSettings.loading && !appSettings.data)) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
@@ -135,7 +125,7 @@ function ModuleView({ id }: { id: number }) {
   }
 
   function renderWidget(widgetId: ModuleWidgetId, slot: number) {
-    const { body, action, scroll } = WIDGET_CONTENT[widgetId]
+    const { body, action, scroll } = MODULE_WIDGET_CONTENT[widgetId]
     return (
       <DashboardWidget
         title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}
@@ -160,7 +150,21 @@ function ModuleView({ id }: { id: number }) {
           </Link>
         }
         right={
-          <LayoutEditControls editor={editor} menuLabel="Add to this module">
+          <LayoutEditControls
+            editor={editor}
+            menuLabel="Add to this module"
+            editingActions={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={makeDefault}
+                disabled={savingDefault || sameLayout(layout, board.defaultLayout)}
+                title="Modules you haven't customised, and new ones, will use this layout"
+              >
+                <Star /> {sameLayout(layout, board.defaultLayout) ? 'Default layout' : 'Make default'}
+              </Button>
+            }
+          >
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
               <Settings /> Settings
             </Button>
