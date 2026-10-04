@@ -94,3 +94,10 @@ Maturity (`lib/flashcards.ts::cardMaturity`) is new / learning (< 7 days) / know
 ## Desktop shell (`frontend/src-tauri/`)
 
 Optional dev-only Tauri wrapper around the same Vite dev server (`localhost:5173`). `pnpm tauri dev` from `frontend/` (starts the dev server itself; needs a Rust toolchain). `pnpm tauri build` produces `.deb`/`.rpm`; AppImage fails (linuxdeploy needs fuse2) and isn't a current goal.
+
+The window is frameless (`decorations: false`), so the page draws its own title bar. `lib/desktop.ts::isDesktop` (`__TAURI_INTERNALS__` present) gates all of it, and a browser renders exactly as before:
+- `PageHeader` and the setup page header carry `data-tauri-drag-region="deep"`: dragging any non-interactive part moves the window, and double-clicking maximises. Buttons, links and inputs keep working because Tauri's drag script skips clickable elements.
+- `components/WindowControls.tsx`: minimise, maximise and close at the right end of those headers. `DesktopTitleBar` is a bare draggable bar with just the controls, for the screens that have no header (setup's server-offline state, the `ErrorBoundary` fallback).
+- These need the `core:window:allow-start-dragging`, `-minimize`, `-toggle-maximize`, `-internal-toggle-maximize` and `-close` permissions in `capabilities/default.json`.
+- `src-tauri/src/lib.rs` builds the main window itself (`create: false` in the config, then `WebviewWindowBuilder::from_config`) only so it can attach `on_download`. Downloads still go to the default folder (`~/Downloads` on Linux). When one finishes, it emits `download-finished` (`{url, path, success}`). `lib/desktop.ts::onDownloadFinished` subscribes to it, and Settings → Data uses it to show "Preparing backup…" and then "Saved to …", since the webview itself shows nothing.
+- `@tauri-apps/api` is pinned to the `tauri` crate's minor version (`~2.11`); the Tauri CLI rejects a mismatched minor.

@@ -1,10 +1,11 @@
-import { Download, TriangleAlert, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { CircleCheck, Download, TriangleAlert, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { BACKUP_DOWNLOAD_URL, restoreBackup, type RestoreResult } from '@/lib/api'
 import { formatBackupDate, summarizeCounts } from '@/lib/backup'
+import { isDesktop, onDownloadFinished, type DownloadFinished } from '@/lib/desktop'
 
 /** Settings → Data: download a backup, or restore one. */
 export function BackupSettings({ onRestored }: { onRestored?: () => void }) {
@@ -16,16 +17,60 @@ export function BackupSettings({ onRestored }: { onRestored?: () => void }) {
           Downloads one file with everything in StudyBook: modules, notes, assignments, flashcards and their review
           history, calendars, settings and attached files. Your AI API keys aren’t included.
         </p>
-        <Button size="sm" variant="outline" className="mt-1" asChild>
-          <a href={BACKUP_DOWNLOAD_URL} download>
-            <Download />
-            Download backup
-          </a>
-        </Button>
+        <DownloadBackup />
       </div>
       <RestoreBackup onRestored={onRestored} />
     </div>
   )
+}
+
+type DownloadState = { phase: 'idle' } | { phase: 'saving' } | { phase: 'finished'; download: DownloadFinished }
+
+/**
+ * A plain download link, so a large backup never sits in memory. A browser shows its own download
+ * progress; the desktop shell shows nothing, so there the backend's `download-finished` event drives a
+ * "Preparing…" / "Saved to …" message instead.
+ */
+function DownloadBackup() {
+  const [state, setState] = useState<DownloadState>({ phase: 'idle' })
+
+  useEffect(
+    () =>
+      onDownloadFinished((download) => {
+        if (isBackupUrl(download.url)) setState({ phase: 'finished', download })
+      }),
+    [],
+  )
+
+  return (
+    <>
+      <Button size="sm" variant="outline" className="mt-1" asChild>
+        <a href={BACKUP_DOWNLOAD_URL} download onClick={() => isDesktop && setState({ phase: 'saving' })}>
+          <Download />
+          {state.phase === 'saving' ? 'Preparing backup…' : 'Download backup'}
+        </a>
+      </Button>
+      {state.phase === 'finished' &&
+        (state.download.success ? (
+          <p role="status" className="flex items-start gap-1.5 pt-1 text-xs text-muted-foreground">
+            <CircleCheck className="mt-px size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <span className="break-all">
+              {state.download.path ? `Saved to ${state.download.path}` : 'Backup saved to your Downloads folder'}
+            </span>
+          </p>
+        ) : (
+          <p className="pt-1 text-xs text-destructive">The backup couldn’t be saved. Try again.</p>
+        ))}
+    </>
+  )
+}
+
+function isBackupUrl(url: string): boolean {
+  try {
+    return new URL(url, window.location.href).pathname === BACKUP_DOWNLOAD_URL
+  } catch {
+    return false
+  }
 }
 
 type RestoreState =

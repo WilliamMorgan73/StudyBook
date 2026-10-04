@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { RestoreBackup } from '@/components/BackupSettings'
+import { DesktopTitleBar, WindowControls } from '@/components/WindowControls'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
 import { ErrorState } from '@/components/ErrorState'
 import { LayoutPreviewDialog } from '@/components/setup/LayoutPreview'
@@ -94,20 +95,23 @@ export function SetupPage({ onFinished }: { onFinished: () => Promise<void> }) {
   if (!settings.data) {
     if (settings.error) {
       return (
-        <div className="flex h-full items-center justify-center p-6">
-          <ErrorState
-            icon={WifiOff}
-            iconVariant="warning"
-            badge="Server offline"
-            title="Cannot connect to StudyBook server"
-            description="Setup requires a running StudyBook backend server. Make sure the server is running, then try again."
-            codeSnippet="uv run uvicorn app.main:app"
-            primaryAction={{
-              label: 'Retry connection',
-              onClick: settings.refetch,
-              icon: RotateCcw,
-            }}
-          />
+        <div className="flex h-full flex-col">
+          <DesktopTitleBar />
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <ErrorState
+              icon={WifiOff}
+              iconVariant="warning"
+              badge="Server offline"
+              title="Cannot connect to StudyBook server"
+              description="Setup requires a running StudyBook backend server. Make sure the server is running, then try again."
+              codeSnippet="uv run uvicorn app.main:app"
+              primaryAction={{
+                label: 'Retry connection',
+                onClick: settings.refetch,
+                icon: RotateCcw,
+              }}
+            />
+          </div>
         </div>
       )
     }
@@ -151,7 +155,7 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-4 border-b px-6 py-3">
+      <header data-tauri-drag-region="deep" className="flex items-center justify-between gap-4 border-b px-6 py-3">
         <span className="font-medium">Set up StudyBook</span>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => setRestoreOpen(true)}>
@@ -160,6 +164,7 @@ function Setup({ settings, onFinished }: { settings: AppSettings; onFinished: ()
           <Button variant="ghost" size="sm" onClick={finish} disabled={finishing}>
             Skip setup
           </Button>
+          <WindowControls className="ml-1 border-l pl-2" />
         </div>
       </header>
 

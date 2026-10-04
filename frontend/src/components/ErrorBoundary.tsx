@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, Home, RotateCcw } from 'lucide-react'
 
+import { DesktopTitleBar } from '@/components/WindowControls'
 import { ErrorState } from '@/components/ErrorState'
 
 interface ErrorBoundaryProps {
@@ -51,28 +52,31 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         .join('\n')
 
       return (
-        <div className="flex h-full min-h-[60vh] w-full items-center justify-center p-6">
-          <ErrorState
-            icon={AlertTriangle}
-            iconVariant="destructive"
-            badge="Application Error"
-            title="Something went wrong"
-            description="An unexpected error prevented this view from displaying properly. You can try refreshing the page or returning to the overview."
-            primaryAction={{
-              label: 'Reload page',
-              icon: RotateCcw,
-              onClick: () => window.location.reload(),
-            }}
-            secondaryAction={{
-              label: 'Go to Overview',
-              icon: Home,
-              onClick: () => {
-                this.reset()
-                window.location.href = '/'
-              },
-            }}
-            details={details}
-          />
+        <div className="flex h-full min-h-[60vh] w-full flex-col">
+          <DesktopTitleBar />
+          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+            <ErrorState
+              icon={AlertTriangle}
+              iconVariant="destructive"
+              badge="Application Error"
+              title="Something went wrong"
+              description="An unexpected error prevented this view from displaying properly. You can try refreshing the page or returning to the overview."
+              primaryAction={{
+                label: 'Reload page',
+                icon: RotateCcw,
+                onClick: () => window.location.reload(),
+              }}
+              secondaryAction={{
+                label: 'Go to Overview',
+                icon: Home,
+                onClick: () => {
+                  this.reset()
+                  window.location.href = '/'
+                },
+              }}
+              details={details}
+            />
+          </div>
         </div>
       )
     }
