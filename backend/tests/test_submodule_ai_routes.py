@@ -1,20 +1,19 @@
 """Submodule AI endpoints wired end to end, against a throwaway in-memory SQLite database holding
-only the tables they touch (never the dev Postgres), with the AI client faked."""
+only the tables they touch (never the dev database), with the AI client faked."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
 from app.api.deps import get_ai_client
-from app.core.database import get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
-from app.models.app_settings import AppSettings
 from app.models.attachment import Attachment
 from app.models.enums import AttachmentKind, FlashcardSource
 from app.models.flashcard import Flashcard
@@ -30,11 +29,8 @@ SLIDES_TEXT = "Dijkstra's algorithm relaxes edges in order of distance using a p
 
 @pytest.fixture
 def db(monkeypatch) -> Iterator[Session]:
-    # `updated_at`'s onupdate is the Postgres string "now()", which SQLite's DateTime rejects.
-    monkeypatch.setattr(Submodule.__table__.c.updated_at, "onupdate", None)
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    for model in (AppSettings, Module, Submodule, Attachment, Flashcard):
-        model.__table__.create(engine)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     session.add(Module(id=1, name="Algorithms", created_at=NOW))
     session.add(Submodule(id=1, module_id=1, title="Graphs", content_markdown="Notes on graphs.", created_at=NOW, updated_at=NOW))

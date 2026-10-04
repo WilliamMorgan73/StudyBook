@@ -1,17 +1,16 @@
 """Module page layout on the module endpoints, against a throwaway in-memory SQLite database
-(never the dev Postgres)."""
+(never the dev database)."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import ARRAY, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
 from app.models.module import Module
 
@@ -23,12 +22,8 @@ LAYOUT = [
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    # SQLite can't create the Postgres-only ARRAY columns, and the module page reads none of them.
-    tables = [
-        t for t in Base.metadata.sorted_tables if not any(isinstance(c.type, ARRAY) for c in t.columns)
-    ]
-    Base.metadata.create_all(engine, tables=tables)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
+    Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     yield session
     session.close()

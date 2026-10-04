@@ -1,3 +1,9 @@
+import os
+
+# Before anything imports `app.core.config`: the app's module-level engine must never point at a developer's
+# real database (a `.env` DATABASE_URL), even though tests use their own engines.
+os.environ["DATABASE_URL"] = "sqlite://"
+
 import pytest
 
 from app.services import ai

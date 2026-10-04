@@ -1,29 +1,28 @@
 """Assignment list endpoint, against a throwaway in-memory SQLite database holding only the tables it
-touches (never the dev Postgres)."""
+touches (never the dev database)."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
 from app.core.clock import local_now
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
 from app.models import Assignment, AssignmentTodo, Attachment, Module, Submodule
 from app.models.assignment import assignment_submodules
 from app.models.enums import AssignmentStatus
 
-NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)  # explicit, since the models' server_default "now()" is Postgres-only
+NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)
 
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     tables = [
         Module.__table__,
         Submodule.__table__,
@@ -56,3 +55,4 @@ def test_upcoming_leaves_out_submitted_and_graded_assignments(client, db):
 
     assert response.status_code == 200
     assert sorted(a["title"] for a in response.json()) == ["in_progress", "not_started"]
+

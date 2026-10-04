@@ -11,7 +11,7 @@ with an optional AI study assistant on top. Self-hosted and single-user, and you
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_v4-0f172a?logo=tailwindcss&logoColor=38bdf8)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169e1?logo=postgresql&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-003b57?logo=sqlite&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude-d97757?logo=anthropic&logoColor=white)
 ![Gemini](https://img.shields.io/badge/Gemini-8e75b2?logo=googlegemini&logoColor=white)
 
@@ -104,7 +104,7 @@ Light, dark or follow your system, with three skins (default, slate, sepia).
 |---|---|
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, shadcn/ui (Radix), React Router, CodeMirror 6, KaTeX, Motion, react-grid-layout |
 | **Backend** | Python, FastAPI, SQLAlchemy 2.0, Alembic, Pydantic, markitdown (PDF/PPTX → text) |
-| **Database** | PostgreSQL 16 (Docker Compose) |
+| **Database** | SQLite |
 | **AI** | Anthropic SDK (Claude), Google GenAI SDK (Gemini) |
 | **Desktop (optional)** | Tauri |
 | **Tooling** | uv, pnpm, pytest, Vitest, Ruff, oxlint |
@@ -113,22 +113,18 @@ Light, dark or follow your system, with three skins (default, slate, sepia).
 
 ## 🚀 Installation
 
-**Prerequisites:** [Docker](https://www.docker.com/), [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/) and Node.js.
+**Prerequisites:** [uv](https://docs.astral.sh/uv/), [pnpm](https://pnpm.io/) and Node.js.
 
 ```bash
 git clone https://github.com/WilliamMorgan73/StudyBook.git
 cd StudyBook
 
-# 1. Start Postgres
-docker compose up -d
-
-# 2. Backend (http://localhost:8000, API docs at /docs)
+# 1. Backend (http://localhost:8000, API docs at /docs)
 cd backend
 uv sync
-uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 
-# 3. Frontend, in a second terminal (http://localhost:5173)
+# 2. Frontend, in a second terminal (http://localhost:5173)
 cd frontend
 pnpm install
 pnpm dev
@@ -136,7 +132,7 @@ pnpm dev
 
 Then open **http://localhost:5173**.
 
-No `.env` file is needed. The backend's default database URL already matches `docker-compose.yml`. To change settings, create `backend/.env` (see `backend/app/core/config.py`). For example, you can set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` there instead of entering a key in the app.
+No `.env` file and no database server are needed: the backend keeps everything in `backend/` (`studybook.db`, `uploads/`, `backups/`) and sets up the database itself on first start. To keep data elsewhere, set `DATA_DIR`. To change other settings, create `backend/.env` (see `backend/app/core/config.py`). For example, you can set `ANTHROPIC_API_KEY` or `GEMINI_API_KEY` there instead of entering a key in the app.
 
 ### 🖥️ Desktop app (optional)
 

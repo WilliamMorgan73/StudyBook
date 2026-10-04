@@ -1,27 +1,26 @@
 """Flashcard editing, against a throwaway in-memory SQLite database holding only the tables it touches
-(never the dev Postgres)."""
+(never the dev database)."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.main import app
 from app.models import Flashcard, FlashcardReview, Module, Submodule
 
-NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)  # explicit, since the models' server_default "now()" is Postgres-only
+NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)
 DUE = datetime(2026, 1, 9, tzinfo=UTC).replace(tzinfo=None)
 
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     tables = [Module.__table__, Submodule.__table__, Flashcard.__table__, FlashcardReview.__table__]
     Base.metadata.create_all(engine, tables=tables)
     session = sessionmaker(bind=engine)()

@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from sqlalchemy import Enum, ForeignKey, String, Text, event
+from sqlalchemy import Enum, ForeignKey, String, Text, event, func
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from app.core.database import Base
@@ -20,7 +20,7 @@ class Attachment(Base):
     kind: Mapped[AttachmentKind] = mapped_column(Enum(AttachmentKind, native_enum=False))
     filename: Mapped[str] = mapped_column(String(300))
     file_path: Mapped[str] = mapped_column(String(500))
-    uploaded_at: Mapped[datetime] = mapped_column(server_default="now()")
+    uploaded_at: Mapped[datetime] = mapped_column(server_default=func.now())
     # Cache of the local PDF/PPTX -> markdown conversion (app/crud/attachment_text.py); None = not converted yet.
     # Deferred so Attachment lists in submodule/assignment payloads don't load it.
     extracted_markdown: Mapped[str | None] = mapped_column(Text, deferred=True)

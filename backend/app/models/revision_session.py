@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, ForeignKey, Table, Text
+from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -26,7 +27,7 @@ class RevisionSession(Base):
     duration_minutes: Mapped[int]
     # AI-written study guidance, generated lazily when the session is first opened (#13). None until then.
     guidance_markdown: Mapped[str | None] = mapped_column(Text)
-    done: Mapped[bool] = mapped_column(default=False, server_default="false")
+    done: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
 
     assignment: Mapped["Assignment"] = relationship(back_populates="revision_sessions")  # noqa: F821
     submodules: Mapped[list["Submodule"]] = relationship(  # noqa: F821

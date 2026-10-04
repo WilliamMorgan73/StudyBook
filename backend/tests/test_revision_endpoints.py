@@ -1,18 +1,17 @@
 """Revision plan and session endpoints, against a throwaway in-memory SQLite database holding only the
-tables they touch (never the dev Postgres)."""
+tables they touch (never the dev database)."""
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, time, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import ARRAY, create_engine, select
-from sqlalchemy.ext.compiler import compiles
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.crud import calendar_feeds
 from app.main import app
 from app.models import (
@@ -33,13 +32,6 @@ from app.models.enums import AssignmentKind
 from app.models.lecture import lecture_submodules
 from app.models.revision_session import revision_session_submodules
 
-
-@compiles(ARRAY, "sqlite")
-def _array_as_json(_type, _compiler, **_kw) -> str:
-    # SQLite has no arrays; only `personal_events.weekdays` uses one, and these tests never write it.
-    return "JSON"
-
-
 # A Monday at least a week out, so "now" never cuts into the plan; the exam is the next Monday at 09:00,
 # leaving exactly seven study days.
 _today = datetime.now(UTC).astimezone().date()
@@ -50,7 +42,7 @@ EVERY_DAY = list(range(7))
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     tables = [
         Module.__table__,
         Submodule.__table__,
@@ -80,7 +72,7 @@ def client(db: Session) -> Iterator[TestClient]:
     app.dependency_overrides.clear()
 
 
-NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)  # explicit, since the models' server_default "now()" is Postgres-only
+NOW = datetime(2026, 1, 1, tzinfo=UTC).replace(tzinfo=None)
 
 
 def make_module(db: Session, n_submodules: int = 3) -> tuple[Module, list[Submodule]]:

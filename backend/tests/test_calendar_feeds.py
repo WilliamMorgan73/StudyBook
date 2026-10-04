@@ -7,15 +7,13 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import ARRAY, create_engine, select
-from sqlalchemy import event as sa_event
-from sqlalchemy.ext.compiler import compiles
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401  registers relationship string refs before we touch the mapper
 from app.core.clock import local_now
-from app.core.database import Base, get_db
+from app.core.database import Base, create_sqlite_engine, get_db
 from app.crud import calendar_feeds
 from app.crud.calendar_feeds import (
     FeedFetchError,
@@ -159,18 +157,12 @@ def failing_fetch(_url: str) -> str:
     raise FeedFetchError("Couldn't reach the calendar (offline?)")
 
 
-@compiles(ARRAY, "sqlite")
-def _array_as_json(_type, _compiler, **_kw) -> str:
-    # SQLite has no arrays; only `personal_events.weekdays` uses one, and these tests never write it.
-    return "JSON"
-
 
 @pytest.fixture
 def db() -> Iterator[Session]:
-    """A throwaway in-memory SQLite database (never the dev Postgres), with foreign keys enforced so
+    """A throwaway in-memory SQLite database (never the dev database), with foreign keys enforced so
     ON DELETE CASCADE works as in Postgres. Every table, since `GET /calendar` reads them all."""
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    sa_event.listen(engine, "connect", lambda conn, _record: conn.execute("PRAGMA foreign_keys=ON"))
+    engine = create_sqlite_engine("sqlite://", poolclass=StaticPool)
     Base.metadata.create_all(engine)
     session = sessionmaker(bind=engine)()
     yield session
