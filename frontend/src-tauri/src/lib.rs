@@ -42,7 +42,12 @@ pub fn run() {
         .first()
         .expect("tauri.conf.json defines the main window")
         .clone();
-      let window = WebviewWindowBuilder::from_config(app.handle(), &config)?
+      let builder = WebviewWindowBuilder::from_config(app.handle(), &config)?;
+      // Linux only: transparent, so the page can round the frameless window's corners (lib/desktop.ts).
+      // Windows 11 rounds frameless windows itself.
+      #[cfg(target_os = "linux")]
+      let builder = builder.transparent(true);
+      let window = builder
         .on_download(|webview, event| {
           if let DownloadEvent::Finished { url, path, success } = event {
             let _ = webview.emit(

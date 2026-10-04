@@ -10,7 +10,10 @@
       @media (prefers-color-scheme: dark) {
         :root { --bg: #0a0a0a; --fg: #fafafa; --muted: #a3a3a3; --border: #262626; --danger: #f87171; }
       }
-      html, body { height: 100%; margin: 0; }
+      html, body { height: 100%; margin: 0; box-sizing: border-box; }
+      /* Linux: the window is transparent and the page rounds its corners, like the app (index.css). */
+      html.rounded { background: transparent; overflow: hidden; }
+      html.rounded body { border-radius: 10px; border: 1px solid var(--border); overflow: hidden; }
       body {
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
         background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, sans-serif; user-select: none; cursor: default;
@@ -37,6 +40,7 @@
     <p id="status">Starting…</p>
     <p id="error" role="alert"></p>
     <script>
+      if (navigator.userAgent.includes('Linux')) document.documentElement.classList.add('rounded')
       document.getElementById('close').addEventListener('click', () => {
         window.__TAURI_INTERNALS__?.invoke('plugin:window|close', { label: 'main' })
       })
