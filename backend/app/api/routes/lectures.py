@@ -9,6 +9,14 @@ from app.schemas.lecture import LectureCreate, LectureRead, LectureUpdate
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
 
+def _check_editable(lecture: Lecture) -> None:
+    """Lectures synced from a calendar feed belong to the feed; the next sync would undo any edit."""
+    if lecture.feed_id is not None:
+        raise HTTPException(
+            409, f"This lecture comes from the calendar '{lecture.feed.name}'. Change it in Settings → Calendars."
+        )
+
+
 @router.get("", response_model=list[LectureRead])
 def list_lectures(module_id: int | None = None, db: Session = Depends(get_db)) -> list[Lecture]:
     stmt = select(Lecture).order_by(Lecture.scheduled_at.asc())
@@ -39,6 +47,7 @@ def update_lecture(lecture_id: int, payload: LectureUpdate, db: Session = Depend
     lecture = db.get(Lecture, lecture_id)
     if lecture is None:
         raise HTTPException(404, "Lecture not found")
+    _check_editable(lecture)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(lecture, field, value)
     db.commit()
@@ -51,5 +60,6 @@ def delete_lecture(lecture_id: int, db: Session = Depends(get_db)) -> None:
     lecture = db.get(Lecture, lecture_id)
     if lecture is None:
         raise HTTPException(404, "Lecture not found")
+    _check_editable(lecture)
     db.delete(lecture)
     db.commit()

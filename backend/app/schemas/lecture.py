@@ -28,3 +28,5 @@ class LectureRead(LectureBase):
 
     id: int
     module_id: int
+    feed_id: int | None = None
+    """Set when the lecture is synced from a calendar feed; such lectures are read-only."""

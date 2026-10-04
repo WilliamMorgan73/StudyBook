@@ -27,7 +27,7 @@ from app.crud.calendar_feeds import (
     refresh_stale_feeds,
 )
 from app.main import app as fastapi_app
-from app.models import CalendarFeed, CalendarFeedEvent
+from app.models import CalendarFeed, CalendarFeedEvent, Lecture, Module
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ics"
 
@@ -355,3 +355,197 @@ def test_deleting_a_feed_deletes_its_events(client, db):
     assert client.delete(f"/calendar-feeds/{feed_id}").status_code == 204
     assert client.get("/calendar-feeds").json() == []
     assert db.scalars(select(CalendarFeedEvent)).all() == []
+
+
+# --- uploaded timetables and linking series to Lectures -------------------------------------------
+
+# Next Monday at the earliest, so every lecture sits inside the cache window.
+_today = local_now().date()
+WEEK1 = _today + timedelta(days=7 - _today.weekday())
+
+
+def at(week: int, hour: int, weekday: int = 0) -> datetime:
+    return datetime.combine(WEEK1 + timedelta(weeks=week - 1, days=weekday), time(hour))
+
+
+def timetable(*, exdates: tuple[int, ...] = (2,), moved_week: int | None = None) -> str:
+    """A university-style export: a weekly lecture (Mon 10:00, 4 weeks, `exdates` weeks skipped,
+    optionally `moved_week` moved to Wednesday 14:00) and two one-off labs (Thu 13:00)."""
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//University//Timetable//EN"]
+    lines += [
+        "BEGIN:VEVENT",
+        "UID:comp3001-lecture@uni",
+        "SUMMARY:COMP3001 Lecture",
+        "LOCATION:Main Hall  101",
+        f"DTSTART:{at(1, 10):%Y%m%dT%H%M%S}",
+        f"DTEND:{at(1, 11):%Y%m%dT%H%M%S}",
+        "RRULE:FREQ=WEEKLY;COUNT=4",
+        *(f"EXDATE:{at(w, 10):%Y%m%dT%H%M%S}" for w in exdates),
+        "END:VEVENT",
+    ]
+    if moved_week is not None:
+        lines += [
+            "BEGIN:VEVENT",
+            "UID:comp3001-lecture@uni",
+            f"RECURRENCE-ID:{at(moved_week, 10):%Y%m%dT%H%M%S}",
+            "SUMMARY:COMP3001 Lecture",
+            "LOCATION:Main Hall 101",
+            f"DTSTART:{at(moved_week, 14, weekday=2):%Y%m%dT%H%M%S}",
+            f"DTEND:{at(moved_week, 15, weekday=2):%Y%m%dT%H%M%S}",
+            "END:VEVENT",
+        ]
+    for week in (1, 2):
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:comp3001-lab-{week}@uni",
+            "SUMMARY:COMP3001 Lab",
+            "LOCATION:Lab B",
+            f"DTSTART:{at(week, 13, weekday=3):%Y%m%dT%H%M%S}",
+            f"DTEND:{at(week, 15, weekday=3):%Y%m%dT%H%M%S}",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+def upload(client, text: str, name: str = "Timetable"):
+    return client.post(
+        "/calendar-feeds/upload",
+        data={"name": name, "color": "#14b8a6"},
+        files={"file": ("timetable.ics", text.encode(), "text/calendar")},
+    )
+
+
+def make_module(db: Session) -> Module:
+    module = Module(name="Algorithms", created_at=utc_now())
+    db.add(module)
+    db.commit()
+    return module
+
+
+def link(client, feed_id: int, module_id: int | None, title: str = "COMP3001 Lecture"):
+    return client.put(f"/calendar-feeds/{feed_id}/links", json=[{"title": title, "module_id": module_id}])
+
+
+def lectures(client, module_id: int) -> list[dict]:
+    return client.get("/lectures", params={"module_id": module_id}).json()
+
+
+def busy_titles(client) -> list[str]:
+    params = {"start": at(1, 0).isoformat(), "end": at(5, 0).isoformat()}
+    return sorted(e["title"] for e in client.get("/calendar", params=params).json() if e["kind"] == "busy")
+
+
+def test_uploading_a_timetable_creates_a_file_feed(client):
+    response = upload(client, timetable())
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["source"] == "file" and body["url"] is None
+    assert body["event_count"] == 5  # 3 lectures (week 2 skipped) + 2 labs, all busy until linked
+    assert body["linked_lecture_count"] == 0
+    assert body["last_synced_at"] is not None and body["last_error"] is None
+
+
+def test_non_calendar_and_oversized_uploads_are_rejected(client):
+    assert upload(client, fixture("not_a_calendar.html")).status_code == 422
+    assert upload(client, "X" * (2 * 1024 * 1024 + 1)).status_code == 413
+    assert client.get("/calendar-feeds").json() == []
+
+
+def test_series_group_timed_events_by_title(client):
+    feed_id = upload(client, timetable()).json()["id"]
+
+    series = client.get(f"/calendar-feeds/{feed_id}/series").json()
+
+    assert [(s["title"], s["count"], s["location"], s["module_id"]) for s in series] == [
+        ("COMP3001 Lab", 2, "Lab B", None),
+        ("COMP3001 Lecture", 3, "Main Hall 101", None),  # whitespace collapsed
+    ]
+    assert series[1]["first_starts_at"] == at(1, 10).isoformat()
+
+
+def test_linking_a_series_turns_its_events_into_the_modules_lectures(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+
+    body = link(client, feed_id, module.id).json()
+
+    assert body["linked_lecture_count"] == 3 and body["event_count"] == 2
+    rows = lectures(client, module.id)
+    assert [(lec["title"], lec["scheduled_at"], lec["duration_minutes"], lec["location"], lec["feed_id"]) for lec in rows] == [
+        ("COMP3001 Lecture", at(week, 10).isoformat(), 60, "Main Hall 101", feed_id) for week in (1, 3, 4)
+    ]
+    # Linked events are Lectures now, not busy time as well.
+    assert busy_titles(client) == ["COMP3001 Lab", "COMP3001 Lab"]
+    assert client.get(f"/calendar-feeds/{feed_id}/series").json()[1]["module_id"] == module.id
+
+
+def test_replacing_the_file_updates_linked_lectures_in_place(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)
+    ids = {lec["scheduled_at"]: lec["id"] for lec in lectures(client, module.id)}
+    # A lecture from long ago, outside the cache window: re-uploads must leave it alone.
+    old = Lecture(module_id=module.id, feed_id=feed_id, feed_uid="comp3001-lecture@uni|old", title="COMP3001 Lecture",
+                  scheduled_at=local_now() - timedelta(days=90))  # fmt: skip
+    db.add(old)
+    db.commit()
+
+    # Week 1 cancelled, week 3 moved to Wednesday afternoon.
+    response = client.put(
+        f"/calendar-feeds/{feed_id}/file",
+        files={"file": ("timetable.ics", timetable(exdates=(1, 2), moved_week=3).encode(), "text/calendar")},
+    )
+
+    assert response.status_code == 200
+    rows = {lec["id"]: lec["scheduled_at"] for lec in lectures(client, module.id)}
+    assert rows == {
+        old.id: old.scheduled_at.isoformat(),
+        ids[at(3, 10).isoformat()]: at(3, 14, weekday=2).isoformat(),  # same Lecture, moved
+        ids[at(4, 10).isoformat()]: at(4, 10).isoformat(),
+    }
+
+
+def test_unlinking_turns_lectures_back_into_busy_time(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)
+
+    body = link(client, feed_id, None).json()
+
+    assert body["linked_lecture_count"] == 0 and body["event_count"] == 5
+    assert lectures(client, module.id) == []
+    assert busy_titles(client).count("COMP3001 Lecture") == 3
+
+
+def test_linking_to_an_unknown_module_is_rejected(client):
+    feed_id = upload(client, timetable()).json()["id"]
+
+    assert link(client, feed_id, 999).status_code == 422
+
+
+def test_feed_lectures_are_read_only_and_go_with_the_feed(client, db):
+    module = make_module(db)
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)
+    lecture_id = lectures(client, module.id)[0]["id"]
+
+    assert client.patch(f"/lectures/{lecture_id}", json={"title": "Renamed"}).status_code == 409
+    assert client.delete(f"/lectures/{lecture_id}").status_code == 409
+    assert "Timetable" in client.delete(f"/lectures/{lecture_id}").json()["detail"]
+
+    client.delete(f"/calendar-feeds/{feed_id}")
+    assert lectures(client, module.id) == []
+
+
+def test_file_feeds_are_never_fetched(client, db, monkeypatch):
+    feed_id = upload(client, timetable()).json()["id"]
+    db.get(CalendarFeed, feed_id).last_synced_at = utc_now() - timedelta(days=1)  # stale
+    db.commit()
+    monkeypatch.setattr(calendar_feeds, "fetch_ics", lambda _url: pytest.fail("a file feed was fetched"))
+
+    assert client.post("/calendar-feeds/refresh-stale").json() == {"refreshed": 0}
+    assert client.post(f"/calendar-feeds/{feed_id}/refresh").status_code == 400
+    assert client.patch(f"/calendar-feeds/{feed_id}", json={"url": "https://example.com/a.ics"}).status_code == 400
+    assert client.patch(f"/calendar-feeds/{feed_id}", json={"name": "Uni"}).json()["source"] == "file"

@@ -143,22 +143,44 @@ export interface PersonalEvent {
 
 export type PersonalEventInput = Omit<PersonalEvent, 'id' | 'created_at'>
 
-/** A subscribed ICS calendar (e.g. a Google Calendar secret address); its events count as busy time. */
+/**
+ * A subscribed ICS calendar: a Google Calendar secret address, or an uploaded timetable file. Series
+ * linked to a module become its lectures; every other event counts as busy time.
+ */
 export interface CalendarFeed {
   id: number
   name: string
-  url: string
+  /** Null for an uploaded file. */
+  url: string | null
+  source: 'url' | 'file'
   color: string
   enabled: boolean
   /** UTC, naive. The last successful fetch; null until the first. */
   last_synced_at: string | null
   /** Why the latest fetch failed (the cached events are still used); null after a success. */
   last_error: string | null
+  /** Cached busy events (series not linked to a module). */
   event_count: number
+  linked_lecture_count: number
   created_at: string
 }
 
-export type CalendarFeedInput = Pick<CalendarFeed, 'name' | 'url' | 'color' | 'enabled'>
+export interface CalendarFeedInput {
+  name: string
+  url: string
+  color: string
+  enabled: boolean
+}
+
+/** One event series in a feed: every timed event with this exact title. */
+export interface FeedSeries {
+  title: string
+  count: number
+  first_starts_at: string
+  location: string | null
+  /** The module the series is linked to (its events are that module's lectures), or null (busy time). */
+  module_id: number | null
+}
 
 export interface RevisionPlanInput {
   /** "YYYY-MM-DD". */
@@ -228,6 +250,8 @@ export interface Lecture {
   duration_minutes: number | null
   location: string | null
   week_number: number | null
+  /** Set when synced from a calendar feed's linked series; such lectures are read-only. */
+  feed_id: number | null
 }
 
 export interface Submodule {
@@ -694,6 +718,35 @@ export function deleteCalendarFeed(id: number) {
 /** Syncs the feed now. A failure still resolves, with `last_error` set and the cached events kept. */
 export function refreshCalendarFeed(id: number) {
   return postJson<CalendarFeed>(`/calendar-feeds/${id}/refresh`, {})
+}
+
+/** Creates a feed from an uploaded .ics file, e.g. a downloaded university timetable. */
+export function uploadCalendarFeed(input: { name: string; color: string; file: File }) {
+  const formData = new FormData()
+  formData.append('name', input.name)
+  formData.append('color', input.color)
+  formData.append('file', input.file)
+  return request<CalendarFeed>('/calendar-feeds/upload', { method: 'POST', body: formData })
+}
+
+/** Replaces an uploaded feed's file; linked lectures are updated in place. */
+export function replaceCalendarFeedFile(id: number, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<CalendarFeed>(`/calendar-feeds/${id}/file`, { method: 'PUT', body: formData })
+}
+
+export function listFeedSeries(id: number) {
+  return request<FeedSeries[]>(`/calendar-feeds/${id}/series`)
+}
+
+/** Replaces the feed's series → module links; titles not listed are unlinked (back to busy time). */
+export function setFeedLinks(id: number, links: { title: string; module_id: number | null }[]) {
+  return request<CalendarFeed>(`/calendar-feeds/${id}/links`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(links),
+  })
 }
 
 /** Syncs every enabled feed not synced in the last hour; `refreshed` counts the successes. */

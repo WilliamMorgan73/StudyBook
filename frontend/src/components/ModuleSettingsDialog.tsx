@@ -16,6 +16,7 @@ import {
   deleteLecture,
   deleteModule,
   getAppSettings,
+  listCalendarFeeds,
   listLectures,
   listModules,
   toNaiveDateTime,
@@ -26,9 +27,11 @@ import {
   addDays,
   addMinutesToTime,
   groupLectures,
+  splitFeedLectures,
   nextDateSeriesState,
   nextTimeRangeState,
   type DateSeriesState,
+  type FeedLectureGroup,
   type LectureGroup,
   type TimeRangeState,
 } from '@/lib/lectureSchedule'
@@ -291,6 +294,28 @@ function LectureSeriesForm({
   )
 }
 
+function formatLectureDay(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+/** A series synced from a calendar feed: read-only, managed in Settings → Calendars. */
+function FeedLectureCard({ group, feedName }: { group: FeedLectureGroup; feedName: string }) {
+  const { lectures, next } = group
+  const location = lectures.find((l) => l.location)?.location
+  return (
+    <li className="py-2">
+      <p className="truncate font-medium">{group.title}</p>
+      <p className="text-sm text-muted-foreground">
+        {lectures.length} {lectures.length === 1 ? 'lecture' : 'lectures'}
+        {location && ` — ${location}`} &middot; {next ? `next ${formatLectureDay(next.scheduled_at)}` : 'finished'}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        From the calendar “{feedName}”. Change or unlink it in Settings → Calendars.
+      </p>
+    </li>
+  )
+}
+
 function LectureSeriesCard({
   moduleId,
   group,
@@ -383,7 +408,14 @@ export function ModuleSettingsDialog({
   const [addingNew, setAddingNew] = useState(false)
 
   const { data: lectures, loading, refetch: refetchLectures } = useAsync(() => listLectures(module.id), [module.id])
-  const groups = groupLectures(lectures ?? [])
+  const { manual: manualLectures, feedGroups } = splitFeedLectures(lectures ?? [])
+  const groups = groupLectures(manualLectures)
+  // Only needed to name the calendars that feed lectures come from.
+  const { data: feeds } = useAsync(
+    () => (feedGroups.length > 0 ? listCalendarFeeds() : Promise.resolve([])),
+    [feedGroups.length > 0],
+  )
+  const feedName = (feedId: number) => feeds?.find((f) => f.id === feedId)?.name ?? 'a calendar'
 
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
   const { data: allModules } = useAsync(() => listModules(), [])
@@ -530,7 +562,14 @@ export function ModuleSettingsDialog({
                 )}
 
                 {loading && <Skeleton className="h-24 w-full" />}
-                {groups.length === 0 && !loading && !addingNew && (
+                {feedGroups.length > 0 && (
+                  <ul className="divide-y">
+                    {feedGroups.map((group) => (
+                      <FeedLectureCard key={`${group.feedId}-${group.title}`} group={group} feedName={feedName(group.feedId)} />
+                    ))}
+                  </ul>
+                )}
+                {groups.length === 0 && feedGroups.length === 0 && !loading && !addingNew && (
                   <p className="text-sm text-muted-foreground">No lectures scheduled yet.</p>
                 )}
                 {groups.length > 0 && (

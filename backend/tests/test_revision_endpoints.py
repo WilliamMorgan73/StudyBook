@@ -19,6 +19,7 @@ from app.models import (
     Assignment,
     CalendarFeed,
     CalendarFeedEvent,
+    CalendarFeedLink,
     Flashcard,
     FlashcardReview,
     Lecture,
@@ -62,6 +63,7 @@ def db() -> Iterator[Session]:
         revision_session_submodules,
         CalendarFeed.__table__,
         CalendarFeedEvent.__table__,
+        CalendarFeedLink.__table__,
     ]
     Base.metadata.create_all(engine, tables=tables)
     session = sessionmaker(bind=engine)()

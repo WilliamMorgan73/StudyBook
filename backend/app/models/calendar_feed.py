@@ -1,24 +1,27 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import ForeignKey, Index, String, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from app.core.database import Base
 
 
 class CalendarFeed(Base):
-    """A subscribed ICS calendar (e.g. a Google Calendar secret address) that counts as busy time.
+    """A subscribed ICS calendar (a Google Calendar secret address, or an uploaded timetable file).
 
-    Fetched and parsed by `crud/calendar_feeds.py`; the parsed events are cached as
-    `CalendarFeedEvent` rows so a failed fetch keeps the last good copy.
+    Parsed by `crud/calendar_feeds.py`. Event series linked to a Module (`CalendarFeedLink`) become
+    that Module's Lectures; every other event is cached as a `CalendarFeedEvent` (busy time). A failed
+    fetch keeps the last good copy of both.
     """
 
     __tablename__ = "calendar_feeds"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
-    # Secret: anyone with it can read the calendar. Never log it.
-    url: Mapped[str] = mapped_column(Text)
+    # Secret: anyone with it can read the calendar. Never log it. None = an uploaded file.
+    url: Mapped[str | None] = mapped_column(Text)
+    # The last good ICS body (fetched or uploaded), so links can be re-applied without a fetch.
+    source_text: Mapped[str | None] = deferred(mapped_column(Text))
     color: Mapped[str] = mapped_column(String(20))
     enabled: Mapped[bool] = mapped_column(default=True, server_default="true")
     # UTC, naive. Time of the last *successful* fetch; None until the first one.
@@ -31,6 +34,12 @@ class CalendarFeed(Base):
     )
 
     events: Mapped[list["CalendarFeedEvent"]] = relationship(
+        back_populates="feed", cascade="all, delete-orphan", passive_deletes=True
+    )
+    links: Mapped[list["CalendarFeedLink"]] = relationship(
+        back_populates="feed", cascade="all, delete-orphan", passive_deletes=True
+    )
+    lectures: Mapped[list["Lecture"]] = relationship(  # noqa: F821
         back_populates="feed", cascade="all, delete-orphan", passive_deletes=True
     )
 
@@ -51,3 +60,18 @@ class CalendarFeedEvent(Base):
     all_day: Mapped[bool] = mapped_column(default=False)
 
     feed: Mapped[CalendarFeed] = relationship(back_populates="events")
+
+
+class CalendarFeedLink(Base):
+    """Maps one event series of a feed (every event with this exact title) to a Module, whose
+    Lectures those events then become."""
+
+    __tablename__ = "calendar_feed_links"
+    __table_args__ = (UniqueConstraint("feed_id", "title"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    feed_id: Mapped[int] = mapped_column(ForeignKey("calendar_feeds.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(Text)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"))
+
+    feed: Mapped[CalendarFeed] = relationship(back_populates="links")
