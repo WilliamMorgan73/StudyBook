@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import {
   createCalendarFeed,
   deleteCalendarFeed,
@@ -219,7 +220,16 @@ function FeedLinksPanel({ feed, onSaved, onCancel }: { feed: CalendarFeed; onSav
       </div>
 
       {(series.loading || modules.loading) && <Skeleton className="h-20 w-full" />}
-      {(series.error || modules.error) && <p className="text-sm text-destructive">Couldn't load the calendar's events.</p>}
+      {(series.error || modules.error) && (
+        <WidgetError
+          message="Couldn't load the calendar's events."
+          onRetry={() => {
+            series.refetch()
+            modules.refetch()
+          }}
+          className="mb-2"
+        />
+      )}
       {series.data?.length === 0 && <p className="text-sm text-muted-foreground">No timed events in this calendar.</p>}
       {series.data && series.data.length > 0 && modules.data && (
         <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -453,7 +463,13 @@ export function CalendarFeedsSettings({ onChanged }: { onChanged: () => void }) 
       )}
 
       {loading && <Skeleton className="h-16 w-full" />}
-      {error && <p className="text-sm text-destructive">Couldn't load calendar feeds.</p>}
+      {error && (
+        <WidgetError
+          message="Couldn't load calendar feeds."
+          onRetry={refetch}
+          className="mb-2"
+        />
+      )}
       {feeds?.length === 0 && !adding && <p className="text-sm text-muted-foreground">No calendar feeds yet.</p>}
       {feeds && feeds.length > 0 && (
         <ul className="divide-y">

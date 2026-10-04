@@ -13,6 +13,7 @@ import { QuickTodoList } from '@/components/QuickTodoList'
 import { StudySession } from '@/components/StudySession'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import { listDueFlashcards, listRevisionSessions, listUpcomingAssignments, updateRevisionSession } from '@/lib/api'
 import { enter, fadeUp, stagger } from '@/lib/motion'
 import { revisionSessionUrl } from '@/lib/revision'
@@ -32,7 +33,13 @@ export function UpcomingWidget() {
 
   return (
     <>
-      {assignments.error && <p className="text-sm text-destructive">Couldn't load assignments.</p>}
+      {assignments.error && (
+        <WidgetError
+          message="Couldn't load assignments."
+          onRetry={assignments.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap loading={assignments.loading} skeleton={<Skeleton className="h-40 w-full" />}>
         {assignments.data?.length === 0 && (
           <p className="text-sm text-muted-foreground">{"Nothing due — you're all caught up."}</p>
@@ -67,7 +74,13 @@ export function ModulesWidget() {
 
   return (
     <>
-      {modules.error && <p className="text-sm text-destructive">Couldn't load modules.</p>}
+      {modules.error && (
+        <WidgetError
+          message="Couldn't load modules."
+          onRetry={modules.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap
         loading={modules.loading}
         skeleton={
@@ -124,7 +137,13 @@ export function RevisionTodayWidget() {
 
   return (
     <>
-      {sessions.error && <p className="text-sm text-destructive">Couldn't load revision sessions.</p>}
+      {sessions.error && (
+        <WidgetError
+          message="Couldn't load revision sessions."
+          onRetry={sessions.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap loading={sessions.loading} skeleton={<Skeleton className="h-24 w-full" />}>
         {sessions.data?.length === 0 && <p className="text-sm text-muted-foreground">No revision planned today.</p>}
         {sessions.data && sessions.data.length > 0 && (
@@ -171,7 +190,13 @@ export function FlashcardsDueWidget() {
 
   return (
     <>
-      {due.error && <p className="text-sm text-destructive">Couldn't load flashcards.</p>}
+      {due.error && (
+        <WidgetError
+          message="Couldn't load flashcards."
+          onRetry={due.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap loading={due.loading} skeleton={<Skeleton className="h-24 w-full" />}>
         {due.data?.length === 0 && <p className="text-sm text-muted-foreground">No cards due.</p>}
         {rows.length > 0 && (

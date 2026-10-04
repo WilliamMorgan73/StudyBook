@@ -8,6 +8,7 @@ import { RevisionSessionDialog } from '@/components/RevisionSessionDialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import {
   deleteRevisionPlan,
   getRevisionPlanStatus,
@@ -169,7 +170,13 @@ export function RevisionPlan({ exam, color }: { exam: Assignment; color?: string
       )}
 
       {sessions.loading && <Skeleton className="h-16 w-full" />}
-      {sessions.error && !sessions.data && <p className="text-sm text-destructive">Couldn't load the revision plan.</p>}
+      {sessions.error && !sessions.data && (
+        <WidgetError
+          message="Couldn't load the revision plan."
+          onRetry={sessions.refetch}
+          className="mb-2"
+        />
+      )}
 
       {sessions.data?.length === 0 &&
         (blocker ? (

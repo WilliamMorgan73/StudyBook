@@ -1,9 +1,10 @@
-import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
+import { ArrowLeft, Code2, FileText, Layers, RotateCcw, ScrollText, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AIActionButton } from '@/components/AIActionButton'
 import { AttachmentList } from '@/components/AttachmentList'
+import { ErrorState } from '@/components/ErrorState'
 import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
 import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
@@ -48,12 +49,37 @@ export function SubmodulePage() {
 
   // Not loading and no data means the first load failed; a failed refresh keeps the data.
   if (!submodule) {
+    const parentUrl = moduleId ? `/modules/${moduleId}` : '/'
+    const parentLabel = module?.name ?? 'Module'
     return (
-      <div className="mx-auto max-w-3xl space-y-4 px-8 py-8">
-        <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Module
-        </Link>
-        <p className="text-sm text-destructive">This submodule couldn't be found.</p>
+      <div className="flex h-full flex-col overflow-hidden">
+        <PageHeader
+          left={
+            <Link to={parentUrl} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="size-4" />
+              <span>{parentLabel}</span>
+            </Link>
+          }
+        />
+        <div className="flex flex-1 items-center justify-center p-6">
+          <ErrorState
+            icon={FileText}
+            iconVariant="muted"
+            badge="404"
+            title="Topic not found"
+            description="We couldn't find this topic or note. It may have been deleted or the link is invalid."
+            primaryAction={{
+              label: `Back to ${parentLabel}`,
+              to: parentUrl,
+              icon: ArrowLeft,
+            }}
+            secondaryAction={{
+              label: 'Try again',
+              onClick: refetchSubmodule,
+              icon: RotateCcw,
+            }}
+          />
+        </div>
       </div>
     )
   }

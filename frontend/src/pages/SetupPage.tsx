@@ -1,10 +1,11 @@
-import { Check, Eye, Plus, X } from 'lucide-react'
+import { Check, Eye, Plus, RotateCcw, WifiOff, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
+import { ErrorState } from '@/components/ErrorState'
 import { LayoutPreviewDialog } from '@/components/setup/LayoutPreview'
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
@@ -89,16 +90,30 @@ export function SetupPage({ onFinished }: { onFinished: () => Promise<void> }) {
   const settings = useAsync(() => getAppSettings(), [])
 
   if (!settings.data) {
+    if (settings.error) {
+      return (
+        <div className="flex h-full items-center justify-center p-6">
+          <ErrorState
+            icon={WifiOff}
+            iconVariant="warning"
+            badge="Server offline"
+            title="Cannot connect to StudyBook server"
+            description="Setup requires a running StudyBook backend server. Make sure the server is running, then try again."
+            codeSnippet="uv run uvicorn app.main:app"
+            primaryAction={{
+              label: 'Retry connection',
+              onClick: settings.refetch,
+              icon: RotateCcw,
+            }}
+          />
+        </div>
+      )
+    }
+
     return (
       <div className="mx-auto flex h-full max-w-2xl flex-col gap-4 px-6 py-12">
-        {settings.error ? (
-          <p className="text-sm text-destructive">Couldn't reach StudyBook's server. Check it's running, then reload.</p>
-        ) : (
-          <>
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-40 w-full" />
-          </>
-        )}
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full" />
       </div>
     )
   }

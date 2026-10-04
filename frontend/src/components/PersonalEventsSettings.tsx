@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import {
   createPersonalEvent,
   deletePersonalEvent,
@@ -250,7 +251,13 @@ export function PersonalEventsSettings({ onChanged }: { onChanged: () => void })
       )}
 
       {loading && <Skeleton className="h-24 w-full" />}
-      {error && <p className="text-sm text-destructive">Couldn't load personal events.</p>}
+      {error && (
+        <WidgetError
+          message="Couldn't load personal events."
+          onRetry={refetch}
+          className="mb-2"
+        />
+      )}
       {events?.length === 0 && !adding && <p className="text-sm text-muted-foreground">No personal events yet.</p>}
       {events && events.length > 0 && (
         <ul className="divide-y">
