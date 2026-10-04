@@ -86,7 +86,7 @@ export function ModuleWeekCalendar({
   return (
     // On wide screens the selected day sits beside the fortnight rather than under it, to keep the
     // module page short enough to fit the window.
-    <div className="lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-6">
+    <div className="@3xl:grid @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] @3xl:gap-6">
       <div>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-border bg-border text-xs text-muted-foreground">
           {WEEKDAYS.map((d) => (
@@ -143,7 +143,7 @@ export function ModuleWeekCalendar({
         </div>
       </div>
 
-      <div className="mt-3 border-t pt-3 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
+      <div className="mt-3 border-t pt-3 @3xl:mt-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-6">
         <p className="mb-1.5 text-sm font-medium">
           {selected.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
         </p>

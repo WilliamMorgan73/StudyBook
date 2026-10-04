@@ -18,9 +18,8 @@ import {
   fitRowHeight,
   stackedOrder,
   widgetHeight,
-  WIDGETS,
   type LayoutItem,
-  type WidgetId,
+  type WidgetInfo,
 } from '@/lib/dashboardLayout'
 import { useElementSize } from '@/lib/useElementSize'
 
@@ -64,16 +63,19 @@ function useBoardCompactor(): Compactor {
  * stacked). While `editing`, widgets drag by their header and resize from their right edge, bottom
  * edge or corner, never past the board's edges, and every move reports the new layout.
  */
-export function DashboardGrid({
+export function DashboardGrid<Id extends string>({
+  widgets,
   layout,
   editing,
   onLayoutChange,
   renderWidget,
 }: {
-  layout: LayoutItem[]
+  /** The board's widget registry, for each widget's minimum size. */
+  widgets: Record<Id, WidgetInfo>
+  layout: LayoutItem<Id>[]
   editing: boolean
-  onLayoutChange: (layout: LayoutItem[]) => void
-  renderWidget: (id: WidgetId, slot: number) => ReactNode
+  onLayoutChange: (layout: LayoutItem<Id>[]) => void
+  renderWidget: (id: Id, slot: number) => ReactNode
 }) {
   const { width, containerRef, mounted } = useContainerWidth()
   const [scrollerRef, { height }] = useElementSize<HTMLDivElement>()
@@ -103,7 +105,7 @@ export function DashboardGrid({
           ) : (
             <ReactGridLayout
               width={width}
-              layout={layout.map((item) => ({ ...item, minW: WIDGETS[item.i].minW, minH: WIDGETS[item.i].minH }))}
+              layout={layout.map((item) => ({ ...item, minW: widgets[item.i].minW, minH: widgets[item.i].minH }))}
               gridConfig={{
                 cols: DASHBOARD_COLUMNS,
                 rowHeight: fitRowHeight(height),
@@ -115,7 +117,7 @@ export function DashboardGrid({
               dragConfig={{ enabled: editing, bounded: true, handle: `.${DRAG_HANDLE_CLASS}`, cancel: 'button' }}
               resizeConfig={{ enabled: editing, handles: ['e', 's', 'se'] }}
               onLayoutChange={(next: Layout) => {
-                if (editing) onLayoutChange(next.map(({ i, x, y, w, h }) => ({ i: i as WidgetId, x, y, w, h })))
+                if (editing) onLayoutChange(next.map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h })))
               }}
               className="dashboard-grid"
             >

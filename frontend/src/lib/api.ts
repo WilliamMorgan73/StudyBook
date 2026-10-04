@@ -252,6 +252,8 @@ export interface ModuleDetail extends ModuleSummary {
   submodules: Submodule[]
   flashcards: Flashcard[]
   related_modules: { id: number; name: string }[]
+  /** Null: `MODULE_DEFAULT_LAYOUT`. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
+  dashboard_layout: DashboardLayoutItem[] | null
 }
 
 export interface ModuleCreateInput {
@@ -262,7 +264,10 @@ export interface ModuleCreateInput {
   credits?: number | null
 }
 
-export type ModuleUpdateInput = Partial<ModuleCreateInput>
+export type ModuleUpdateInput = Partial<ModuleCreateInput> & {
+  /** A list sets the module page's layout; null resets it to the default. */
+  dashboard_layout?: DashboardLayoutItem[] | null
+}
 
 export interface AssignmentCreateInput {
   module_id: number
@@ -632,7 +637,7 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export type Skin = 'default' | 'slate' | 'sepia'
 export type TableAlignment = 'left' | 'center'
 
-/** One Overview widget on the 12-column grid. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
+/** One dashboard widget (Overview or module page) on the 12-column grid. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
 export interface DashboardLayoutItem {
   i: string
   x: number

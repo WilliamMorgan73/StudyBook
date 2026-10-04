@@ -1,6 +1,7 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.assignment import AssignmentRead
+from app.schemas.dashboard_layout import DashboardLayout
 from app.schemas.flashcard import FlashcardRead
 from app.schemas.lecture import LectureRead
 from app.schemas.submodule import SubmoduleRead
@@ -24,6 +25,8 @@ class ModuleUpdate(BaseModel):
     color: str | None = None
     term: str | None = None
     credits: int | None = None
+    # A list sets the module page's layout; null resets it to the default; omit to leave it unchanged.
+    dashboard_layout: DashboardLayout | None = Field(default=None, max_length=32)
 
 
 class ModuleRead(ModuleBase):
@@ -63,3 +66,5 @@ class ModuleDetail(ModuleSummary):
     submodules: list[SubmoduleRead] = []
     flashcards: list[FlashcardRead] = []
     related_modules: list[ModuleRead] = []
+    # Null: the frontend's default module layout.
+    dashboard_layout: DashboardLayout | None = None

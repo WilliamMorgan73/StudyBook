@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import JSON, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -16,6 +16,8 @@ class Module(Base):
     term: Mapped[str | None] = mapped_column(String(50))
     credits: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(server_default="now()")
+    # The module page's widget layout; null means the frontend default.
+    dashboard_layout: Mapped[list | None] = mapped_column(JSON)
 
     lectures: Mapped[list["Lecture"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821

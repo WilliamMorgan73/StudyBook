@@ -26,7 +26,7 @@
 
 Datetimes are naive. Student-entered ones (lecture times, due dates, revision sessions) are local wall-clock time, written by the frontend's `toNaiveDateTime`; compare them against `core/clock.py::local_now()`, never `datetime.now(UTC)`. Server-generated ones (DB `now()` defaults, flashcard scheduling) are UTC.
 
-`AppSettings` and `QuickNote` are single-row get-or-create tables (`id=1`), kept separate because one is configuration and the other user content. `AppSettings` fields are flat scalar columns with Python defaults, including the four `keybind_*` columns, each a raw CodeMirror keymap string (`"Mod-b"`, `"Mod-Shift-k"`). The exception is `dashboard_layout`, a nullable JSON list of `{i, x, y, w, h}` Overview grid items (`schemas/app_settings.py::DashboardLayoutItem` checks the shape and the 12-column bound; widget ids belong to the frontend and aren't validated). `QuickTodo` is a plain multi-row table.
+`AppSettings` and `QuickNote` are single-row get-or-create tables (`id=1`), kept separate because one is configuration and the other user content. `AppSettings` fields are flat scalar columns with Python defaults, including the four `keybind_*` columns, each a raw CodeMirror keymap string (`"Mod-b"`, `"Mod-Shift-k"`). The exception is `dashboard_layout`, a nullable JSON list of `{i, x, y, w, h}` Overview grid items (`schemas/dashboard_layout.py::DashboardLayoutItem` checks the shape and the 12-column bound; widget ids belong to the frontend and aren't validated). `Module.dashboard_layout` is the same shape for that module's page. `QuickTodo` is a plain multi-row table.
 
 ### Attachments
 
