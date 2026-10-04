@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.assignment import CoveredSubmodule
+
 
 class LectureBase(BaseModel):
     title: str
@@ -13,6 +15,7 @@ class LectureBase(BaseModel):
 
 class LectureCreate(LectureBase):
     module_id: int
+    submodule_ids: list[int] = []
 
 
 class LectureUpdate(BaseModel):
@@ -21,6 +24,8 @@ class LectureUpdate(BaseModel):
     duration_minutes: int | None = None
     location: str | None = None
     week_number: int | None = None
+    submodule_ids: list[int] | None = None
+    """The Submodules this lecture covered; the only field a feed lecture accepts."""
 
 
 class LectureRead(LectureBase):
@@ -29,4 +34,5 @@ class LectureRead(LectureBase):
     id: int
     module_id: int
     feed_id: int | None = None
-    """Set when the lecture is synced from a calendar feed; such lectures are read-only."""
+    """Set when the lecture is synced from a calendar feed; such lectures are read-only apart from `submodules`."""
+    submodules: list[CoveredSubmodule] = []

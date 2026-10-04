@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { nextDateSeriesState, nextTimeRangeState } from '@/lib/lectureSchedule'
+import type { Lecture } from '@/lib/api'
+import {
+  lecturesCovering,
+  nextDateSeriesState,
+  nextTimeRangeState,
+  submoduleIdsByOccurrence,
+} from '@/lib/lectureSchedule'
 
 describe('nextDateSeriesState', () => {
   const base = { startDate: '2026-01-05', endDate: '2026-01-05', occurrences: '1' }
@@ -65,5 +71,45 @@ describe('nextTimeRangeState', () => {
   it('only sets its own field when start time is not set yet', () => {
     const next = nextTimeRangeState({ startTime: '', endTime: '', duration: '' }, 'duration', '50')
     expect(next).toEqual({ startTime: '', endTime: '', duration: '50' })
+  })
+})
+
+function lecture(id: number, scheduledAt: string, submoduleIds: number[]): Lecture {
+  return {
+    id,
+    module_id: 1,
+    title: 'Lecture',
+    scheduled_at: scheduledAt,
+    duration_minutes: 60,
+    location: null,
+    week_number: null,
+    feed_id: null,
+    submodules: submoduleIds.map((sid) => ({ id: sid, title: `Topic ${sid}` })),
+  }
+}
+
+describe('submoduleIdsByOccurrence', () => {
+  it('lists the submodule ids of each occurrence in date order', () => {
+    const lectures = [
+      lecture(2, '2026-01-12T10:00:00', [3]),
+      lecture(1, '2026-01-05T10:00:00', [1, 2]),
+      lecture(3, '2026-01-19T10:00:00', []),
+    ]
+    expect(submoduleIdsByOccurrence(lectures)).toEqual([[1, 2], [3], []])
+  })
+})
+
+describe('lecturesCovering', () => {
+  it('splits the covering lectures at now: past latest first, upcoming soonest first', () => {
+    const lectures = [
+      lecture(1, '2026-01-05T10:00:00', [7]),
+      lecture(2, '2026-01-12T10:00:00', [7, 8]),
+      lecture(3, '2026-01-19T10:00:00', [8]),
+      lecture(4, '2026-01-26T10:00:00', [7]),
+      lecture(5, '2026-02-02T10:00:00', [7]),
+    ]
+    const { past, upcoming } = lecturesCovering(lectures, 7, new Date('2026-01-20T00:00:00'))
+    expect(past.map((l) => l.id)).toEqual([2, 1])
+    expect(upcoming.map((l) => l.id)).toEqual([4, 5])
   })
 })

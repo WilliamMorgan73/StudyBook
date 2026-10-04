@@ -13,6 +13,7 @@ function lecture(id: number, scheduledAt: string, feedId: number | null, title =
     location: null,
     week_number: null,
     feed_id: feedId,
+    submodules: [],
   }
 }
 

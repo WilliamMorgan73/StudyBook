@@ -211,6 +211,9 @@ def apply_occurrences(
         if lecture is None:
             lecture = Lecture(feed_uid=occ.uid_key)
             feed.lectures.append(lecture)
+        if lecture.module_id != module_id:
+            # The series was linked to another Module; its Submodules would now be the wrong Module's.
+            lecture.submodules = []
         lecture.module_id = module_id
         lecture.title = occ.title[:200]
         lecture.scheduled_at = occ.starts_at

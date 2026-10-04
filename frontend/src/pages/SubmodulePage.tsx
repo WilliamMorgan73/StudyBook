@@ -9,6 +9,7 @@ import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { StudySession } from '@/components/StudySession'
+import { SubmoduleLectures } from '@/components/SubmoduleLectures'
 import { SubmoduleSummary, SummarizeDialog } from '@/components/SubmoduleSummary'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -313,6 +314,7 @@ function SubmoduleView({
       />
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-8 py-10">
+        {module && <SubmoduleLectures lectures={module.lectures} submoduleId={id} />}
         <SubmoduleSummary submodule={submodule} aiEnabled={appSettings?.ai_enabled} onRegenerate={openSummarize} />
         <MarkdownEditor
           ref={editorRef}

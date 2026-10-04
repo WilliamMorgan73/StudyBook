@@ -36,6 +36,7 @@ describe('calendarEventColor', () => {
     feed_id: null,
     color: null,
     all_day: false,
+    submodules: [],
   }
   const moduleColor = (id: number | null) => (id === 2 ? '#6366f1' : 'grey')
 

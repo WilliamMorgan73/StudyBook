@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { DaySwap, PopIn, SelectionRing } from '@/components/CalendarEffects'
 import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
 import { EventMarker } from '@/components/EventMarker'
+import { LectureSubmodules } from '@/components/LectureSubmodules'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { Assignment, Lecture, RevisionSession } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
@@ -47,6 +48,9 @@ interface ModuleEvents {
   exams: Assignment[]
   revisionSessions: RevisionSession[]
   color: string
+  /** The Module's Submodules, which a lecture can be marked as covering. */
+  submodules: { id: number; title: string }[]
+  onLectureChanged: () => void | Promise<void>
 }
 
 function eventsByDay({ lectures, exams, revisionSessions }: ModuleEvents) {
@@ -161,7 +165,7 @@ export function ModuleWeekCalendar({
   )
 }
 
-/** One day's lectures, exams and revision sessions; sessions can be ticked done here. */
+/** One day's lectures, exams and revision sessions; lectures link to the Submodules they covered, and sessions can be ticked done here. */
 export function ModuleDayList({
   day,
   onRevisionDone,
@@ -173,7 +177,7 @@ export function ModuleDayList({
   listClassName?: string
 }) {
   const { lecturesByDay, examsByDay, sessionsByDay } = eventsByDay(events)
-  const { color } = events
+  const { color, submodules, onLectureChanged } = events
   const selectedLectures = lecturesByDay(day)
   const selectedExams = examsByDay(day)
   const selectedSessions = sessionsByDay(day)
@@ -187,13 +191,16 @@ export function ModuleDayList({
           {selectedLectures.map((l) => {
             const start = new Date(l.scheduled_at)
             return (
-              <li key={l.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate font-medium">{l.title}</span>
-                <span className="shrink-0 text-muted-foreground">
-                  {formatTime(start)}
-                  {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
-                  {l.location && ` · ${l.location}`}
-                </span>
+              <li key={l.id} className="text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate font-medium">{l.title}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {formatTime(start)}
+                    {l.duration_minutes && ` – ${formatTime(addMinutes(start, l.duration_minutes))}`}
+                    {l.location && ` · ${l.location}`}
+                  </span>
+                </div>
+                <LectureSubmodules lecture={l} options={submodules} onChanged={onLectureChanged} className="mt-0.5" />
               </li>
             )
           })}
