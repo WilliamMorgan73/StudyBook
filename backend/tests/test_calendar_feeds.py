@@ -642,6 +642,41 @@ def test_deleting_a_submodule_only_drops_its_links(client, db):
     assert [submodule_titles(lec) for lec in lectures(client, module.id)] == [["Keep"]]
 
 
+def test_many_lectures_get_one_set_of_submodules_at_once(client, db):
+    module = make_module(db)
+    graphs, sorting = make_submodules(db, module, "Graphs", "Sorting")
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)  # feed lectures take it too
+    first, *rest = lectures(client, module.id)
+    client.patch(f"/lectures/{rest[0]['id']}", json={"submodule_ids": [sorting.id]})
+
+    response = client.put("/lectures/submodules", json={
+        "lecture_ids": [lec["id"] for lec in rest], "submodule_ids": [graphs.id],
+    })  # fmt: skip
+
+    assert response.status_code == 200
+    assert [submodule_titles(lec) for lec in response.json()] == [["Graphs"]] * len(rest)  # Sorting replaced
+    assert [submodule_titles(lec) for lec in lectures(client, module.id)] == [[]] + [["Graphs"]] * len(rest)
+    assert first["submodules"] == []
+
+
+def test_bulk_submodules_reject_unknown_and_mixed_lectures_and_foreign_submodules(client, db):
+    module, other = make_module(db), make_module(db)
+    (foreign,) = make_submodules(db, other, "Elsewhere")
+    mine = Lecture(module_id=module.id, title="Mine", scheduled_at=at(1, 10))
+    theirs = Lecture(module_id=other.id, title="Theirs", scheduled_at=at(1, 12))
+    db.add_all([mine, theirs])
+    db.commit()
+
+    def put(lecture_ids, submodule_ids):
+        return client.put("/lectures/submodules", json={"lecture_ids": lecture_ids, "submodule_ids": submodule_ids})
+
+    assert put([mine.id, 999], []).status_code == 422
+    assert put([], []).status_code == 422
+    assert put([mine.id, theirs.id], []).status_code == 422
+    assert put([mine.id], [foreign.id]).status_code == 422
+
+
 def test_calendar_lectures_carry_their_submodules(client, db):
     module = make_module(db)
     graphs, sorting = make_submodules(db, module, "Graphs", "Sorting")

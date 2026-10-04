@@ -2,58 +2,78 @@ import { NotebookText, Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { ApplyTopicsDialog } from '@/components/ApplyTopicsDialog'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { listSubmodulesIndex, updateLecture } from '@/lib/api'
+import { listLectures, listSubmodulesIndex, setLecturesSubmodules, type Lecture } from '@/lib/api'
+import { topicScopes, type TopicScope } from '@/lib/lectureSchedule'
 
 type SubmoduleRef = { id: number; title: string }
 
 /**
- * The Submodules a Lecture covered, each a link to its notes, plus a menu that ticks them on and off
- * (each tick saves straight away). Works on feed lectures too: the feed never touches their Submodules.
+ * The Submodules a Lecture covered, each a link to its notes, plus a menu to change them: ticks are
+ * staged, and Apply saves them, first asking which other lectures in the series get the same topics
+ * (`ApplyTopicsDialog`) when there are any. Works on feed lectures too: the feed never touches them.
  */
 export function LectureSubmodules({
   lecture,
   options,
+  moduleLectures,
   onChanged,
   className = '',
 }: {
   lecture: { id: number; module_id: number; submodules: SubmoduleRef[] }
   /** The Module's Submodules to pick from; fetched when the menu first opens if left out. */
   options?: SubmoduleRef[]
+  /** The Module's lectures, which the Apply prompt's choices come from; fetched on Apply if left out. */
+  moduleLectures?: Lecture[]
   onChanged: () => void | Promise<void>
   className?: string
 }) {
   const [fetched, setFetched] = useState<SubmoduleRef[] | null>(null)
-  // The ticks since the last save landed, so the menu doesn't flick back while it refetches.
-  const [pending, setPending] = useState<number[] | null>(null)
+  // The ticks while the menu is open; closing it without Apply drops them.
+  const [draft, setDraft] = useState<number[]>([])
+  const [applying, setApplying] = useState<{ scopes: TopicScope[]; submoduleIds: number[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const choices = options ?? fetched
-  const selected = pending ?? lecture.submodules.map((s) => s.id)
+  const current = lecture.submodules.map((s) => s.id)
+  const changed = draft.length !== current.length || draft.some((id) => !current.includes(id))
 
   function handleOpenChange(open: boolean) {
-    if (!open || options || fetched) return
+    if (!open) return
+    setDraft(current)
+    if (options || fetched) return
     listSubmodulesIndex()
       .then((all) => setFetched(all.filter((s) => s.module_id === lecture.module_id)))
       .catch(() => setError('Could not load the submodules.'))
   }
 
-  async function toggle(id: number, checked: boolean) {
-    const next = checked ? [...selected, id] : selected.filter((s) => s !== id)
-    setPending(next)
+  function toggle(id: number, checked: boolean) {
+    setDraft((d) => (checked ? [...d, id] : d.filter((s) => s !== id)))
+  }
+
+  async function apply() {
+    const submoduleIds = draft
     setError(null)
     try {
-      await updateLecture(lecture.id, { submodule_ids: next })
+      const all = moduleLectures ?? (await listLectures(lecture.module_id))
+      const full = all.find((l) => l.id === lecture.id)
+      const scopes = full ? topicScopes(full, all) : []
+      if (scopes.length > 1) {
+        setApplying({ scopes, submoduleIds })
+        return
+      }
+      await setLecturesSubmodules([lecture.id], submoduleIds)
       await onChanged()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save.')
-    } finally {
-      setPending(null)
     }
   }
 
@@ -96,7 +116,7 @@ export function LectureSubmodules({
             choices.map((s) => (
               <DropdownMenuCheckboxItem
                 key={s.id}
-                checked={selected.includes(s.id)}
+                checked={draft.includes(s.id)}
                 onCheckedChange={(checked) => toggle(s.id, checked)}
                 onSelect={(e) => e.preventDefault()}
               >
@@ -104,9 +124,25 @@ export function LectureSubmodules({
               </DropdownMenuCheckboxItem>
             ))
           )}
+          {choices !== null && choices.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled={!changed} onSelect={() => void apply()} className="justify-center font-medium">
+                Apply
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {error && <span className="text-xs text-destructive">{error}</span>}
+      <ApplyTopicsDialog
+        scopes={applying?.scopes ?? null}
+        submoduleIds={applying?.submoduleIds ?? []}
+        onOpenChange={(open) => {
+          if (!open) setApplying(null)
+        }}
+        onApplied={onChanged}
+      />
     </div>
   )
 }

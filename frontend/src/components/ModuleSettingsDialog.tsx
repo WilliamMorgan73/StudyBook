@@ -306,11 +306,13 @@ function formatLectureDay(iso: string) {
 /** What the Lectures tab's cards need to show and edit each lecture's covered Submodules. */
 interface TopicsProps {
   submodules: { id: number; title: string }[]
+  /** Every lecture of the module, for the Apply prompt's choices. */
+  moduleLectures: Lecture[]
   onTopicsChanged: () => Promise<void>
 }
 
 /** A "Topics" toggle opening one row per lecture in a series, each with its covered Submodules. */
-function SeriesTopics({ lectures, submodules, onTopicsChanged }: TopicsProps & { lectures: Lecture[] }) {
+function SeriesTopics({ lectures, submodules, moduleLectures, onTopicsChanged }: TopicsProps & { lectures: Lecture[] }) {
   const [open, setOpen] = useState(false)
   const linked = lectures.filter((l) => l.submodules.length > 0).length
   return (
@@ -329,7 +331,13 @@ function SeriesTopics({ lectures, submodules, onTopicsChanged }: TopicsProps & {
           {lectures.map((l) => (
             <li key={l.id} className="flex items-start gap-3 text-sm">
               <span className="w-24 shrink-0 py-0.5 text-xs text-muted-foreground">{formatLectureDay(l.scheduled_at)}</span>
-              <LectureSubmodules lecture={l} options={submodules} onChanged={onTopicsChanged} className="min-w-0" />
+              <LectureSubmodules
+                lecture={l}
+                options={submodules}
+                moduleLectures={moduleLectures}
+                onChanged={onTopicsChanged}
+                className="min-w-0"
+              />
             </li>
           ))}
         </ul>
@@ -526,6 +534,7 @@ function LectureSeriesCard({
           <LectureSubmodules
             lecture={group.lecture}
             options={topics.submodules}
+            moduleLectures={topics.moduleLectures}
             onChanged={topics.onTopicsChanged}
             className="mt-1"
           />
@@ -584,7 +593,18 @@ export function ModuleSettingsDialog({
     await linkFeedSeries(feedId, title, moduleId)
     await Promise.all([lecturesChanged(), refetchSeries()])
   }
-  const topics: TopicsProps = { submodules: module.submodules, onTopicsChanged: lecturesChanged }
+  // The dialog stays mounted between openings, and lectures change outside it (topics set from the
+  // schedule, feed syncs), so reload them each time it opens.
+  useEffect(() => {
+    if (!open) return
+    void refetchLectures()
+    void refetchSeries()
+  }, [open, refetchLectures, refetchSeries])
+  const topics: TopicsProps = {
+    submodules: module.submodules,
+    moduleLectures: lectures ?? [],
+    onTopicsChanged: lecturesChanged,
+  }
 
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
   const { data: allModules } = useAsync(() => listModules(), [])

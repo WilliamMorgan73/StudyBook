@@ -221,3 +221,56 @@ export function lecturesCovering(
   const past = covering.filter((l) => new Date(l.scheduled_at) < now).reverse()
   return { past, upcoming }
 }
+
+export type TopicScopeId = 'this' | 'slot-following' | 'slot-all' | 'series-following' | 'series-all'
+
+export interface TopicScope {
+  id: TopicScopeId
+  label: string
+  lectureIds: number[]
+}
+
+/**
+ * Which lectures a topic change on `lecture` can go to, for the Apply prompt. A series is every lecture
+ * with the same title from the same place (one calendar feed, or made by hand): timetables often list
+ * each week as its own event, and two lectures a week share a title, so cadence can't define it. A
+ * slot is the series' lectures on the same weekday at the same start time ("Wednesdays at 12:00").
+ * "Following" means at or after `lecture`. Options that would change the same lectures as an earlier
+ * one are left out, so a lone lecture gets just "Only this lecture".
+ */
+export function topicScopes(lecture: Lecture, moduleLectures: Lecture[]): TopicScope[] {
+  const series = moduleLectures
+    .filter((l) => l.feed_id === lecture.feed_id && l.title === lecture.title)
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+  if (!series.some((l) => l.id === lecture.id)) series.push(lecture)
+
+  const start = new Date(lecture.scheduled_at)
+  const sameSlot = (l: Lecture) => {
+    const d = new Date(l.scheduled_at)
+    return d.getDay() === start.getDay() && d.getHours() === start.getHours() && d.getMinutes() === start.getMinutes()
+  }
+  const following = (l: Lecture) => new Date(l.scheduled_at) >= start
+  const slot = series.filter(sameSlot)
+
+  const weekday = start.toLocaleDateString(undefined, { weekday: 'long' })
+  const time = start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  const slotName = `${weekday}s at ${time}`
+  const candidates: [TopicScopeId, string, Lecture[]][] = [
+    ['this', 'Only this lecture', [lecture]],
+    ['slot-following', `This and following ${slotName}`, slot.filter(following)],
+    ['slot-all', `All ${slotName}`, slot],
+    ['series-following', 'This and following lectures in the series', series.filter(following)],
+    ['series-all', 'Every lecture in the series', series],
+  ]
+
+  const scopes: TopicScope[] = []
+  const seen = new Set<string>()
+  for (const [id, label, lectures] of candidates) {
+    const ids = lectures.map((l) => l.id)
+    const key = [...ids].sort((a, b) => a - b).join(',')
+    if (seen.has(key)) continue
+    seen.add(key)
+    scopes.push({ id, label: id === 'this' ? label : `${label} (${ids.length} lectures)`, lectureIds: ids })
+  }
+  return scopes
+}

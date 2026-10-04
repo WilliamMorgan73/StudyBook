@@ -36,3 +36,10 @@ class LectureRead(LectureBase):
     feed_id: int | None = None
     """Set when the lecture is synced from a calendar feed; such lectures are read-only apart from `submodules`."""
     submodules: list[CoveredSubmodule] = []
+
+
+class LecturesSubmodulesUpdate(BaseModel):
+    """Gives every listed lecture exactly these Submodules (feed lectures included)."""
+
+    lecture_ids: list[int]
+    submodule_ids: list[int]
