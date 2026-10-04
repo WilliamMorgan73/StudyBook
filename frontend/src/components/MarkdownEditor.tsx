@@ -42,6 +42,7 @@ import { openDialogEffect } from './markdown-editor/editorActions'
 import { InsertBlockDialog } from './markdown-editor/InsertBlockDialog'
 import { BulletWidget, CheckboxWidget, TOGGLE_TASK_EVENT } from './markdown-editor/listWidgets'
 import { fileDropHandlers, UPLOAD_EVENT } from './markdown-editor/fileDrop'
+import { collapsedEmbeds, folding, loadFoldSnapshot, restoreFolds } from './markdown-editor/folding'
 import { slashMenu } from './markdown-editor/slashMenu'
 import { isInsideCode } from './markdown-editor/syntax'
 import { editorTheme } from './markdown-editor/theme'
@@ -595,6 +596,7 @@ function buildEmbedDecorations(state: EditorState): DecorationSet {
   const focused = state.field(focusedField, false)
   const cursorLine = focused ? state.doc.lineAt(state.selection.main.head).number : -1
   const attachments = state.facet(attachmentsFacet)
+  const collapsed = state.field(collapsedEmbeds, false)
   const ranges: Range<Decoration>[] = []
 
   for (const embed of findEmbeds(state.doc.toString())) {
@@ -613,7 +615,12 @@ function buildEmbedDecorations(state: EditorState): DecorationSet {
           : Decoration.replace({ widget }).range(embed.from, embed.to),
       )
     } else if (attachment && MEDIA_KINDS.has(attachment.kind) && line.text.trim() === state.doc.sliceString(embed.from, embed.to)) {
-      const widget = new MediaEmbedWidget(attachment.kind as 'pdf' | 'video' | 'audio', attachment.url, attachment.filename)
+      const widget = new MediaEmbedWidget(
+        attachment.kind as 'pdf' | 'video' | 'audio',
+        attachment.url,
+        attachment.filename,
+        collapsed?.has(attachment.url) ?? false,
+      )
       ranges.push(
         onCursorLine
           ? Decoration.widget({ widget, block: true, side: 1 }).range(line.to)
@@ -833,6 +840,7 @@ export function MarkdownEditor({
   onCommit,
   attachments = NO_ATTACHMENTS,
   onUploadFile,
+  foldStorageKey,
   ref,
 }: {
   value: string
@@ -863,6 +871,8 @@ export function MarkdownEditor({
    * Without it, paste/drop of files falls through to CodeMirror and the pickers can't upload.
    */
   onUploadFile?: (file: File) => Promise<Attachment>
+  /** Remembers this note's folded headings and collapsed embeds in the browser under this key. */
+  foldStorageKey?: string
   ref?: Ref<MarkdownEditorHandle>
 }) {
   const viewRef = useRef<EditorView | null>(null)
@@ -945,6 +955,8 @@ export function MarkdownEditor({
         onChange={onChange}
         onCreateEditor={(view) => {
           viewRef.current = view
+          const snapshot = foldStorageKey ? loadFoldSnapshot(foldStorageKey) : null
+          if (snapshot) restoreFolds(view, snapshot)
         }}
         onUpdate={(update) => {
           for (const tr of update.transactions) {
@@ -985,6 +997,7 @@ export function MarkdownEditor({
           // A blank line gives the eye nothing else to anchor on, so a blinking cursor reads as
           // "gone" far more often there than on a line with text next to it — just keep it solid.
           drawSelection({ cursorBlinkRate: 0 }),
+          folding(foldStorageKey),
           ...(sourceMode
             ? []
             : [

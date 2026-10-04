@@ -323,6 +323,7 @@ function SubmoduleView({
           onBlur={saveContent}
           onCommit={saveContent}
           attachments={submodule.attachments}
+          foldStorageKey={`submodule:${submodule.id}`}
           onUploadFile={uploadToNote}
           sourceMode={sourceMode}
           placeholder="Start writing…"

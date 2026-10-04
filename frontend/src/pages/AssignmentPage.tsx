@@ -244,6 +244,7 @@ function AssignmentView({
             onBlur={saveNotes}
             onCommit={saveNotes}
             attachments={assignment.attachments}
+            foldStorageKey={`assignment:${assignment.id}`}
             onUploadFile={uploadToNotes}
             sourceMode={sourceMode}
             placeholder="Plan the work, draft an outline, collect quotes…"
