@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { progressRingSegments } from '@/lib/progress'
+import { assignmentRingSegments, progressRingSegments } from '@/lib/progress'
 
 describe('progressRingSegments', () => {
   it('splits achieved and shortfall into full-color and faded arcs', () => {
@@ -37,6 +37,28 @@ describe('progressRingSegments', () => {
     expect(segments).toEqual([
       { fraction: 0.12, color: '#6366f1' },
       { fraction: 0.03, color: '#6366f14d' },
+    ])
+  })
+})
+
+describe('assignmentRingSegments', () => {
+  const base = { grade_earned: null, grade_max: null }
+
+  it('gives each submitted or graded assignment an achieved and a faded arc, adding up to its weight', () => {
+    const segments = assignmentRingSegments(
+      [
+        { ...base, id: 1, status: 'graded', weight_percent: 40, grade_earned: 15, grade_max: 20 },
+        { ...base, id: 2, status: 'submitted', weight_percent: 20 },
+        { ...base, id: 3, status: 'in_progress', weight_percent: 40 },
+      ],
+      '#6366f1',
+    )
+
+    expect(segments).toEqual([
+      { id: 1, fraction: expect.closeTo(0.3), color: '#6366f1' },
+      { id: 1, fraction: expect.closeTo(0.1), color: '#6366f14d' },
+      { id: 2, fraction: 0, color: '#6366f1' },
+      { id: 2, fraction: 0.2, color: '#6366f14d' },
     ])
   })
 })

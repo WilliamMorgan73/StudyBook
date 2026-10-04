@@ -3,7 +3,6 @@ import { motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
-import { Countdown } from '@/components/Countdown'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardWidget } from '@/components/dashboard/DashboardWidget'
 import { LayoutEditControls } from '@/components/dashboard/LayoutEditControls'
@@ -11,9 +10,16 @@ import { ModuleContext, type ModuleData } from '@/components/dashboard/moduleCon
 import {
   AssignmentsAction,
   AssignmentsWidget,
+  DayAgendaWidget,
+  ExamsWidget,
   FlashcardsAction,
   FlashcardsWidget,
+  GradesWidget,
+  LecturesWidget,
+  ModuleNotepadWidget,
   ModuleProgressWidget,
+  ModuleTodoWidget,
+  OpenTodosWidget,
   RelatedModulesWidget,
   RevisionWidget,
   ScheduleWidget,
@@ -21,8 +27,9 @@ import {
   SubmodulesWidget,
 } from '@/components/dashboard/ModuleWidgets'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
-import { ModuleProgressRing } from '@/components/ModuleProgressRing'
-import { AnimatedNumber } from '@/components/RadialProgress'
+import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
+import { ModuleBanner } from '@/components/ModuleBanner'
+import { ModuleBannerDialog } from '@/components/ModuleBannerDialog'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
@@ -30,7 +37,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getModule, listRevisionSessions, updateModule, updateRevisionSession, type RevisionSession } from '@/lib/api'
 import { MODULE_BOARD, MODULE_WIDGETS, type ModuleWidgetId } from '@/lib/moduleLayout'
-import { enter, fadeUpAt } from '@/lib/motion'
+import { normalizeBanner } from '@/lib/moduleBanner'
+import { enter } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
 
 /** How far ahead the Upcoming revision widget looks. */
@@ -38,16 +46,19 @@ const UPCOMING_REVISION_DAYS = 14
 
 const WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode }> = {
   schedule: { body: <ScheduleWidget /> },
+  dayAgenda: { body: <DayAgendaWidget /> },
   submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
   assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
   flashcards: { body: <FlashcardsWidget />, action: <FlashcardsAction /> },
   revision: { body: <RevisionWidget /> },
   progress: { body: <ModuleProgressWidget /> },
+  exams: { body: <ExamsWidget /> },
+  lectures: { body: <LecturesWidget /> },
+  grades: { body: <GradesWidget /> },
+  openTodos: { body: <OpenTodosWidget /> },
+  todo: { body: <ModuleTodoWidget /> },
+  notepad: { body: <ModuleNotepadWidget /> },
   related: { body: <RelatedModulesWidget /> },
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function upcomingRevisionRange(today: Date) {
@@ -64,6 +75,8 @@ export function ModulePage() {
 
 function ModuleView({ id }: { id: number }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [bannerOpen, setBannerOpen] = useState(false)
+  const [selectedDay, setSelectedDay] = useState(() => new Date())
   const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
   const weekRange = useMemo(() => weekCalendarRange(new Date()), [])
   const upcomingRange = useMemo(() => upcomingRevisionRange(new Date()), [])
@@ -80,7 +93,6 @@ function ModuleView({ id }: { id: number }) {
     await refetch()
   })
   const { layout, editing } = editor
-  const slotProps = (i: number) => ({ variants: fadeUpAt, custom: i })
 
   if (loading && !module) {
     return (
@@ -113,13 +125,16 @@ function ModuleView({ id }: { id: number }) {
       await updateRevisionSession(session.id, { done })
       await Promise.all([weekSessions.refetch(), upcomingSessions.refetch()])
     },
+    selectedDay,
+    setSelectedDay,
+    dayAgendaPlaced: layout.some((item) => item.i === 'dayAgenda'),
   }
 
   function renderWidget(widgetId: ModuleWidgetId, slot: number) {
     const { body, action } = WIDGET_CONTENT[widgetId]
     return (
       <DashboardWidget
-        title={MODULE_WIDGETS[widgetId].title}
+        title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}
         slot={slot + 1}
         editing={editing}
         onRemove={() => editor.remove(widgetId)}
@@ -148,41 +163,12 @@ function ModuleView({ id }: { id: number }) {
         }
       />
 
-      <motion.div className="shrink-0 border-b" style={{ backgroundColor: `${module.color}1f` }} {...slotProps(0)}>
-        <div className="flex items-center gap-5 px-6 py-4">
-          <ModuleProgressRing progress={module.completion_progress} color={module.color} size={56} strokeWidth={7} />
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-semibold">{module.name}</h1>
-            {(module.code || module.term || module.credits !== null) && (
-              <p className="text-sm text-muted-foreground">
-                {[module.code, module.term, module.credits !== null ? `${module.credits} credits` : null]
-                  .filter(Boolean)
-                  .join(', ')}
-              </p>
-            )}
-          </div>
-          <div className="flex shrink-0 gap-8 text-right">
-            <div>
-              <p className="text-2xl font-semibold tabular-nums">
-                {module.current_grade !== null ? (
-                  <>
-                    <AnimatedNumber value={module.current_grade} decimals={1} />%
-                  </>
-                ) : (
-                  '—'
-                )}
-              </p>
-              <p className="text-sm text-muted-foreground">Current grade</p>
-            </div>
-            <div>
-              <Countdown target={module.next_lecture_at} />
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Next lecture{module.next_lecture_at && ` · ${formatDate(module.next_lecture_at)}`}
-              </p>
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      <ModuleBanner
+        module={module}
+        config={normalizeBanner(module.banner)}
+        editing={editing}
+        onCustomise={() => setBannerOpen(true)}
+      />
 
       <div className="min-h-0 flex-1 px-6 py-4">
         <ModuleContext value={data}>
@@ -202,6 +188,7 @@ function ModuleView({ id }: { id: number }) {
         </ModuleContext>
       </div>
 
+      <ModuleBannerDialog module={module} open={bannerOpen} onOpenChange={setBannerOpen} onSaved={refetch} />
       <ModuleSettingsDialog
         module={module}
         open={settingsOpen}

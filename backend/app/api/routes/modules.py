@@ -51,6 +51,8 @@ def get_module(module_id: int, db: Session = Depends(get_db)) -> ModuleDetail:
             "flashcards": module.flashcards,
             "related_modules": related,
             "dashboard_layout": module.dashboard_layout,
+            "notes": module.notes,
+            "banner": module.banner,
         }
     )
 

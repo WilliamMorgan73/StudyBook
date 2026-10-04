@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict
 
 class QuickTodoCreate(BaseModel):
     text: str
+    # Null: a General to-do.
+    module_id: int | None = None
 
 
 class QuickTodoUpdate(BaseModel):
@@ -18,4 +20,5 @@ class QuickTodoRead(BaseModel):
     id: int
     text: str
     done: bool
+    module_id: int | None
     created_at: datetime

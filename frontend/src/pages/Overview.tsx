@@ -11,6 +11,7 @@ import {
   FlashcardsDueWidget,
   ModulesWidget,
   RevisionTodayWidget,
+  TodoWidget,
   UpcomingWidget,
 } from '@/components/dashboard/ListWidgets'
 import { OverviewContext, type OverviewData } from '@/components/dashboard/overviewContext'
@@ -19,7 +20,6 @@ import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel, useOverviewCalendar } from '@/components/dashboard/useOverviewCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { QuickNotepad } from '@/components/QuickNotepad'
-import { QuickTodoList } from '@/components/QuickTodoList'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
@@ -30,7 +30,7 @@ const WIDGET_BODIES: Record<WidgetId, ReactNode> = {
   calendar: <CalendarWidget />,
   agenda: <AgendaWidget />,
   upcoming: <UpcomingWidget />,
-  todo: <QuickTodoList />,
+  todo: <TodoWidget />,
   progress: <ProgressWidget />,
   notepad: <QuickNotepad />,
   modules: <ModulesWidget />,

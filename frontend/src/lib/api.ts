@@ -187,6 +187,8 @@ export interface QuickTodo {
   id: number
   text: string
   done: boolean
+  /** Null: a General to-do, not tied to a module. */
+  module_id: number | null
   created_at: string
 }
 
@@ -254,6 +256,18 @@ export interface ModuleDetail extends ModuleSummary {
   related_modules: { id: number; name: string }[]
   /** Null: `MODULE_DEFAULT_LAYOUT`. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
   dashboard_layout: DashboardLayoutItem[] | null
+  /** The module page's notepad. */
+  notes: string | null
+  /** Null: `DEFAULT_BANNER`. Read it through `lib/moduleBanner.ts::normalizeBanner`. */
+  banner: ModuleBannerConfig | null
+}
+
+export interface ModuleBannerConfig {
+  /** Stat ids, in order; see `lib/moduleBanner.ts`. */
+  stats: string[]
+  ring: boolean
+  tint: 'none' | 'soft' | 'strong'
+  size: 'compact' | 'comfortable'
 }
 
 export interface ModuleCreateInput {
@@ -267,6 +281,9 @@ export interface ModuleCreateInput {
 export type ModuleUpdateInput = Partial<ModuleCreateInput> & {
   /** A list sets the module page's layout; null resets it to the default. */
   dashboard_layout?: DashboardLayoutItem[] | null
+  notes?: string | null
+  /** A config sets the banner; null resets it to the default. */
+  banner?: ModuleBannerConfig | null
 }
 
 export interface AssignmentCreateInput {
@@ -702,12 +719,16 @@ export function testAIConnection() {
   return request<{ ok: true; model: string }>('/ai/test', { method: 'POST' })
 }
 
-export function listQuickTodos() {
-  return request<QuickTodo[]>('/quick-todos')
+/** Every to-do, or with `moduleId` only that module's. */
+export function listQuickTodos(filter: { moduleId?: number } = {}) {
+  const params = new URLSearchParams()
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  return request<QuickTodo[]>(`/quick-todos?${params}`)
 }
 
-export function createQuickTodo(text: string) {
-  return postJson<QuickTodo>('/quick-todos', { text })
+/** A General to-do, or one in `moduleId`'s list. */
+export function createQuickTodo(text: string, moduleId: number | null = null) {
+  return postJson<QuickTodo>('/quick-todos', { text, module_id: moduleId })
 }
 
 export function updateQuickTodo(id: number, input: { text?: string; done?: boolean }) {

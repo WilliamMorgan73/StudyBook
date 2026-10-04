@@ -13,6 +13,11 @@ export interface ModuleData {
   upcomingSessions: AsyncState<RevisionSession[]>
   /** Marks a revision session done (or not) and refreshes both session lists. */
   setRevisionDone: (session: RevisionSession, done: boolean) => Promise<void>
+  /** The day picked on the Schedule, which the Day agenda shows. */
+  selectedDay: Date
+  setSelectedDay: (day: Date) => void
+  /** The Day agenda widget is placed, so the Schedule leaves its day list out. */
+  dayAgendaPlaced: boolean
 }
 
 export const ModuleContext = createContext<ModuleData | null>(null)

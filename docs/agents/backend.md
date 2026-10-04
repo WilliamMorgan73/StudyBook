@@ -13,7 +13,7 @@
 - `api/routes/`: one router per resource, all included in `main.py`.
   - `calendar.py` is read-only and table-less: merges `Lecture` and `Assignment` due dates and expanded `PersonalEvent` occurrences into sorted `CalendarEvent`s. Lectures and exams (`kind="exam"`) carry `ends_at` from `duration_minutes`, and `location`; both are `None` for coursework (`kind="assignment_due"`). Busy time (`kind="busy"`) has `module_id`/`url` `None`, and its `id` is the `PersonalEvent`'s, repeated on every occurrence.
   - `personal_events.py`: CRUD. `_validate` (title, ≥1 weekday in 0–6, start ≠ end, `valid_until ≥ valid_from`) runs on the merged row, so PATCHes are checked too.
-  - `quick_todos.py` / `quick_note.py` back the Overview to-do list and notepad: app-wide, unrelated to per-assignment `AssignmentTodo`/`notes_markdown`.
+  - `quick_todos.py` / `quick_note.py` back the to-do lists and the Overview notepad, unrelated to per-assignment `AssignmentTodo`/`notes_markdown`. A `QuickTodo` with `module_id` null is General; with one, it's that module's own list (deleted with the module), and `GET /quick-todos?module_id=` lists just those. A module's own notepad is `Module.notes`.
 - `core/config.py`: `pydantic-settings` `Settings` from `.env` (not committed). `core/database.py`: `Base`, `engine`, `get_db` dependency.
 
 ## Data model
@@ -26,7 +26,7 @@
 
 Datetimes are naive. Student-entered ones (lecture times, due dates, revision sessions) are local wall-clock time, written by the frontend's `toNaiveDateTime`; compare them against `core/clock.py::local_now()`, never `datetime.now(UTC)`. Server-generated ones (DB `now()` defaults, flashcard scheduling) are UTC.
 
-`AppSettings` and `QuickNote` are single-row get-or-create tables (`id=1`), kept separate because one is configuration and the other user content. `AppSettings` fields are flat scalar columns with Python defaults, including the four `keybind_*` columns, each a raw CodeMirror keymap string (`"Mod-b"`, `"Mod-Shift-k"`). The exception is `dashboard_layout`, a nullable JSON list of `{i, x, y, w, h}` Overview grid items (`schemas/dashboard_layout.py::DashboardLayoutItem` checks the shape and the 12-column bound; widget ids belong to the frontend and aren't validated). `Module.dashboard_layout` is the same shape for that module's page. `QuickTodo` is a plain multi-row table.
+`AppSettings` and `QuickNote` are single-row get-or-create tables (`id=1`), kept separate because one is configuration and the other user content. `AppSettings` fields are flat scalar columns with Python defaults, including the four `keybind_*` columns, each a raw CodeMirror keymap string (`"Mod-b"`, `"Mod-Shift-k"`). The exception is `dashboard_layout`, a nullable JSON list of `{i, x, y, w, h}` Overview grid items (`schemas/dashboard_layout.py::DashboardLayoutItem` checks the shape and the 12-column bound; widget ids belong to the frontend and aren't validated). `Module.dashboard_layout` is the same shape for that module's page; `Module.banner` is the module page banner's config (`schemas/module.py::ModuleBanner`: stat ids, ring, tint, size; null = frontend default). `QuickTodo` is a plain multi-row table.
 
 ### Attachments
 

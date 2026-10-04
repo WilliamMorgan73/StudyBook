@@ -1,10 +1,29 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.assignment import AssignmentRead
 from app.schemas.dashboard_layout import DashboardLayout
 from app.schemas.flashcard import FlashcardRead
 from app.schemas.lecture import LectureRead
 from app.schemas.submodule import SubmoduleRead
+
+
+class ModuleBanner(BaseModel):
+    """The module page banner: which stats it shows, in order, and how it looks. Stat ids belong to
+    the frontend and aren't validated beyond their shape."""
+
+    stats: list[str] = Field(max_length=6)
+    ring: bool = True
+    tint: Literal["none", "soft", "strong"] = "soft"
+    size: Literal["compact", "comfortable"] = "comfortable"
+
+    @field_validator("stats")
+    @classmethod
+    def _stat_ids(cls, stats: list[str]) -> list[str]:
+        if any(not 1 <= len(s) <= 32 for s in stats):
+            raise ValueError("Stat ids must be 1-32 characters")
+        return stats
 
 
 class ModuleBase(BaseModel):
@@ -27,6 +46,9 @@ class ModuleUpdate(BaseModel):
     credits: int | None = None
     # A list sets the module page's layout; null resets it to the default; omit to leave it unchanged.
     dashboard_layout: DashboardLayout | None = Field(default=None, max_length=32)
+    # Like dashboard_layout: a value sets it, null clears it, omit to leave it unchanged.
+    notes: str | None = None
+    banner: ModuleBanner | None = None
 
 
 class ModuleRead(ModuleBase):
@@ -68,3 +90,6 @@ class ModuleDetail(ModuleSummary):
     related_modules: list[ModuleRead] = []
     # Null: the frontend's default module layout.
     dashboard_layout: DashboardLayout | None = None
+    notes: str | None = None
+    # Null: the frontend's default banner.
+    banner: ModuleBanner | None = None

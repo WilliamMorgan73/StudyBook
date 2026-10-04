@@ -84,3 +84,39 @@ def test_null_resets_layout(client: TestClient, module_id: int) -> None:
 def test_rejects_overflowing_item(client: TestClient, module_id: int) -> None:
     layout = [{"i": "schedule", "x": 6, "y": 0, "w": 8, "h": 4}]
     assert client.patch(f"/modules/{module_id}", json={"dashboard_layout": layout}).status_code == 422
+
+
+BANNER = {"stats": ["nextExam", "grade"], "ring": False, "tint": "strong", "size": "compact"}
+
+
+def test_notes_and_banner_default_to_null(client: TestClient, module_id: int) -> None:
+    body = client.get(f"/modules/{module_id}").json()
+    assert body["notes"] is None
+    assert body["banner"] is None
+
+
+def test_notes_and_banner_round_trip(client: TestClient, module_id: int) -> None:
+    response = client.patch(f"/modules/{module_id}", json={"notes": "Read chapter 4", "banner": BANNER})
+    assert response.status_code == 200
+    body = client.get(f"/modules/{module_id}").json()
+    assert body["notes"] == "Read chapter 4"
+    assert body["banner"] == BANNER
+
+
+def test_null_resets_banner(client: TestClient, module_id: int) -> None:
+    client.patch(f"/modules/{module_id}", json={"banner": BANNER})
+    client.patch(f"/modules/{module_id}", json={"banner": None})
+    assert client.get(f"/modules/{module_id}").json()["banner"] is None
+
+
+@pytest.mark.parametrize(
+    "banner",
+    [
+        {**BANNER, "tint": "neon"},
+        {**BANNER, "size": "huge"},
+        {**BANNER, "stats": [""]},
+        {**BANNER, "stats": [f"s{n}" for n in range(7)]},
+    ],
+)
+def test_rejects_invalid_banner(client: TestClient, module_id: int, banner: dict) -> None:
+    assert client.patch(f"/modules/{module_id}", json={"banner": banner}).status_code == 422
