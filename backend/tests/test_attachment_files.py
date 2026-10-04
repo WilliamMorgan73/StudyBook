@@ -141,3 +141,20 @@ def test_never_deletes_outside_the_upload_dir(db, upload_dir, tmp_path_factory):
     db.commit()
 
     assert outside.exists()
+
+
+def test_an_attachment_reports_its_file_size(client, db, upload_dir):
+    path = attach(db, upload_dir, assignment_id=1)
+    path.write_bytes(b"x" * 2048)
+
+    [attachment] = client.get("/assignments/1").json()["attachments"]
+
+    assert attachment["size_bytes"] == 2048
+
+
+def test_a_missing_file_has_no_size(client, db, upload_dir):
+    attach(db, upload_dir, assignment_id=1).unlink()
+
+    [attachment] = client.get("/assignments/1").json()["attachments"]
+
+    assert attachment["size_bytes"] is None

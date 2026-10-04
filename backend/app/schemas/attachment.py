@@ -16,6 +16,7 @@ class AttachmentRead(BaseModel):
     file_path: str
     url: str
     uploaded_at: datetime
+    size_bytes: int | None
     text_extractable: bool
 
 

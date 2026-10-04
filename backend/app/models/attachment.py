@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 from sqlalchemy import Enum, ForeignKey, String, Text, event
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
@@ -30,6 +31,14 @@ class Attachment(Base):
     @property
     def url(self) -> str:
         return f"/{self.file_path}"
+
+    @property
+    def size_bytes(self) -> int | None:
+        """The stored file's size, read from disk; None if the file has gone missing."""
+        try:
+            return Path(self.file_path).stat().st_size
+        except OSError:
+            return None
 
     @property
     def text_extractable(self) -> bool:
