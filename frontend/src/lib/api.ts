@@ -56,6 +56,8 @@ export interface Attachment {
   file_path: string
   url: string
   uploaded_at: string
+  /** Null if the stored file has gone missing. */
+  size_bytes: number | null
   /** PDF/PPTX that can be converted to markdown for AI features. */
   text_extractable: boolean
 }
