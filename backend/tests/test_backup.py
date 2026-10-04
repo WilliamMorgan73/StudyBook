@@ -368,3 +368,9 @@ def test_backup_of_an_old_database_makes_its_upload_folder_paths_relative(db, up
 
     with zipfile.ZipFile(out) as zf:
         assert json.loads(zf.read("tables/attachments.json"))[0]["file_path"] == "submodules/3/abc.png"
+
+
+def test_location_reports_the_absolute_data_folder(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+
+    assert client.get("/backup/location").json() == {"data_dir": str(tmp_path.resolve())}

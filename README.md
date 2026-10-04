@@ -144,6 +144,14 @@ pnpm tauri dev
 
 It opens StudyBook in a native window instead of a browser tab, still connected to the same local backend.
 
+To build the installable app (backend bundled in, no Python or Node needed to run it):
+
+```bash
+pnpm tauri build    # needs Rust, uv and pnpm; output in src-tauri/target/release/bundle/
+```
+
+The packaged app keeps its data in the OS's per-user folder (`~/.local/share/com.willmorgan.studybook` on Linux, `%APPDATA%\com.willmorgan.studybook` on Windows), shown in Settings → Data.
+
 ### 🧪 Tests and linting
 
 ```bash

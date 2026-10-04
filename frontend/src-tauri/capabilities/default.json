@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Window controls and events for the app: the dev server, the startup splash, and (packaged) the bundled server on 127.0.0.1",
   "windows": [
     "main"
   ],
@@ -12,5 +12,10 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-internal-toggle-maximize"
-  ]
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*"
+    ]
+  }
 }

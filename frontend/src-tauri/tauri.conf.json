@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.willmorgan.studybook",
   "build": {
-    "frontendDist": "../dist",
+    "frontendDist": "splash",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build && uv run --project ../backend python ../backend/packaging/build.py"
   },
   "app": {
     "windows": [
@@ -39,6 +39,10 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
+    },
+    "resources": {
+      "resources/backend/": "backend/",
+      "resources/frontend/": "frontend/"
     }
   }
 }

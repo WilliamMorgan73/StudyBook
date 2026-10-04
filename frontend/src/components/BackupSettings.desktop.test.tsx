@@ -9,6 +9,10 @@ import { BackupSettings } from './BackupSettings'
 // In the desktop shell, the webview's download gives no sign of its own; the shell's
 // `download-finished` event is what tells the student it worked.
 let emit: (download: DownloadFinished) => void = () => {}
+vi.mock('@/lib/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api')>()),
+  getDataLocation: vi.fn(async () => ({ data_dir: '/data' })),
+}))
 vi.mock('@/lib/desktop', () => ({
   isDesktop: true,
   onDownloadFinished: (handler: (download: DownloadFinished) => void) => {
