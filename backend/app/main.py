@@ -11,6 +11,7 @@ from app.api.routes import (
     assignments,
     attachments,
     calendar,
+    calendar_feeds,
     flashcards,
     lectures,
     modules,
@@ -51,6 +52,7 @@ app.include_router(attachments.router)
 app.include_router(flashcards.router)
 app.include_router(lectures.router)
 app.include_router(calendar.router)
+app.include_router(calendar_feeds.router)
 app.include_router(personal_events.router)
 app.include_router(revision.router)
 app.include_router(quick_todos.router)

@@ -66,9 +66,12 @@ export function toggleWeekday(weekdays: number[], day: number): number[] {
   return weekdays.includes(day) ? weekdays.filter((d) => d !== day) : [...weekdays, day].sort((a, b) => a - b)
 }
 
-/** Unique per occurrence: busy events share their PersonalEvent's `id` across occurrences. */
+/**
+ * Unique per occurrence: personal busy events share their PersonalEvent's `id` across occurrences,
+ * and calendar-feed events number separately from PersonalEvents.
+ */
 export function calendarEventKey(event: CalendarEvent): string {
-  return `${event.kind}-${event.id}-${event.starts_at}`
+  return `${event.feed_id != null ? 'feed' : event.kind}-${event.id}-${event.starts_at}`
 }
 
 export function visibleCalendarEvents(events: CalendarEvent[], showBusy: boolean): CalendarEvent[] {

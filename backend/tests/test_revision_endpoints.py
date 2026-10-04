@@ -13,9 +13,13 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # registers relationship string refs (the name `app` is rebound below)
 from app.core.database import Base, get_db
+from app.crud import calendar_feeds
 from app.main import app
 from app.models import (
     Assignment,
+    CalendarFeed,
+    CalendarFeedEvent,
+    CalendarFeedLink,
     Flashcard,
     FlashcardReview,
     Lecture,
@@ -57,6 +61,9 @@ def db() -> Iterator[Session]:
         PersonalEvent.__table__,
         RevisionSession.__table__,
         revision_session_submodules,
+        CalendarFeed.__table__,
+        CalendarFeedEvent.__table__,
+        CalendarFeedLink.__table__,
     ]
     Base.metadata.create_all(engine, tables=tables)
     session = sessionmaker(bind=engine)()
@@ -384,3 +391,26 @@ def test_status_is_quiet_without_a_plan_and_after_clearing_one(client, db, set_n
     client.delete(f"/assignments/{exam.id}/revision-plan")
     assert status_of(client, exam)["needs_replan"] is False
     assert db.get(Assignment, exam.id).revision_planned_weakness is None
+
+
+def test_planning_refreshes_calendar_feeds_and_avoids_their_timed_events(client, db, monkeypatch):
+    day1 = START.strftime("%Y%m%d")
+    day2 = (START + timedelta(days=1)).strftime("%Y%m%d")
+    reply = "\r\n".join([
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StudyBook tests//EN",
+        "BEGIN:VEVENT", "UID:shift@test", "SUMMARY:Shift", f"DTSTART:{day1}T090000", f"DTEND:{day1}T120000", "END:VEVENT",
+        "BEGIN:VEVENT", "UID:holiday@test", "SUMMARY:Holiday", f"DTSTART;VALUE=DATE:{day2}", "END:VEVENT",
+        "END:VCALENDAR",
+    ])  # fmt: skip
+    # Synced long ago with nothing cached: only the refresh at planning time can know about the shift.
+    db.add(CalendarFeed(name="Work", url="https://example.com/work.ics", color="#3b82f6", last_synced_at=NOW))
+    db.commit()
+    monkeypatch.setattr(calendar_feeds, "fetch_ics", lambda _url: reply)
+    module, subs = make_module(db)
+    exam = make_exam(db, module, subs)
+
+    sessions = client.post(f"/assignments/{exam.id}/revision-plan", json=plan_body()).json()
+
+    starts = sorted(datetime.fromisoformat(s["starts_at"]) for s in sessions)
+    assert starts[0] == datetime.combine(START, time(12))  # after the shift
+    assert starts[1] == datetime.combine(START + timedelta(days=1), time(9))  # an all-day event doesn't block

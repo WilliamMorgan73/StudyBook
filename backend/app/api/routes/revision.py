@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.clock import local_now
 from app.core.database import get_db
+from app.crud.calendar_feeds import enabled_feeds, refresh_feeds
 from app.crud.revision_planner import NotEnoughTime, split_for_replan, weakest_cards
 from app.crud.revision_plans import (
     exam_replan_signal,
@@ -68,6 +69,8 @@ def _check_plan_request(exam: Assignment, payload: RevisionPlanCreate) -> set[in
 def _plan_and_save(
     db: Session, exam: Assignment, payload: RevisionPlanCreate, weekdays: set[int], kept: list[RevisionSession]
 ) -> list[RevisionSessionRead]:
+    # Planning always works from the latest calendar feeds; a failed fetch just uses the cached copy.
+    refresh_feeds(enabled_feeds(db))
     now = local_now()
     weakness = submodule_weakness(db, [s.id for s in exam.covered_submodules])
     result = plan_exam_revision(

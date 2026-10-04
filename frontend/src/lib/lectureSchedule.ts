@@ -160,3 +160,39 @@ export function groupLectures(lectures: Lecture[]): LectureGroup[] {
 
   return groups.sort((a, b) => new Date(earliestDate(a)).getTime() - new Date(earliestDate(b)).getTime())
 }
+
+/** Lectures synced from one calendar feed's series (same feed and title), for a read-only summary. */
+export interface FeedLectureGroup {
+  feedId: number
+  title: string
+  lectures: Lecture[]
+  /** The first lecture at or after `now`, or null once the series is over. */
+  next: Lecture | null
+}
+
+/** Splits lectures into hand-made ones and feed-synced groups (by feed + title, in first-lecture
+ * order). Feed lectures stay out of `groupLectures`: timetables skip weeks, which would fragment its
+ * 7/14-day series inference, and they can't be edited anyway. */
+export function splitFeedLectures(
+  lectures: Lecture[],
+  now: Date = new Date(),
+): { manual: Lecture[]; feedGroups: FeedLectureGroup[] } {
+  const manual: Lecture[] = []
+  const byKey = new Map<string, FeedLectureGroup>()
+  const sorted = [...lectures].sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+  for (const lecture of sorted) {
+    if (lecture.feed_id === null) {
+      manual.push(lecture)
+      continue
+    }
+    const key = `${lecture.feed_id}\u0000${lecture.title}`
+    let group = byKey.get(key)
+    if (!group) {
+      group = { feedId: lecture.feed_id, title: lecture.title, lectures: [], next: null }
+      byKey.set(key, group)
+    }
+    group.lectures.push(lecture)
+    if (!group.next && new Date(lecture.scheduled_at) >= now) group.next = lecture
+  }
+  return { manual, feedGroups: [...byKey.values()] }
+}
