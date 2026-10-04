@@ -7,6 +7,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { Button } from '@/components/ui/button'
 import type { CalendarEvent } from '@/lib/api'
 import { busyLast, calendarEventKey } from '@/lib/busyTime'
+import { overflowLabel } from '@/lib/calendarCells'
 import { useElementSize } from '@/lib/useElementSize'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -51,7 +52,7 @@ function titleLines(cellWidth: number, cellHeight: number) {
   return Math.max(0, Math.floor((cellHeight - CELL_CHROME) / TITLE_LINE))
 }
 
-/** A large calendar's day cell content: as many event titles as fit, then "+N more". */
+/** A large calendar's day cell content: as many event titles as fit, then "+N more" (or "N events" when none fit). */
 function DayTitles({
   events,
   lines,
@@ -61,9 +62,9 @@ function DayTitles({
   lines: number
   eventColor: (event: CalendarEvent) => string
 }) {
-  // The "+N more" line takes the place of a title when they don't all fit.
+  // The overflow line takes the place of a title when they don't all fit.
   const shown = events.length <= lines ? events : events.slice(0, lines - 1)
-  const more = events.length - shown.length
+  const overflow = overflowLabel(events.length, shown.length)
   return (
     <div className="flex w-full min-w-0 flex-col gap-0.5">
       {shown.map((event) => (
@@ -77,7 +78,7 @@ function DayTitles({
           <span className="truncate">{event.title}</span>
         </span>
       ))}
-      {more > 0 && <span className="text-[11px] leading-tight text-muted-foreground">+{more} more</span>}
+      {overflow && <span className="text-[11px] leading-tight text-muted-foreground">{overflow}</span>}
     </div>
   )
 }

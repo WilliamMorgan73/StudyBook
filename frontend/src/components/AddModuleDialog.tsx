@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
+import { LinkMatchingSeriesDialog } from '@/components/LinkMatchingSeriesDialog'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -30,6 +31,8 @@ export function AddModuleDialog({
   const [color, setColor] = useState(MODULE_COLOR_SWATCHES[0])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A module just created with a course code: offer the calendar series it matches.
+  const [created, setCreated] = useState<ModuleSummary | null>(null)
 
   function reset() {
     setName('')
@@ -59,6 +62,7 @@ export function AddModuleDialog({
       onCreated(created)
       setOpen(false)
       reset()
+      if (created.code) setCreated(created)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create the module.')
     } finally {
@@ -141,6 +145,15 @@ export function AddModuleDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      {/* Its own Dialog root (Radix's Root only provides context), so it opens after this one closes. */}
+      <LinkMatchingSeriesDialog
+        moduleId={created?.id ?? null}
+        code={created?.code ?? null}
+        onClose={() => setCreated(null)}
+        onLinked={() => {
+          if (created) onCreated(created)
+        }}
+      />
     </Dialog>
   )
 }

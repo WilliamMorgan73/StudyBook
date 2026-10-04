@@ -30,6 +30,7 @@ import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
 import { ModuleBanner } from '@/components/ModuleBanner'
 import { ModuleBannerDialog } from '@/components/ModuleBannerDialog'
+import { LinkMatchingSeriesDialog } from '@/components/LinkMatchingSeriesDialog'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
@@ -76,6 +77,8 @@ export function ModulePage() {
 
 function ModuleView({ id }: { id: number }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Set after a new course code is saved: offer the calendar series it matches.
+  const [checkCodeMatches, setCheckCodeMatches] = useState(false)
   const [bannerOpen, setBannerOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => new Date())
   const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
@@ -200,6 +203,13 @@ function ModuleView({ id }: { id: number }) {
           refetch()
         }}
         onLecturesChanged={refetch}
+        onCodeSaved={() => setCheckCodeMatches(true)}
+      />
+      <LinkMatchingSeriesDialog
+        moduleId={checkCodeMatches ? module.id : null}
+        code={module.code}
+        onClose={() => setCheckCodeMatches(false)}
+        onLinked={refetch}
       />
     </motion.div>
   )

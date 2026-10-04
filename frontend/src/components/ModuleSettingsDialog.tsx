@@ -560,6 +560,7 @@ export function ModuleSettingsDialog({
   onOpenChange,
   onChanged,
   onLecturesChanged,
+  onCodeSaved,
 }: {
   module: ModuleDetail
   open: boolean
@@ -568,6 +569,8 @@ export function ModuleSettingsDialog({
   onChanged: () => void
   /** After any lecture change (series, topics, calendar links), which leaves the dialog open. */
   onLecturesChanged: () => void
+  /** After a General save that set a new course code, so the page can offer matching calendar series. */
+  onCodeSaved: () => void
 }) {
   const navigate = useNavigate()
   const [category, setCategory] = useState<Category>('general')
@@ -647,8 +650,10 @@ export function ModuleSettingsDialog({
     setSavingIdentity(true)
     setIdentityError(null)
     try {
-      await updateModule(module.id, { name: name.trim(), code: code.trim() || null, credits: creditsValue, color })
+      const newCode = code.trim() || null
+      await updateModule(module.id, { name: name.trim(), code: newCode, credits: creditsValue, color })
       onChanged()
+      if (newCode !== null && newCode !== module.code) onCodeSaved()
     } catch (err) {
       setIdentityError(err instanceof Error ? err.message : 'Could not save changes.')
     } finally {
