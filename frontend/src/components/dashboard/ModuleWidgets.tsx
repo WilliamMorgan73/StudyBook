@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import { ASSIGNMENT_STATUS_LABEL, updateModule, updateTodo, type Assignment, type Flashcard, type Submodule } from '@/lib/api'
 import { examEndsAt } from '@/lib/exam'
 import { isDue, maturityCounts } from '@/lib/flashcards'
@@ -275,7 +276,13 @@ export function RevisionWidget() {
   const { module, upcomingSessions, setRevisionDone } = useModuleData()
   return (
     <>
-      {upcomingSessions.error && <p className="text-sm text-destructive">Couldn't load revision sessions.</p>}
+      {upcomingSessions.error && (
+        <WidgetError
+          message="Couldn't load revision sessions."
+          onRetry={upcomingSessions.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap loading={upcomingSessions.loading} skeleton={<Skeleton className="h-24 w-full" />}>
         {upcomingSessions.data?.length === 0 && (
           <p className="text-sm text-muted-foreground">No revision planned for the next two weeks.</p>

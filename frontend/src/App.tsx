@@ -3,9 +3,11 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { AssignmentPage } from '@/pages/AssignmentPage'
 import { ModulePage } from '@/pages/ModulePage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 import { Overview } from '@/pages/Overview'
 import { SetupPage } from '@/pages/SetupPage'
 import { SubmodulePage } from '@/pages/SubmodulePage'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { getAppSettings } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 import { useApplyTheme } from '@/lib/theme'
@@ -22,27 +24,30 @@ function App() {
   if (needsSetup && location.pathname !== '/setup') return <Navigate to="/setup" replace />
 
   return (
-    // reducedMotion="user" drops transform animations (keeping opacity fades) for anyone with the
-    // OS reduced-motion setting on.
-    <MotionConfig reducedMotion="user" transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}>
-      {/* Keyed on the path so each navigation mounts a fresh page that fades in. Entrance only,
-          no exit: waiting on an exit would make every navigation feel slower. */}
-      <motion.div
-        key={location.pathname}
-        className="h-full"
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-      >
-        <Routes location={location}>
-          <Route path="/" element={<Overview />} />
-          <Route path="/setup" element={<SetupPage onFinished={settings.refetch} />} />
-          <Route path="/modules/:moduleId" element={<ModulePage />} />
-          <Route path="/modules/:moduleId/assignments/:assignmentId" element={<AssignmentPage />} />
-          <Route path="/modules/:moduleId/submodules/:submoduleId" element={<SubmodulePage />} />
-        </Routes>
-      </motion.div>
-    </MotionConfig>
+    <ErrorBoundary>
+      {/* reducedMotion="user" drops transform animations (keeping opacity fades) for anyone with the
+          OS reduced-motion setting on. */}
+      <MotionConfig reducedMotion="user" transition={{ duration: 0.25, ease: [0.2, 0, 0, 1] }}>
+        {/* Keyed on the path so each navigation mounts a fresh page that fades in. Entrance only,
+            no exit: waiting on an exit would make every navigation feel slower. */}
+        <motion.div
+          key={location.pathname}
+          className="h-full"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <Routes location={location}>
+            <Route path="/" element={<Overview />} />
+            <Route path="/setup" element={<SetupPage onFinished={settings.refetch} />} />
+            <Route path="/modules/:moduleId" element={<ModulePage />} />
+            <Route path="/modules/:moduleId/assignments/:assignmentId" element={<AssignmentPage />} />
+            <Route path="/modules/:moduleId/submodules/:submoduleId" element={<SubmodulePage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </motion.div>
+      </MotionConfig>
+    </ErrorBoundary>
   )
 }
 

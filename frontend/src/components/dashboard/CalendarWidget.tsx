@@ -7,6 +7,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { LoadSwap } from '@/components/LoadSwap'
 import { MonthCalendar } from '@/components/MonthCalendar'
 import { Skeleton } from '@/components/ui/skeleton'
+import { WidgetError } from '@/components/WidgetError'
 import { calendarEventColor } from '@/lib/calendarFeeds'
 
 const LEGEND = [
@@ -22,7 +23,13 @@ export function CalendarWidget() {
 
   return (
     <>
-      {calendar.calendar.error && <p className="text-sm text-destructive">Couldn't load the calendar.</p>}
+      {calendar.calendar.error && (
+        <WidgetError
+          message="Couldn't load the calendar."
+          onRetry={calendar.calendar.refetch}
+          className="mb-2"
+        />
+      )}
       <LoadSwap
         loading={calendar.calendar.loading}
         skeleton={<Skeleton className="h-80 w-full" />}

@@ -1,4 +1,4 @@
-import { Settings, ArrowLeft, Star } from 'lucide-react'
+import { Settings, ArrowLeft, BookX, RotateCcw, Star } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -10,6 +10,7 @@ import { ModuleContext, type ModuleData } from '@/components/dashboard/moduleCon
 import { MODULE_WIDGET_CONTENT } from '@/components/dashboard/moduleWidgetContent'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel } from '@/components/dashboard/useOverviewCalendar'
+import { ErrorState } from '@/components/ErrorState'
 import { ModuleBanner } from '@/components/ModuleBanner'
 import { ModuleBannerDialog } from '@/components/ModuleBannerDialog'
 import { LinkMatchingSeriesDialog } from '@/components/LinkMatchingSeriesDialog'
@@ -101,11 +102,34 @@ function ModuleView({ id }: { id: number }) {
   // Not loading and no data means the first load failed; a failed refresh keeps the data.
   if (!module) {
     return (
-      <div className="space-y-4 px-8 py-8">
-        <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Overview
-        </Link>
-        <p className="text-sm text-destructive">This module couldn't be found.</p>
+      <div className="flex h-full flex-col overflow-hidden">
+        <PageHeader
+          left={
+            <Link to="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="size-4" />
+              <span>Overview</span>
+            </Link>
+          }
+        />
+        <div className="flex flex-1 items-center justify-center p-6">
+          <ErrorState
+            icon={BookX}
+            iconVariant="muted"
+            badge="404"
+            title="Module not found"
+            description="This module couldn't be found. It may have been deleted or the link is invalid."
+            primaryAction={{
+              label: 'Back to Overview',
+              to: '/',
+              icon: ArrowLeft,
+            }}
+            secondaryAction={{
+              label: 'Try again',
+              onClick: refetch,
+              icon: RotateCcw,
+            }}
+          />
+        </div>
       </div>
     )
   }

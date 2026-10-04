@@ -1,4 +1,4 @@
-import { ArrowLeft, Code2, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
+import { ArrowLeft, Code2, FileX, RotateCcw, Settings as SettingsIcon, SquarePlus } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -8,6 +8,7 @@ import { AssignmentCompletion } from '@/components/AssignmentCompletion'
 import { AssignmentSettingsDialog } from '@/components/AssignmentSettingsDialog'
 import { AttachmentEmbeds } from '@/components/AttachmentEmbeds'
 import { Countdown } from '@/components/Countdown'
+import { ErrorState } from '@/components/ErrorState'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { RevisionPlan } from '@/components/RevisionPlan'
@@ -65,12 +66,37 @@ export function AssignmentPage() {
 
   // Not loading and no data means the first load failed; a failed refresh keeps the data.
   if (!assignment) {
+    const parentUrl = moduleId ? `/modules/${moduleId}` : '/'
+    const parentLabel = module?.name ?? 'Module'
     return (
-      <div className="space-y-4 px-8 py-8">
-        <Link to={`/modules/${moduleId}`} className="text-sm text-muted-foreground hover:text-foreground">
-          &larr; Module
-        </Link>
-        <p className="text-sm text-destructive">This assignment couldn't be found.</p>
+      <div className="flex h-full flex-col overflow-hidden">
+        <PageHeader
+          left={
+            <Link to={parentUrl} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+              <ArrowLeft className="size-4" />
+              <span>{parentLabel}</span>
+            </Link>
+          }
+        />
+        <div className="flex flex-1 items-center justify-center p-6">
+          <ErrorState
+            icon={FileX}
+            iconVariant="muted"
+            badge="404"
+            title="Assignment not found"
+            description="We couldn't find this assignment or exam. It may have been deleted or the link is invalid."
+            primaryAction={{
+              label: `Back to ${parentLabel}`,
+              to: parentUrl,
+              icon: ArrowLeft,
+            }}
+            secondaryAction={{
+              label: 'Try again',
+              onClick: refetch,
+              icon: RotateCcw,
+            }}
+          />
+        </div>
       </div>
     )
   }

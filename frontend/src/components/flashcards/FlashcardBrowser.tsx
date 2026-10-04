@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
+import { WidgetError } from '@/components/WidgetError'
 import {
   createFlashcard,
   deleteFlashcard,
@@ -215,7 +216,11 @@ function Browser({
               <Skeleton className="h-11 w-full" />
             </div>
           )}
-          {cards.error && !cards.data && <p className="p-3 text-sm text-destructive">Couldn't load the cards.</p>}
+          {cards.error && !cards.data && (
+            <div className="p-3">
+              <WidgetError message="Couldn't load the cards." onRetry={cards.refetch} />
+            </div>
+          )}
           {cards.data && visible.length === 0 && (
             <p className="p-4 text-sm text-muted-foreground">
               {query ? 'No cards match your search.' : 'No cards here yet. Write the first one on the right.'}

@@ -1,7 +1,8 @@
-import { GraduationCap } from 'lucide-react'
+import { AlertCircle, GraduationCap } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion, type Variants } from 'motion/react'
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 
+import { ErrorState } from '@/components/ErrorState'
 import { FlashcardFace } from '@/components/FlashcardFace'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -217,7 +218,21 @@ function SessionBody({
   }
 
   if (error || !queue) {
-    return <p className="p-6 text-sm text-destructive">Couldn't load the due flashcards. Close this and try again.</p>
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <ErrorState
+          icon={AlertCircle}
+          iconVariant="destructive"
+          title="Couldn't load flashcards"
+          description="There was a problem loading the due cards for this study session. Close this dialog and try again."
+          primaryAction={{
+            label: 'Close',
+            onClick: onDone,
+          }}
+          compact
+        />
+      </div>
+    )
   }
 
   if (!card) return <Summary total={queue.length} ratings={ratings} color={color} onDone={onDone} />
