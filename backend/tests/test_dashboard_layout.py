@@ -13,6 +13,7 @@ import app.models  # registers relationship string refs (the name `app` is rebou
 from app.core.database import get_db
 from app.main import app
 from app.models.app_settings import AppSettings
+from app.models.module import Module
 
 LAYOUT = [
     {"i": "calendar", "x": 0, "y": 0, "w": 8, "h": 14},
@@ -24,6 +25,7 @@ LAYOUT = [
 def db() -> Iterator[Session]:
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     AppSettings.__table__.create(engine)
+    Module.__table__.create(engine)  # read by the first-run check when the settings row is created
     session = sessionmaker(bind=engine)()
     yield session
     session.close()

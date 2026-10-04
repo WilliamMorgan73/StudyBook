@@ -1,4 +1,5 @@
 from sqlalchemy import JSON, String, Text
+from sqlalchemy import false as sa_false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -32,3 +33,8 @@ class AppSettings(Base):
     # Null means the frontend's default layout. Widget ids are owned by the frontend
     # (frontend/src/lib/dashboardLayout.ts), so they aren't validated here.
     dashboard_layout: Mapped[list | None] = mapped_column(JSON)
+    # Starting layout for module pages that haven't been customised (`modules.dashboard_layout` is
+    # null). Null means the frontend's built-in module layout (frontend/src/lib/moduleLayout.ts).
+    default_module_layout: Mapped[list | None] = mapped_column(JSON)
+    # False until the first-run setup page is finished or skipped; the frontend redirects to it.
+    setup_completed: Mapped[bool] = mapped_column(default=False, server_default=sa_false())

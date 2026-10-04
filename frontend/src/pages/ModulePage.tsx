@@ -1,4 +1,4 @@
-import { Settings, ArrowLeft } from 'lucide-react'
+import { Settings, ArrowLeft, Star } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -36,8 +36,17 @@ import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getModule, listRevisionSessions, updateModule, updateRevisionSession, type RevisionSession } from '@/lib/api'
-import { MODULE_BOARD, MODULE_WIDGETS, type ModuleWidgetId } from '@/lib/moduleLayout'
+import {
+  getAppSettings,
+  getModule,
+  listRevisionSessions,
+  updateAppSettings,
+  updateModule,
+  updateRevisionSession,
+  type RevisionSession,
+} from '@/lib/api'
+import { sameLayout } from '@/lib/dashboardLayout'
+import { MODULE_DEFAULT_LAYOUT, MODULE_WIDGETS, moduleBoard, type ModuleWidgetId } from '@/lib/moduleLayout'
 import { normalizeBanner } from '@/lib/moduleBanner'
 import { enter } from '@/lib/motion'
 import { useAsync } from '@/lib/useAsync'
@@ -92,13 +101,29 @@ function ModuleView({ id }: { id: number }) {
     () => listRevisionSessions({ moduleId: id, start: upcomingRange.start, end: upcomingRange.end }),
     [id, upcomingRange],
   )
-  const editor = useLayoutEditor(MODULE_BOARD, module?.dashboard_layout ?? null, async (layout) => {
+  // Uncustomised modules (and Reset) use the user's default module layout, if they've set one.
+  const appSettings = useAsync(() => getAppSettings(), [])
+  const board = useMemo(() => moduleBoard(appSettings.data?.default_module_layout ?? null), [appSettings.data])
+  const [savingDefault, setSavingDefault] = useState(false)
+  const editor = useLayoutEditor(board, module?.dashboard_layout ?? null, async (layout) => {
     await updateModule(id, { dashboard_layout: layout })
     await refetch()
   })
   const { layout, editing } = editor
 
-  if (loading && !module) {
+  // Every module without its own layout starts from this one from now on.
+  async function makeDefault() {
+    setSavingDefault(true)
+    try {
+      await updateAppSettings({ default_module_layout: sameLayout(layout, MODULE_DEFAULT_LAYOUT) ? null : layout })
+      await appSettings.refetch()
+    } finally {
+      setSavingDefault(false)
+    }
+  }
+
+  // Wait for settings too, so an uncustomised module doesn't flash the built-in layout first.
+  if ((loading && !module) || (appSettings.loading && !appSettings.data)) {
     return (
       <div className="space-y-4 px-8 py-8">
         <Skeleton className="h-4 w-32" />
@@ -160,7 +185,21 @@ function ModuleView({ id }: { id: number }) {
           </Link>
         }
         right={
-          <LayoutEditControls editor={editor} menuLabel="Add to this module">
+          <LayoutEditControls
+            editor={editor}
+            menuLabel="Add to this module"
+            editingActions={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={makeDefault}
+                disabled={savingDefault || sameLayout(layout, board.defaultLayout)}
+                title="Modules you haven't customised, and new ones, will use this layout"
+              >
+                <Star /> {sameLayout(layout, board.defaultLayout) ? 'Default layout' : 'Make default'}
+              </Button>
+            }
+          >
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
               <Settings /> Settings
             </Button>

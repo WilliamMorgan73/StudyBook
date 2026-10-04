@@ -837,6 +837,10 @@ export interface AppSettings {
   ai_model: string
   /** Null: the default Overview layout. */
   dashboard_layout: DashboardLayoutItem[] | null
+  /** Starting layout for module pages that haven't been customised; null = the built-in one. */
+  default_module_layout: DashboardLayoutItem[] | null
+  /** False until the first-run setup page is finished or skipped. */
+  setup_completed: boolean
   /** Derived from `ai_model`. */
   ai_provider: AIProvider
   /** A key is saved in settings. The keys themselves are write-only and never sent back. */

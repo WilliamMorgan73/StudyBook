@@ -21,6 +21,7 @@ export function LayoutEditControls<Id extends string>({
   editor,
   menuLabel,
   disabled = false,
+  editingActions,
   children,
 }: {
   editor: LayoutEditor<Id>
@@ -29,6 +30,8 @@ export function LayoutEditControls<Id extends string>({
   /** Disables "Edit layout", e.g. while the saved layout is still loading. */
   disabled?: boolean
   children?: ReactNode
+  /** Extra buttons shown while editing, before Reset. */
+  editingActions?: ReactNode
 }) {
   const { board, layout, hidden, saving } = editor
 
@@ -72,6 +75,7 @@ export function LayoutEditControls<Id extends string>({
           })}
         </DropdownMenuContent>
       </DropdownMenu>
+      {editingActions}
       <Button variant="ghost" size="sm" onClick={editor.reset} disabled={sameLayout(layout, board.defaultLayout)}>
         <RotateCcw /> Reset
       </Button>
