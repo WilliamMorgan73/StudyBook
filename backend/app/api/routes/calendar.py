@@ -109,6 +109,7 @@ def get_calendar(start: datetime, end: datetime, db: Session = Depends(get_db)) 
             ends_at=_ends_at(lec.scheduled_at, lec.duration_minutes),
             location=lec.location,
             url=f"/modules/{lec.module_id}",
+            submodules=lec.submodules,
         )
         for lec in lectures
     ] + [

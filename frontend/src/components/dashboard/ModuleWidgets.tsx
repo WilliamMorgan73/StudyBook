@@ -30,13 +30,15 @@ function formatDate(iso: string) {
 
 /** The module's events, as the week calendar and the day list take them. */
 function useModuleEvents() {
-  const { module, weekSessions, setRevisionDone } = useModuleData()
+  const { module, refetch, weekSessions, setRevisionDone } = useModuleData()
   return {
     lectures: module.lectures,
     exams: module.assignments.filter((a) => a.kind === 'exam'),
     revisionSessions: weekSessions.data ?? [],
     onRevisionDone: setRevisionDone,
     color: module.color,
+    submodules: module.submodules,
+    onLectureChanged: refetch,
   }
 }
 

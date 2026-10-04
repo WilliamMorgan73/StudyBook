@@ -161,6 +161,17 @@ export function groupLectures(lectures: Lecture[]): LectureGroup[] {
   return groups.sort((a, b) => new Date(earliestDate(a)).getTime() - new Date(earliestDate(b)).getTime())
 }
 
+/**
+ * Editing a series deletes and recreates its lectures, so the Submodules each one covered are carried
+ * over by position: the new series' i-th lecture gets the old one's i-th set (week 3 stays Topic 3),
+ * and lectures past the old series' end get none.
+ */
+export function submoduleIdsByOccurrence(lectures: Lecture[]): number[][] {
+  return [...lectures]
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+    .map((l) => l.submodules.map((s) => s.id))
+}
+
 /** Lectures synced from one calendar feed's series (same feed and title), for a read-only summary. */
 export interface FeedLectureGroup {
   feedId: number
@@ -195,4 +206,18 @@ export function splitFeedLectures(
     if (!group.next && new Date(lecture.scheduled_at) >= now) group.next = lecture
   }
   return { manual, feedGroups: [...byKey.values()] }
+}
+
+/** The lectures that covered a Submodule, split at `now` into past (latest first) and upcoming (soonest first). */
+export function lecturesCovering(
+  lectures: Lecture[],
+  submoduleId: number,
+  now: Date = new Date(),
+): { past: Lecture[]; upcoming: Lecture[] } {
+  const covering = lectures
+    .filter((l) => l.submodules.some((s) => s.id === submoduleId))
+    .sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at))
+  const upcoming = covering.filter((l) => new Date(l.scheduled_at) >= now)
+  const past = covering.filter((l) => new Date(l.scheduled_at) < now).reverse()
+  return { past, upcoming }
 }

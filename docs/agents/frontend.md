@@ -43,6 +43,8 @@ For the markdown editor, see [`markdown-editor.md`](markdown-editor.md).
 
 Lectures with `feed_id` come from a calendar feed and are read-only: `splitFeedLectures` (in `lib/lectureSchedule.ts`) takes them out before `groupLectures` (timetables skip weeks, which would break its cadence inference) and the Lectures tab shows them as `FeedLectureCard`s (by feed + title, with the next date and the calendar's name). There is no backend recurrence rule. `ModuleSettingsDialog`'s Lectures tab creates one `Lecture` per occurrence (7 or 14 days apart, max 52) via repeated `POST /lectures`. `groupLectures` re-infers series on read: same title+location on a consistent 7/14-day cadence. Editing a series deletes all its lectures and recreates them.
 
+`LectureSubmodules` shows a Lecture's covered Submodules as "Open notes" links plus a checkbox menu that saves each tick (feed lectures too); it's on the Overview Day agenda (expanded lecture), `ModuleDayList` and the Lectures tab (per-occurrence "Topics" list). Editing a manual series carries the topics over by position (`submoduleIdsByOccurrence`). SubmodulePage lists the lectures that covered it (`SubmoduleLectures`, via `lecturesCovering`).
+
 ## Settings dialogs
 
 Both use the same category-sidebar shell.

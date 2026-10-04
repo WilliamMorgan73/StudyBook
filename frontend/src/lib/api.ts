@@ -123,6 +123,8 @@ export interface CalendarEvent {
   color: string | null
   /** Feed events only. Shown on the calendar; never block revision planning. */
   all_day: boolean
+  /** Lectures only: the Submodules it covered. */
+  submodules: { id: number; title: string }[]
 }
 
 /** A weekly busy-time rule; expanded into occurrences on read, not stored per occurrence. */
@@ -250,8 +252,10 @@ export interface Lecture {
   duration_minutes: number | null
   location: string | null
   week_number: number | null
-  /** Set when synced from a calendar feed's linked series; such lectures are read-only. */
+  /** Set when synced from a calendar feed's linked series; such lectures are read-only apart from `submodules`. */
   feed_id: number | null
+  /** The Submodules it covered, by title. */
+  submodules: { id: number; title: string }[]
 }
 
 export interface Submodule {
@@ -411,8 +415,11 @@ export interface LectureCreateInput {
   duration_minutes?: number | null
   location?: string | null
   week_number?: number | null
+  /** Must be the Module's own. */
+  submodule_ids?: number[]
 }
 
+/** A feed lecture accepts only `submodule_ids`. */
 export type LectureUpdateInput = Partial<Omit<LectureCreateInput, 'module_id'>>
 
 /**

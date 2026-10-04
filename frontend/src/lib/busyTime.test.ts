@@ -35,6 +35,7 @@ function event(kind: CalendarEvent['kind'], id: number, startsAt: string): Calen
     feed_id: null,
     color: null,
     all_day: false,
+    submodules: [],
   }
 }
 

@@ -1,9 +1,18 @@
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import Column, ForeignKey, String, Table, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+# Which Submodules a Lecture covered, set per occurrence (also on feed Lectures: the feed never touches it,
+# except that moving a Lecture to another Module clears it). Rows go with either side.
+lecture_submodules = Table(
+    "lecture_submodules",
+    Base.metadata,
+    Column("lecture_id", ForeignKey("lectures.id", ondelete="CASCADE"), primary_key=True),
+    Column("submodule_id", ForeignKey("submodules.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 class Lecture(Base):
@@ -24,3 +33,7 @@ class Lecture(Base):
 
     module: Mapped["Module"] = relationship(back_populates="lectures")  # noqa: F821
     feed: Mapped["CalendarFeed | None"] = relationship(back_populates="lectures")  # noqa: F821
+    submodules: Mapped[list["Submodule"]] = relationship(  # noqa: F821
+        # Every read of a Lecture returns them, so load them in one query per batch, not one per Lecture.
+        secondary=lecture_submodules, order_by="Submodule.title", passive_deletes=True, lazy="selectin"
+    )

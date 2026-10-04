@@ -1,9 +1,10 @@
-import { CalendarClock, SlidersHorizontal } from 'lucide-react'
+import { CalendarClock, ChevronRight, SlidersHorizontal } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
+import { LectureSubmodules } from '@/components/LectureSubmodules'
 import { SettingsNav } from '@/components/SettingsNav'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,6 +22,7 @@ import {
   listModules,
   toNaiveDateTime,
   updateModule,
+  type Lecture,
   type ModuleDetail,
 } from '@/lib/api'
 import {
@@ -28,6 +30,7 @@ import {
   addMinutesToTime,
   groupLectures,
   splitFeedLectures,
+  submoduleIdsByOccurrence,
   nextDateSeriesState,
   nextTimeRangeState,
   type DateSeriesState,
@@ -156,11 +159,10 @@ function LectureSeriesForm({
     setSubmitting(true)
     setError(null)
     try {
-      if (group) {
-        const existing = group.type === 'series' ? group.series.lectures : [group.lecture]
-        for (const lecture of existing) {
-          await deleteLecture(lecture.id)
-        }
+      const existing = !group ? [] : group.type === 'series' ? group.series.lectures : [group.lecture]
+      const carriedSubmodules = submoduleIdsByOccurrence(existing)
+      for (const lecture of existing) {
+        await deleteLecture(lecture.id)
       }
       for (let i = 0; i < count; i++) {
         const occurrenceDate = intervalDays > 0 ? addDays(startDate, i * intervalDays) : startDate
@@ -171,6 +173,7 @@ function LectureSeriesForm({
           duration_minutes: durationMinutes,
           location: location.trim() || null,
           week_number: repeat === 'none' ? null : i + 1,
+          submodule_ids: carriedSubmodules[i] ?? [],
         })
       }
       onSaved()
@@ -298,8 +301,43 @@ function formatLectureDay(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-/** A series synced from a calendar feed: read-only, managed in Settings → Calendars. */
-function FeedLectureCard({ group, feedName }: { group: FeedLectureGroup; feedName: string }) {
+/** What the Lectures tab's cards need to show and edit each lecture's covered Submodules. */
+interface TopicsProps {
+  submodules: { id: number; title: string }[]
+  onTopicsChanged: () => Promise<void>
+}
+
+/** A "Topics" toggle opening one row per lecture in a series, each with its covered Submodules. */
+function SeriesTopics({ lectures, submodules, onTopicsChanged }: TopicsProps & { lectures: Lecture[] }) {
+  const [open, setOpen] = useState(false)
+  const linked = lectures.filter((l) => l.submodules.length > 0).length
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ChevronRight className={`size-3 transition-transform ${open ? 'rotate-90' : ''}`} />
+        Topics{linked > 0 && ` (${linked} of ${lectures.length} linked)`}
+      </button>
+      {open && (
+        <ul className="mt-1.5 max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
+          {lectures.map((l) => (
+            <li key={l.id} className="flex items-start gap-3 text-sm">
+              <span className="w-24 shrink-0 py-0.5 text-xs text-muted-foreground">{formatLectureDay(l.scheduled_at)}</span>
+              <LectureSubmodules lecture={l} options={submodules} onChanged={onTopicsChanged} className="min-w-0" />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** A series synced from a calendar feed: read-only (but for its topics), managed in Settings → Calendars. */
+function FeedLectureCard({ group, feedName, ...topics }: TopicsProps & { group: FeedLectureGroup; feedName: string }) {
   const { lectures, next } = group
   const location = lectures.find((l) => l.location)?.location
   return (
@@ -312,6 +350,7 @@ function FeedLectureCard({ group, feedName }: { group: FeedLectureGroup; feedNam
       <p className="text-xs text-muted-foreground">
         From the calendar “{feedName}”. Change or unlink it in Settings → Calendars.
       </p>
+      <SeriesTopics lectures={lectures} {...topics} />
     </li>
   )
 }
@@ -320,7 +359,8 @@ function LectureSeriesCard({
   moduleId,
   group,
   onChanged,
-}: {
+  ...topics
+}: TopicsProps & {
   moduleId: number
   group: LectureGroup
   onChanged: () => void
@@ -375,10 +415,20 @@ function LectureSeriesCard({
     )
 
   return (
-    <li className="flex items-center justify-between gap-3 py-2">
+    <li className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0">
         <p className="truncate font-medium">{group.type === 'single' ? group.lecture.title : group.series.title}</p>
         {summary}
+        {group.type === 'single' ? (
+          <LectureSubmodules
+            lecture={group.lecture}
+            options={topics.submodules}
+            onChanged={topics.onTopicsChanged}
+            className="mt-1"
+          />
+        ) : (
+          <SeriesTopics lectures={group.series.lectures} {...topics} />
+        )}
       </div>
       <div className="flex shrink-0 gap-2">
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
@@ -416,6 +466,14 @@ export function ModuleSettingsDialog({
     [feedGroups.length > 0],
   )
   const feedName = (feedId: number) => feeds?.find((f) => f.id === feedId)?.name ?? 'a calendar'
+  // Topics save straight away, so the module page behind the dialog refreshes too.
+  const topics: TopicsProps = {
+    submodules: module.submodules,
+    onTopicsChanged: async () => {
+      onChanged()
+      await refetchLectures()
+    },
+  }
 
   const { data: appSettings } = useAsync(() => getAppSettings(), [])
   const { data: allModules } = useAsync(() => listModules(), [])
@@ -565,7 +623,12 @@ export function ModuleSettingsDialog({
                 {feedGroups.length > 0 && (
                   <ul className="divide-y">
                     {feedGroups.map((group) => (
-                      <FeedLectureCard key={`${group.feedId}-${group.title}`} group={group} feedName={feedName(group.feedId)} />
+                      <FeedLectureCard
+                        key={`${group.feedId}-${group.title}`}
+                        group={group}
+                        feedName={feedName(group.feedId)}
+                        {...topics}
+                      />
                     ))}
                   </ul>
                 )}
@@ -580,6 +643,7 @@ export function ModuleSettingsDialog({
                         moduleId={module.id}
                         group={group}
                         onChanged={refetchLectures}
+                        {...topics}
                       />
                     ))}
                   </ul>

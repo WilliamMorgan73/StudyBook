@@ -27,7 +27,7 @@ from app.crud.calendar_feeds import (
     refresh_stale_feeds,
 )
 from app.main import app as fastapi_app
-from app.models import CalendarFeed, CalendarFeedEvent, Lecture, Module
+from app.models import CalendarFeed, CalendarFeedEvent, Lecture, Module, Submodule
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ics"
 
@@ -549,3 +549,108 @@ def test_file_feeds_are_never_fetched(client, db, monkeypatch):
     assert client.post(f"/calendar-feeds/{feed_id}/refresh").status_code == 400
     assert client.patch(f"/calendar-feeds/{feed_id}", json={"url": "https://example.com/a.ics"}).status_code == 400
     assert client.patch(f"/calendar-feeds/{feed_id}", json={"name": "Uni"}).json()["source"] == "file"
+
+
+# --- the Submodules a Lecture covered (manual and feed Lectures alike) -----------------------------
+
+
+def make_submodules(db: Session, module: Module, *titles: str) -> list[Submodule]:
+    submodules = [Submodule(module=module, title=title, created_at=utc_now(), updated_at=utc_now()) for title in titles]
+    db.add_all(submodules)
+    db.commit()
+    return submodules
+
+
+def submodule_titles(lecture: dict) -> list[str]:
+    return [s["title"] for s in lecture["submodules"]]
+
+
+def test_a_manual_lecture_can_be_given_and_cleared_of_submodules(client, db):
+    module = make_module(db)
+    graphs, sorting = make_submodules(db, module, "Graphs", "Sorting")
+
+    created = client.post("/lectures", json={
+        "module_id": module.id, "title": "Lecture 1", "scheduled_at": at(1, 10).isoformat(), "submodule_ids": [sorting.id],
+    }).json()  # fmt: skip
+    assert submodule_titles(created) == ["Sorting"]
+
+    updated = client.patch(f"/lectures/{created['id']}", json={"submodule_ids": [sorting.id, graphs.id]}).json()
+    assert submodule_titles(updated) == ["Graphs", "Sorting"]  # by title
+    assert client.patch(f"/lectures/{created['id']}", json={"submodule_ids": []}).json()["submodules"] == []
+
+
+def test_submodules_from_another_module_are_rejected(client, db):
+    module, other = make_module(db), make_module(db)
+    (foreign,) = make_submodules(db, other, "Elsewhere")
+    lecture = Lecture(module_id=module.id, title="Lecture 1", scheduled_at=at(1, 10))
+    db.add(lecture)
+    db.commit()
+
+    assert client.patch(f"/lectures/{lecture.id}", json={"submodule_ids": [foreign.id]}).status_code == 422
+    assert client.patch(f"/lectures/{lecture.id}", json={"submodule_ids": [999]}).status_code == 422
+    body = {"module_id": module.id, "title": "Lecture 2", "scheduled_at": at(2, 10).isoformat(), "submodule_ids": [foreign.id]}
+    assert client.post("/lectures", json=body).status_code == 422
+
+
+def test_feed_lectures_take_submodules_and_keep_them_across_resyncs(client, db):
+    module = make_module(db)
+    (topic,) = make_submodules(db, module, "Topic 3")
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)
+    week3 = next(lec for lec in lectures(client, module.id) if lec["scheduled_at"] == at(3, 10).isoformat())
+
+    # Everything else about a feed lecture is the feed's, and still read-only.
+    assert client.patch(f"/lectures/{week3['id']}", json={"submodule_ids": [topic.id], "title": "X"}).status_code == 409
+    assert client.patch(f"/lectures/{week3['id']}", json={"submodule_ids": [topic.id]}).status_code == 200
+
+    # Week 3 moves to Wednesday: same Lecture, same Submodule.
+    client.put(
+        f"/calendar-feeds/{feed_id}/file",
+        files={"file": ("timetable.ics", timetable(moved_week=3).encode(), "text/calendar")},
+    )
+    rows = {lec["id"]: lec for lec in lectures(client, module.id)}
+    assert rows[week3["id"]]["scheduled_at"] == at(3, 14, weekday=2).isoformat()
+    assert submodule_titles(rows[week3["id"]]) == ["Topic 3"]
+
+
+def test_linking_a_series_to_another_module_drops_its_submodules(client, db):
+    module, other = make_module(db), make_module(db)
+    (topic,) = make_submodules(db, module, "Topic 1")
+    feed_id = upload(client, timetable()).json()["id"]
+    link(client, feed_id, module.id)
+    lecture_id = lectures(client, module.id)[0]["id"]
+    client.patch(f"/lectures/{lecture_id}", json={"submodule_ids": [topic.id]})
+
+    link(client, feed_id, other.id)
+
+    moved = next(lec for lec in lectures(client, other.id) if lec["id"] == lecture_id)
+    assert moved["submodules"] == []
+
+
+def test_deleting_a_submodule_only_drops_its_links(client, db):
+    module = make_module(db)
+    keep, drop = make_submodules(db, module, "Keep", "Drop")
+    lecture = Lecture(module_id=module.id, title="Lecture 1", scheduled_at=at(1, 10), submodules=[keep, drop])
+    db.add(lecture)
+    db.commit()
+
+    db.delete(drop)
+    db.commit()
+    db.expire_all()
+
+    assert [submodule_titles(lec) for lec in lectures(client, module.id)] == [["Keep"]]
+
+
+def test_calendar_lectures_carry_their_submodules(client, db):
+    module = make_module(db)
+    graphs, sorting = make_submodules(db, module, "Graphs", "Sorting")
+    db.add_all([
+        Lecture(module_id=module.id, title="Lecture 1", scheduled_at=at(1, 10), submodules=[graphs]),
+        Lecture(module_id=module.id, title="Lecture 2", scheduled_at=at(2, 10), submodules=[graphs, sorting]),
+        Lecture(module_id=module.id, title="Lecture 3", scheduled_at=at(3, 10)),
+    ])  # fmt: skip
+    db.commit()
+
+    params = {"start": at(1, 0).isoformat(), "end": at(5, 0).isoformat()}
+    events = [e for e in client.get("/calendar", params=params).json() if e["kind"] == "lecture"]
+    assert [[s["title"] for s in e["submodules"]] for e in events] == [["Graphs"], ["Graphs", "Sorting"], []]

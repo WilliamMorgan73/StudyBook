@@ -30,6 +30,7 @@ from app.models import (
 )
 from app.models.assignment import assignment_submodules
 from app.models.enums import AssignmentKind
+from app.models.lecture import lecture_submodules
 from app.models.revision_session import revision_session_submodules
 
 
@@ -56,6 +57,7 @@ def db() -> Iterator[Session]:
         Assignment.__table__,
         assignment_submodules,
         Lecture.__table__,
+        lecture_submodules,
         Flashcard.__table__,
         FlashcardReview.__table__,
         PersonalEvent.__table__,

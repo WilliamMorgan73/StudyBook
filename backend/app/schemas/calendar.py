@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.assignment import CoveredSubmodule
+
 
 class CalendarEvent(BaseModel):
     kind: Literal["lecture", "assignment_due", "exam", "busy", "revision"]
@@ -23,5 +25,7 @@ class CalendarEvent(BaseModel):
     """Set only for `busy` events from a calendar feed."""
     color: str | None = None
     """The calendar feed's colour; set only alongside `feed_id`."""
+    submodules: list[CoveredSubmodule] = []
+    """Set only for `lecture`: the Submodules it covered."""
     all_day: bool = False
     """Only feed events can be all-day; they show on the calendar but never block revision planning."""

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { DaySwap } from '@/components/CalendarEffects'
 import { useOverview } from '@/components/dashboard/overviewContext'
 import { EventMarker } from '@/components/EventMarker'
+import { LectureSubmodules } from '@/components/LectureSubmodules'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { CalendarEvent } from '@/lib/api'
 import { calendarEventKey } from '@/lib/busyTime'
@@ -38,6 +39,7 @@ function formatTime(iso: string) {
 export function DayAgenda() {
   const { calendar, moduleName, moduleColor } = useOverview()
   const { selected, selectedDayEvents, expandedEventKey, toggleEvent, setRevisionDone } = calendar
+  const refetchCalendar = calendar.calendar.refetch
 
   return (
     <DaySwap dayKey={selected.toDateString()}>
@@ -90,6 +92,13 @@ export function DayAgenda() {
                       {event.location && <p>{event.location}</p>}
                       {isBusy && (
                         <p>{event.feed_id != null ? 'Calendar feed' : 'Personal event'} (Settings → Calendars)</p>
+                      )}
+                      {event.kind === 'lecture' && event.module_id !== null && (
+                        <LectureSubmodules
+                          lecture={{ id: event.id, module_id: event.module_id, submodules: event.submodules }}
+                          onChanged={refetchCalendar}
+                          className="py-0.5"
+                        />
                       )}
                       {event.kind === 'revision' && (
                         <label className="flex w-fit cursor-pointer items-center gap-1.5 text-foreground">
