@@ -1,4 +1,4 @@
-import { ArrowLeft, Code2, FileText, Layers, ScrollText, Settings as SettingsIcon, SquarePlus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Code2, FileText, Layers, Pencil, ScrollText, Settings as SettingsIcon, SquarePlus, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -15,7 +15,9 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
 import {
   createFlashcard,
   deleteFlashcard,
@@ -25,6 +27,7 @@ import {
   getSubmodule,
   listFlashcards,
   resolveWikilink,
+  updateFlashcard,
   updateSubmodule,
   uploadSubmoduleAttachment,
   type AppSettings,
@@ -80,27 +83,143 @@ function NewFlashcardForm({ moduleId, submoduleId, onCreated }: { moduleId: numb
   )
 }
 
-function FlashcardRow({ card, onDeleted }: { card: Flashcard; onDeleted: () => void }) {
+const WHOLE_MODULE = 'module'
+
+// Editing keeps the card's SM-2 scheduling and review history; only its text or Submodule change.
+function EditFlashcardForm({
+  card,
+  submodules,
+  onSaved,
+  onCancel,
+}: {
+  card: Flashcard
+  submodules: { id: number; title: string }[] | undefined
+  onSaved: () => void
+  onCancel: () => void
+}) {
+  const [front, setFront] = useState(card.front)
+  const [back, setBack] = useState(card.back)
+  const [submoduleId, setSubmoduleId] = useState(card.submodule_id === null ? WHOLE_MODULE : String(card.submodule_id))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!front.trim() || !back.trim()) {
+      setError('Both sides of the card are required.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await updateFlashcard(card.id, {
+        front: front.trim(),
+        back: back.trim(),
+        submodule_id: submoduleId === WHOLE_MODULE ? null : Number(submoduleId),
+      })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save the flashcard.')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 py-2">
+      <Label htmlFor={`flashcard-${card.id}-front`} className="sr-only">
+        Front
+      </Label>
+      <Textarea
+        id={`flashcard-${card.id}-front`}
+        value={front}
+        onChange={(e) => setFront(e.target.value)}
+        className="min-h-9"
+        autoFocus
+      />
+      <Label htmlFor={`flashcard-${card.id}-back`} className="sr-only">
+        Back
+      </Label>
+      <Textarea
+        id={`flashcard-${card.id}-back`}
+        value={back}
+        onChange={(e) => setBack(e.target.value)}
+        className="min-h-9"
+      />
+      <div className="flex items-center gap-2">
+        {submodules && (
+          <Select value={submoduleId} onValueChange={setSubmoduleId}>
+            <SelectTrigger size="sm" className="mr-auto w-48" aria-label="Topic">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={WHOLE_MODULE}>Whole module</SelectItem>
+              {submodules.map((s) => (
+                <SelectItem key={s.id} value={String(s.id)}>
+                  {s.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </form>
+  )
+}
+
+function FlashcardRow({
+  card,
+  submodules,
+  onChanged,
+}: {
+  card: Flashcard
+  submodules: { id: number; title: string }[] | undefined
+  onChanged: () => void
+}) {
+  const [editing, setEditing] = useState(false)
   return (
     // Padding lives on the inner row so the exit can collapse the <li> all the way to zero.
     <motion.li variants={listItem} initial="hidden" animate="shown" exit="exit">
-      <div className="flex items-center justify-between gap-3 py-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{card.front}</p>
-          <p className="truncate text-sm text-muted-foreground">{card.back}</p>
-        </div>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Delete flashcard"
-          onClick={async () => {
-            await deleteFlashcard(card.id)
-            onDeleted()
+      {editing ? (
+        <EditFlashcardForm
+          card={card}
+          submodules={submodules}
+          onCancel={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false)
+            onChanged()
           }}
-        >
-          <Trash2 />
-        </Button>
-      </div>
+        />
+      ) : (
+        <div className="flex items-center justify-between gap-3 py-2">
+          <div className="min-w-0">
+            <p className="truncate font-medium">{card.front}</p>
+            <p className="truncate text-sm text-muted-foreground">{card.back}</p>
+          </div>
+          <div className="flex shrink-0">
+            <Button size="icon-sm" variant="ghost" aria-label="Edit flashcard" onClick={() => setEditing(true)}>
+              <Pencil />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Delete flashcard"
+              onClick={async () => {
+                await deleteFlashcard(card.id)
+                onChanged()
+              }}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </div>
+      )}
     </motion.li>
   )
 }
@@ -412,7 +531,7 @@ function SubmoduleView({
               <ul className="max-h-80 divide-y overflow-y-auto">
                 <AnimatePresence initial={false}>
                   {flashcards.map((card) => (
-                    <FlashcardRow key={card.id} card={card} onDeleted={refetch} />
+                    <FlashcardRow key={card.id} card={card} submodules={module?.submodules} onChanged={refetch} />
                   ))}
                 </AnimatePresence>
               </ul>

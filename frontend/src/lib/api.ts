@@ -631,6 +631,11 @@ export function summarizeSubmodule(submoduleId: number, input: { raw_pdf_ids: nu
   return postJson<SubmoduleDetail>(`/submodules/${submoduleId}/summary`, input)
 }
 
+/** Edits text or moves the card (`submodule_id: null` = the whole Module); scheduling is kept. */
+export function updateFlashcard(id: number, input: { front?: string; back?: string; submodule_id?: number | null }) {
+  return patchJson<Flashcard>(`/flashcards/${id}`, input)
+}
+
 export function deleteFlashcard(id: number) {
   return request<void>(`/flashcards/${id}`, { method: 'DELETE' })
 }

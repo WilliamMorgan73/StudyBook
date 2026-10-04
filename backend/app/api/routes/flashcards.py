@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud.spaced_repetition import review_card
 from app.models.flashcard import Flashcard
-from app.schemas.flashcard import FlashcardCreate, FlashcardRead, FlashcardReviewCreate
+from app.models.submodule import Submodule
+from app.schemas.flashcard import (
+    FlashcardCreate,
+    FlashcardRead,
+    FlashcardReviewCreate,
+    FlashcardUpdate,
+)
 
 router = APIRouter(prefix="/flashcards", tags=["flashcards"])
 
@@ -40,6 +46,26 @@ def list_due(
 def create_flashcard(payload: FlashcardCreate, db: Session = Depends(get_db)) -> Flashcard:
     card = Flashcard(**payload.model_dump())
     db.add(card)
+    db.commit()
+    db.refresh(card)
+    return card
+
+
+@router.patch("/{flashcard_id}", response_model=FlashcardRead)
+def update_flashcard(flashcard_id: int, payload: FlashcardUpdate, db: Session = Depends(get_db)) -> Flashcard:
+    card = db.get(Flashcard, flashcard_id)
+    if card is None:
+        raise HTTPException(404, "Flashcard not found")
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("front", "") is None or changes.get("back", "") is None:
+        raise HTTPException(422, "A card needs both a front and a back")
+    submodule_id = changes.get("submodule_id")
+    if submodule_id is not None:
+        submodule = db.get(Submodule, submodule_id)
+        if submodule is None or submodule.module_id != card.module_id:
+            raise HTTPException(400, "Submodule must belong to the card's module")
+    for field, value in changes.items():
+        setattr(card, field, value)
     db.commit()
     db.refresh(card)
     return card

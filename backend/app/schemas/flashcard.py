@@ -17,6 +17,15 @@ class FlashcardCreate(FlashcardBase):
     module_id: int
 
 
+class FlashcardUpdate(BaseModel):
+    """Edits a card's text or Submodule; its SM-2 scheduling and review history are untouched."""
+
+    front: str | None = Field(default=None, pattern=r"\S")
+    back: str | None = Field(default=None, pattern=r"\S")
+    # Null moves the card to the whole Module.
+    submodule_id: int | None = None
+
+
 class FlashcardRead(FlashcardBase):
     model_config = ConfigDict(from_attributes=True)
 
