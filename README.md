@@ -64,12 +64,12 @@ Each course gets a colour, a credit weighting, a live countdown to the next lect
 
 ### ✅ Assignments and exams
 
-Each assignment has a weighting (a module's weightings can't add up to more than 100%), a due-date countdown and a status that moves through *not started → submitted → graded*. Its notes fill the left of the page in the same live editor as your topic notes. On the right, a checklist tracks your progress, and attached files (the brief, a rubric, a past paper) open as inline PDF, image or video previews. Exams also store a duration, a location and the topics they cover, shown as links in the header, plus their revision plan.
+Each assignment has a weighting (a module's weightings can't add up to more than 100%), a due-date countdown and a status that moves through *not started → submitted → graded*. Its notes fill the left of the page in the same live editor as your topic notes. On the right, a checklist tracks your progress, and attached files (the brief, a rubric, a past paper) open in a PDF, image or video preview. Exams also store a duration, a location and the topics they cover, shown as links in the header, plus their revision plan.
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/assignment.png" alt="Coursework page with notes, a checklist and an embedded PDF brief"></td>
-    <td><img src="docs/screenshots/assignment-exam.png" alt="Exam page with covered topics, a checklist and a revision plan"></td>
+    <td><img src="docs/screenshots/assignment.png" alt="Coursework page with notes, a checklist and the attached brief"></td>
+    <td><img src="docs/screenshots/assignment-exam.png" alt="Exam page with covered topics, a checklist and its revision plan"></td>
   </tr>
 </table>
 
@@ -97,7 +97,7 @@ Pick an exam, the days you can study and how long each session should be. StudyB
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/revision-plan.png" alt="Revision plan for an exam"></td>
+    <td><img src="docs/screenshots/revision-plan.png" alt="Planning revision for an exam: days, session length and start date"></td>
     <td><img src="docs/screenshots/revision-session.png" alt="A revision session with its weakest cards"></td>
   </tr>
 </table>
