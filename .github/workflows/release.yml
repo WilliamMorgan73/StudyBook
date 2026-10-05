@@ -75,6 +75,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: frontend
+          # Linux: the usual build, then the AppImage's bundled libwayland removed (scripts/fix-appimage.sh).
+          tauriScript: ${{ runner.os == 'Linux' && 'bash scripts/tauri-linux.sh' || '' }}
           args: --bundles ${{ matrix.bundles }}
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           releaseName: StudyBook ${{ github.ref_name }}
