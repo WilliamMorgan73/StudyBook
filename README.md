@@ -187,6 +187,8 @@ cd backend  && uv run pytest && uv run ruff check .
 cd frontend && pnpm test && pnpm lint
 ```
 
+The screenshots in this README come from a seeded demo semester: `scripts/screenshots/run.sh` rebuilds them all (or `run.sh notes module` for some) on a throwaway data folder.
+
 ---
 
 ## 🗺️ Roadmap
