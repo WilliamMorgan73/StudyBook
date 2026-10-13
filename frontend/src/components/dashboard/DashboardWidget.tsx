@@ -83,8 +83,9 @@ function SwapMenu({ title, controls }: { title: string; controls: TileControls }
 /**
  * The card every Overview widget sits in. It fills its grid cell; the body scrolls inside it and
  * is a size container, so widgets adapt with `@md:`-style container queries rather than viewport
- * breakpoints. In edit mode the header is the drag handle and the body ignores the pointer, so a
- * drag can't type into the notepad or pick a calendar day.
+ * breakpoints. In edit mode the header is the drag handle and the body is inert: no pointer, no
+ * focus, no typing. A drag can't pick a calendar day, and Tab only reaches the header's controls,
+ * never the to-do box.
  */
 export function DashboardWidget({
   title,
@@ -145,7 +146,8 @@ export function DashboardWidget({
         )}
       </CardHeader>
       <CardContent
-        className={`@container flex min-h-0 flex-1 flex-col ${scroll ? 'overflow-y-auto' : 'overflow-hidden'} ${editing ? 'pointer-events-none select-none' : ''} ${bodyClassName}`}
+        inert={editing}
+        className={`@container flex min-h-0 flex-1 flex-col ${scroll ? 'overflow-y-auto' : 'overflow-hidden'} ${editing ? 'select-none' : ''} ${bodyClassName}`}
       >
         {children}
       </CardContent>
