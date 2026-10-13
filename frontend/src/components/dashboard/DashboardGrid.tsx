@@ -1,8 +1,10 @@
-import { useMemo, useRef, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 import ReactGridLayout, {
   bottom,
   cloneLayout,
+  getLayoutItem,
+  moveElement,
   useContainerWidth,
   verticalCompactor,
   type Compactor,
@@ -15,8 +17,11 @@ import {
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
   DASHBOARD_ROWS,
+  cellAt,
   fitRowHeight,
   stackedOrder,
+  swapTiles,
+  tileAt,
   widgetHeight,
   type LayoutItem,
   type WidgetInfo,
@@ -30,17 +35,55 @@ function sameWidgets(a: Layout, b: Layout): boolean {
   return a.length === b.length && a.every((item) => b.some((other) => other.i === item.i))
 }
 
+/** The drag in progress, and the widget it would swap with if dropped now. */
+interface DragSession {
+  id: string
+  /** The layout when the drag began. */
+  start: Layout
+  /** The widget under the pointer (on `start`), if any. */
+  target: string | null
+  /** `start` with the dragged widget and the target swapped; null if that doesn't fit the board. */
+  swapped: Layout | null
+  /** The pointer has just left the target, so the next step restarts from `start`. */
+  leftSwap: boolean
+}
+
+/** Where a mouse or touch event happened, in viewport px. */
+function clientPoint(e: Event): { x: number; y: number } | null {
+  if ('touches' in e) {
+    const touch = (e as TouchEvent).touches[0] ?? (e as TouchEvent).changedTouches[0]
+    return touch ? { x: touch.clientX, y: touch.clientY } : null
+  }
+  return 'clientX' in e ? { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY } : null
+}
+
 /**
  * The usual compactor (widgets float up, and push each other out of the way), except that a move
  * which would push a widget off the bottom of the board is refused: the layout stays as it was
- * before that step of the drag or resize.
+ * before that step of the drag or resize. While the dragged widget is over another one, the board
+ * shows the two swapped instead (or the layout from before the drag, if the swap won't fit), and
+ * that's what a drop there keeps.
  */
-function useBoardCompactor(): Compactor {
+function useBoardCompactor(dragRef: RefObject<DragSession | null>): Compactor {
   const lastFit = useRef<Layout | null>(null)
   return useMemo(
     () => ({
       ...verticalCompactor,
       compact(layout, cols) {
+        const drag = dragRef.current
+        if (drag?.target) {
+          lastFit.current = cloneLayout(drag.swapped ?? drag.start)
+          return cloneLayout(lastFit.current)
+        }
+        if (drag?.leftSwap) {
+          // The grid moved the widget from the swap preview; move it from the original layout instead.
+          drag.leftSwap = false
+          const moved = getLayoutItem(layout, drag.id)
+          const base = cloneLayout(drag.start)
+          const item = getLayoutItem(base, drag.id)
+          if (moved && item) layout = moveElement(base, item, moved.x, moved.y, true, false, 'vertical', cols)
+          lastFit.current = cloneLayout(drag.start)
+        }
         const out = verticalCompactor.compact(layout, cols)
         const previous = lastFit.current
         if (bottom(out) <= DASHBOARD_ROWS) {
@@ -53,7 +96,7 @@ function useBoardCompactor(): Compactor {
         return previous && sameWidgets(previous, out) ? cloneLayout(previous) : out
       },
     }),
-    [],
+    [dragRef],
   )
 }
 
@@ -79,10 +122,37 @@ export function DashboardGrid<Id extends string>({
 }) {
   const { width, containerRef, mounted } = useContainerWidth()
   const [scrollerRef, { height }] = useElementSize<HTMLDivElement>()
-  const compactor = useBoardCompactor()
+  const dragRef = useRef<DragSession | null>(null)
+  const compactor = useBoardCompactor(dragRef)
+  // The widget being dragged, the one a drop would swap it with, and whether that swap fits: the
+  // target is outlined, and the dragged widget (always in view) says when it won't fit.
+  const [swapHint, setSwapHint] = useState<{ id: string; target: string; fits: boolean } | null>(null)
   const stacked = mounted && width < STACK_BELOW
   // Entrance order follows reading order, whichever way the widgets are laid out.
   const order = stackedOrder(layout)
+  const rowHeight = fitRowHeight(height)
+
+  function onDrag(e: Event) {
+    const drag = dragRef.current
+    const point = clientPoint(e)
+    const grid = containerRef.current?.getBoundingClientRect()
+    if (!drag || !point || !grid) return
+    // Hit-tested against the layout from before the drag, since the swap preview moves the target
+    // out from under the pointer.
+    const { col, row } = cellAt(point.x - grid.left, point.y - grid.top, width, rowHeight)
+    const target = tileAt(drag.start, col, row, drag.id)
+    if (target === drag.target) return
+    if (drag.target && !target) drag.leftSwap = true
+    drag.target = target
+    const swapped = target ? swapTiles(drag.start, drag.id, target) : null
+    drag.swapped = swapped && drag.start.map((item) => ({ ...item, ...getLayoutItem(swapped, item.i) }))
+    setSwapHint(target ? { id: drag.id, target, fits: swapped !== null } : null)
+  }
+
+  function endDrag() {
+    dragRef.current = null
+    setSwapHint(null)
+  }
 
   return (
     // Bleeds into the page padding by one grid margin, so the grid's own padding lines up with it.
@@ -108,7 +178,7 @@ export function DashboardGrid<Id extends string>({
               layout={layout.map((item) => ({ ...item, minW: widgets[item.i].minW, minH: widgets[item.i].minH }))}
               gridConfig={{
                 cols: DASHBOARD_COLUMNS,
-                rowHeight: fitRowHeight(height),
+                rowHeight,
                 maxRows: DASHBOARD_ROWS,
                 margin: [DASHBOARD_MARGIN, DASHBOARD_MARGIN],
                 containerPadding: [DASHBOARD_MARGIN, DASHBOARD_MARGIN],
@@ -116,14 +186,35 @@ export function DashboardGrid<Id extends string>({
               compactor={compactor}
               dragConfig={{ enabled: editing, bounded: true, handle: `.${DRAG_HANDLE_CLASS}`, cancel: 'button' }}
               resizeConfig={{ enabled: editing, handles: ['e', 's', 'se'] }}
+              onDragStart={(current, item) => {
+                if (item) dragRef.current = { id: item.i, start: cloneLayout(current), target: null, swapped: null, leftSwap: false }
+              }}
+              onDrag={(_layout, _old, _item, _placeholder, e) => onDrag(e)}
+              onDragStop={endDrag}
               onLayoutChange={(next: Layout) => {
                 if (editing) onLayoutChange(next.map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h })))
               }}
               className="dashboard-grid"
             >
-              {layout.map((item) => (
-                <div key={item.i}>{renderWidget(item.i, order.indexOf(item))}</div>
-              ))}
+              {layout.map((item) => {
+                const target = swapHint?.target === item.i
+                const wontFit = swapHint?.id === item.i && !swapHint.fits
+                return (
+                  <div
+                    key={item.i}
+                    className={target ? `rounded-xl ring-2 ${swapHint.fits ? 'ring-primary' : 'ring-destructive'}` : undefined}
+                  >
+                    {renderWidget(item.i, order.indexOf(item))}
+                    {wontFit && (
+                      <div className="pointer-events-none absolute inset-0 grid place-items-center">
+                        <span className="rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white shadow">
+                          Won’t fit
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </ReactGridLayout>
           ))}
       </div>

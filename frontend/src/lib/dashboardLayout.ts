@@ -309,3 +309,45 @@ export function sameLayout(a: LayoutItem[], b: LayoutItem[]): boolean {
     return other !== undefined && other.x === item.x && other.y === item.y && other.w === item.w && other.h === item.h
   })
 }
+
+/**
+ * The layout with widgets `a` and `b` trading places (each keeps its own size), compacted the way
+ * the board compacts. A widget too wide for the other's column is pulled left to stay on the
+ * board. Null if the result would hang off the bottom of the board.
+ */
+export function swapTiles<Id extends string>(layout: readonly LayoutItem<Id>[], a: Id, b: Id): LayoutItem<Id>[] | null {
+  const first = layout.find((item) => item.i === a)
+  const second = layout.find((item) => item.i === b)
+  if (!first || !second || a === b) return null
+  const swapped = layout.map((item) => {
+    const other = item.i === a ? second : item.i === b ? first : null
+    if (!other) return { ...item }
+    return { ...item, x: Math.min(other.x, DASHBOARD_COLUMNS - item.w), y: other.y }
+  })
+  const out = verticalCompactor
+    .compact(swapped, DASHBOARD_COLUMNS)
+    .map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
+  return layoutBottom(out) <= DASHBOARD_ROWS ? out : null
+}
+
+/**
+ * The grid cell under a point, given in px from the grid's top-left corner (padding included) on a
+ * grid `width` px wide with rows `rowHeight` px tall. A gap between cells counts as the cell before
+ * it, and points outside the board snap to its nearest cell.
+ */
+export function cellAt(px: number, py: number, width: number, rowHeight: number): { col: number; row: number } {
+  const colWidth = (width - DASHBOARD_MARGIN * (DASHBOARD_COLUMNS + 1)) / DASHBOARD_COLUMNS
+  const clamp = (n: number, max: number) => Math.min(max - 1, Math.max(0, n))
+  return {
+    col: clamp(Math.floor((px - DASHBOARD_MARGIN) / (colWidth + DASHBOARD_MARGIN)), DASHBOARD_COLUMNS),
+    row: clamp(Math.floor((py - DASHBOARD_MARGIN) / (rowHeight + DASHBOARD_MARGIN)), DASHBOARD_ROWS),
+  }
+}
+
+/** The widget covering a grid cell, other than `exclude`; null for empty space. */
+export function tileAt<Id extends string>(layout: readonly LayoutItem<Id>[], col: number, row: number, exclude: Id): Id | null {
+  const hit = layout.find(
+    (item) => item.i !== exclude && col >= item.x && col < item.x + item.w && row >= item.y && row < item.y + item.h,
+  )
+  return hit ? hit.i : null
+}

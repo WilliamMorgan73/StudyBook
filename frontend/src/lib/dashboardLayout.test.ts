@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addWidget,
   canAddWidget,
+  cellAt,
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
   DASHBOARD_MIN_ROW_HEIGHT,
@@ -15,6 +16,8 @@ import {
   removeWidget,
   sameLayout,
   stackedOrder,
+  swapTiles,
+  tileAt,
   OVERVIEW_BOARD,
   WIDGET_IDS,
   WIDGETS,
@@ -175,5 +178,85 @@ describe('fitRowHeight', () => {
 
   it('stops shrinking at the minimum row height', () => {
     expect(fitRowHeight(200)).toBe(DASHBOARD_MIN_ROW_HEIGHT)
+  })
+})
+
+describe('swapTiles', () => {
+  it('trades the places of two widgets of the same size', () => {
+    const swapped = swapTiles(DEFAULT_LAYOUT, 'upcoming', 'notepad')
+    const expected = DEFAULT_LAYOUT.map((item) =>
+      item.i === 'upcoming' ? { ...item, x: 9, y: 5 } : item.i === 'notepad' ? { ...item, x: 6, y: 0 } : item,
+    )
+    expect(swapped && sameLayout(swapped, expected)).toBe(true)
+  })
+
+  it('keeps each size when the sizes differ, compacting whatever they now overlap', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 4 },
+      { i: 'b', x: 4, y: 0, w: 4, h: 6 },
+      { i: 'c', x: 0, y: 4, w: 4, h: 4 },
+    ]
+    const swapped = swapTiles(layout, 'a', 'b')
+    expect(
+      swapped &&
+        sameLayout(swapped, [
+          { i: 'b', x: 0, y: 0, w: 4, h: 6 },
+          { i: 'a', x: 4, y: 0, w: 4, h: 4 },
+          { i: 'c', x: 0, y: 6, w: 4, h: 4 },
+        ]),
+    ).toBe(true)
+  })
+
+  it('pulls a widget too wide for the other column back onto the board', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 8, h: 4 },
+      { i: 'b', x: 10, y: 0, w: 2, h: 4 },
+    ]
+    expect(swapTiles(layout, 'a', 'b')).toEqual(
+      expect.arrayContaining([
+        { i: 'a', x: 4, y: 0, w: 8, h: 4 },
+        { i: 'b', x: 0, y: 0, w: 2, h: 4 },
+      ]),
+    )
+  })
+
+  it('refuses a swap that would push a widget off the bottom of the board', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 6, h: DASHBOARD_ROWS },
+      { i: 'b', x: 6, y: 0, w: 6, h: 7 },
+      { i: 'c', x: 6, y: 7, w: 6, h: 7 },
+    ]
+    expect(swapTiles(layout, 'a', 'b')).toBeNull()
+  })
+
+  it('refuses unknown widgets and swapping a widget with itself', () => {
+    expect(swapTiles(DEFAULT_LAYOUT, 'calendar', 'calendar')).toBeNull()
+    expect(swapTiles(DEFAULT_LAYOUT, 'calendar', 'flashcardsDue')).toBeNull()
+  })
+})
+
+describe('cellAt and tileAt', () => {
+  // Columns 50px wide and rows 30px tall, with the margin around and between them.
+  const width = DASHBOARD_MARGIN * (DASHBOARD_COLUMNS + 1) + 50 * DASHBOARD_COLUMNS
+  const rowHeight = 30
+
+  it('finds the cell under a point, counting a gap as the cell before it', () => {
+    expect(cellAt(DASHBOARD_MARGIN, DASHBOARD_MARGIN, width, rowHeight)).toEqual({ col: 0, row: 0 })
+    expect(cellAt(DASHBOARD_MARGIN + 50 + 5, DASHBOARD_MARGIN + 30 + 5, width, rowHeight)).toEqual({ col: 0, row: 0 })
+    expect(cellAt(DASHBOARD_MARGIN + 50 + DASHBOARD_MARGIN, DASHBOARD_MARGIN + 30 + DASHBOARD_MARGIN, width, rowHeight)).toEqual({
+      col: 1,
+      row: 1,
+    })
+  })
+
+  it('snaps points outside the board to its nearest cell', () => {
+    expect(cellAt(-20, -20, width, rowHeight)).toEqual({ col: 0, row: 0 })
+    expect(cellAt(10_000, 10_000, width, rowHeight)).toEqual({ col: DASHBOARD_COLUMNS - 1, row: DASHBOARD_ROWS - 1 })
+  })
+
+  it('finds the widget covering a cell, other than the one being dragged', () => {
+    expect(tileAt(DEFAULT_LAYOUT, 10, 6, 'calendar')).toBe('notepad')
+    expect(tileAt(DEFAULT_LAYOUT, 0, 0, 'calendar')).toBeNull()
+    expect(tileAt([{ i: 'todo', x: 0, y: 0, w: 3, h: 3 }], 5, 5, 'calendar')).toBeNull()
   })
 })
