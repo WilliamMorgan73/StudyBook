@@ -28,7 +28,7 @@ import {
   updateRevisionSession,
   type RevisionSession,
 } from '@/lib/api'
-import { sameLayout } from '@/lib/dashboardLayout'
+import { sameLayout, type LayoutItem } from '@/lib/dashboardLayout'
 import { MODULE_DEFAULT_LAYOUT, MODULE_WIDGETS, moduleBoard, type ModuleWidgetId } from '@/lib/moduleLayout'
 import { normalizeBanner } from '@/lib/moduleBanner'
 import { enter } from '@/lib/motion'
@@ -145,19 +145,20 @@ function ModuleView({ id }: { id: number }) {
     },
     selectedDay,
     setSelectedDay,
-    dayAgendaPlaced: layout.some((item) => item.i === 'dayAgenda'),
+    dayAgendaPlaced: layout.some((item) => item.type === 'dayAgenda'),
   }
 
-  function renderWidget(widgetId: ModuleWidgetId, slot: number) {
-    const { body, action, scroll } = MODULE_WIDGET_CONTENT[widgetId]
+  function renderWidget(item: LayoutItem<ModuleWidgetId>, slot: number) {
+    const { body, action, scroll, settings } = MODULE_WIDGET_CONTENT[item.type]
     return (
       <DashboardWidget
-        title={widgetId === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[widgetId].title}
+        title={item.type === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[item.type].title}
         slot={slot + 1}
         editing={editing}
-        onRemove={() => editor.remove(widgetId)}
+        onRemove={() => editor.remove(item.i)}
         action={action}
         scroll={scroll}
+        settings={settings}
       >
         {body}
       </DashboardWidget>

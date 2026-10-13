@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-
+import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
 import {
   AssignmentsAction,
   AssignmentsWidget,
@@ -21,8 +20,11 @@ import {
 } from '@/components/dashboard/ModuleWidgets'
 import type { ModuleWidgetId } from '@/lib/moduleLayout'
 
-/** Each module-page widget's body, header action and scrolling; shared by the page and its preview. */
-export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, { body: ReactNode; action?: ReactNode; scroll?: boolean }> = {
+/**
+ * Each module-page widget's body, header action, scrolling and settings form (for widgets with
+ * `WidgetInfo.config`); shared by the page and its preview.
+ */
+export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
   schedule: { body: <ScheduleWidget /> },
   dayAgenda: { body: <DayAgendaWidget /> },
   submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },

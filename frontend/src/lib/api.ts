@@ -817,7 +817,12 @@ export type TableAlignment = 'left' | 'center'
 
 /** One dashboard widget (Overview or module page) on the 12-column grid. Read it through `lib/dashboardLayout.ts::normalizeLayout`. */
 export interface DashboardLayoutItem {
+  /** Instance id. */
   i: string
+  /** Widget type; missing on layouts saved before a widget could be placed twice (then `i` is the type). */
+  type?: string
+  /** The widget's own settings, at most 4096 characters of JSON. */
+  config?: Record<string, unknown>
   x: number
   y: number
   w: number

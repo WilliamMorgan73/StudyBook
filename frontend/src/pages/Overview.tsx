@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
-import { OVERVIEW_BOARD, WIDGETS, type WidgetId } from '@/lib/dashboardLayout'
+import { OVERVIEW_BOARD, WIDGETS, type LayoutItem, type WidgetId } from '@/lib/dashboardLayout'
 import { useAsync } from '@/lib/useAsync'
 
 
@@ -36,22 +36,23 @@ export function Overview() {
     modules,
     appSettings: appSettings.data,
     calendar,
-    agendaPlaced: layout.some((item) => item.i === 'agenda'),
+    agendaPlaced: layout.some((item) => item.type === 'agenda'),
     moduleName: (id) => modules.data?.find((m) => m.id === id)?.name ?? 'Unknown module',
     moduleColor: (id) => modules.data?.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)',
   }
 
-  function renderWidget(id: WidgetId, slot: number) {
+  function renderWidget(item: LayoutItem<WidgetId>, slot: number) {
+    const { body, scroll, settings } = OVERVIEW_WIDGET_CONTENT[item.type]
     return (
       <DashboardWidget
-        title={id === 'agenda' ? selectedDayLabel(calendar.selected) : WIDGETS[id].title}
+        title={item.type === 'agenda' ? selectedDayLabel(calendar.selected) : WIDGETS[item.type].title}
         slot={slot}
         editing={editing}
-        onRemove={() => editor.remove(id)}
-        // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
-        scroll={id !== 'progress'}
+        onRemove={() => editor.remove(item.i)}
+        scroll={scroll}
+        settings={settings}
       >
-        {OVERVIEW_WIDGET_CONTENT[id]}
+        {body}
       </DashboardWidget>
     )
   }

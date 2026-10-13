@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  addableWidgets,
   addWidget,
   canAddWidget,
   cellAt,
+  configureWidget,
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
   DASHBOARD_MIN_ROW_HEIGHT,
@@ -13,7 +15,6 @@ import {
   layoutBottom,
   neighbourInDirection,
   nudgeTile,
-  hiddenWidgets,
   normalizeLayout,
   removeWidget,
   resizeTile,
@@ -26,6 +27,7 @@ import {
   WIDGETS,
   type Board,
   type LayoutItem,
+  type Tile,
   type WidgetId,
   type WidgetInfo,
 } from '@/lib/dashboardLayout'
@@ -39,8 +41,8 @@ describe.each<[string, Board<string>]>([
     expect(layoutBottom(board.defaultLayout)).toBe(DASHBOARD_ROWS)
     for (const item of board.defaultLayout) {
       expect(item.x + item.w).toBeLessThanOrEqual(DASHBOARD_COLUMNS)
-      expect(item.w).toBeGreaterThanOrEqual(board.widgets[item.i].minW)
-      expect(item.h).toBeGreaterThanOrEqual(board.widgets[item.i].minH)
+      expect(item.w).toBeGreaterThanOrEqual(board.widgets[item.type].minW)
+      expect(item.h).toBeGreaterThanOrEqual(board.widgets[item.type].minH)
     }
   })
 
@@ -67,7 +69,7 @@ describe('normalizeLayout', () => {
       null,
     ])
 
-    expect(layout).toEqual([{ i: 'calendar', x: 0, y: 0, w: 6, h: 9 }])
+    expect(layout).toEqual([{ i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 9 }])
   })
 
   it("drops another board's widgets", () => {
@@ -85,9 +87,9 @@ describe('normalizeLayout', () => {
       { i: 'notepad', x: 11, y: -3, w: 4, h: 6 },
     ])
 
-    expect(small).toEqual({ i: 'calendar', x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
-    expect(wide).toEqual({ i: 'modules', x: 0, y: 8, w: 12, h: 6 })
-    expect(offGrid).toEqual({ i: 'notepad', x: 8, y: 0, w: 4, h: 6 })
+    expect(small).toEqual({ i: 'calendar', type: 'calendar', x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
+    expect(wide).toEqual({ i: 'modules', type: 'modules', x: 0, y: 8, w: 12, h: 6 })
+    expect(offGrid).toEqual({ i: 'notepad', type: 'notepad', x: 8, y: 0, w: 4, h: 6 })
   })
 
   it('scales a layout taller than the board down onto it', () => {
@@ -99,25 +101,109 @@ describe('normalizeLayout', () => {
     ])
 
     expect(layoutBottom(layout)).toBeLessThanOrEqual(DASHBOARD_ROWS)
-    for (const item of layout) expect(item.h).toBeGreaterThanOrEqual(WIDGETS[item.i].minH)
+    for (const item of layout) expect(item.h).toBeGreaterThanOrEqual(WIDGETS[item.type].minH)
     expect(stackedOrder(layout).map((item) => item.i)).toEqual(['calendar', 'progress', 'agenda', 'modules'])
+  })
+})
+
+describe('widget copies and settings', () => {
+  // A board with a clock that can be placed more than once, each copy with its own time zone.
+  const clockConfig = {
+    normalize: (raw: unknown) => {
+      const zone = (raw as { zone?: unknown } | null)?.zone
+      return { zone: typeof zone === 'string' ? zone : 'local' }
+    },
+  }
+  const info = (extra: Partial<WidgetInfo> = {}): WidgetInfo => ({
+    title: '',
+    description: '',
+    minW: 2,
+    minH: 2,
+    defaultW: 3,
+    defaultH: 3,
+    ...extra,
+  })
+  const board: Board<'clock' | 'notes'> = {
+    widgets: { clock: info({ multiple: true, config: clockConfig }), notes: info() },
+    defaultLayout: [{ i: 'notes', type: 'notes', x: 0, y: 0, w: 3, h: 3 }],
+  }
+
+  it('reads a layout saved before copies existed as the widget its id names', () => {
+    expect(normalizeLayout(board, [{ i: 'notes', x: 0, y: 0, w: 3, h: 3 }])).toEqual([
+      { i: 'notes', type: 'notes', x: 0, y: 0, w: 3, h: 3 },
+    ])
+  })
+
+  it('keeps every copy of a widget that can be placed more than once, each with its own settings', () => {
+    const layout = normalizeLayout(board, [
+      { i: 'clock', type: 'clock', config: { zone: 'Europe/London' }, x: 0, y: 0, w: 3, h: 3 },
+      { i: 'clock-2', type: 'clock', config: { zone: 'Asia/Tokyo' }, x: 3, y: 0, w: 3, h: 3 },
+    ])
+    expect(layout.map((item) => [item.i, item.config])).toEqual([
+      ['clock', { zone: 'Europe/London' }],
+      ['clock-2', { zone: 'Asia/Tokyo' }],
+    ])
+  })
+
+  it('drops duplicate instance ids, unknown types, and second copies of single widgets', () => {
+    const layout = normalizeLayout(board, [
+      { i: 'clock', type: 'clock', x: 0, y: 0, w: 3, h: 3 },
+      { i: 'clock', type: 'clock', x: 3, y: 0, w: 3, h: 3 },
+      { i: 'notes', type: 'notes', x: 6, y: 0, w: 3, h: 3 },
+      { i: 'notes-2', type: 'notes', x: 9, y: 0, w: 3, h: 3 },
+      { i: 'weather', type: 'weather', x: 0, y: 3, w: 3, h: 3 },
+      { i: 'clock-3', type: 'toString', x: 0, y: 3, w: 3, h: 3 },
+      { i: '', type: 'clock', x: 0, y: 3, w: 3, h: 3 },
+      { i: 'x'.repeat(33), type: 'clock', x: 0, y: 3, w: 3, h: 3 },
+    ])
+    expect(layout.map((item) => item.i)).toEqual(['clock', 'notes'])
+  })
+
+  it("fills in invalid or missing settings, and gives widgets without settings none", () => {
+    const [missing, invalid, plain] = normalizeLayout(board, [
+      { i: 'clock', type: 'clock', x: 0, y: 0, w: 3, h: 3 },
+      { i: 'clock-2', type: 'clock', config: { zone: 42 }, x: 3, y: 0, w: 3, h: 3 },
+      { i: 'notes', type: 'notes', config: { zone: 'Asia/Tokyo' }, x: 6, y: 0, w: 3, h: 3 },
+    ])
+    expect(missing.config).toEqual({ zone: 'local' })
+    expect(invalid.config).toEqual({ zone: 'local' })
+    expect(plain).not.toHaveProperty('config')
+  })
+
+  it('adds another copy with a fresh id and default settings, and still offers it', () => {
+    const one = addWidget(board, [], 'clock')
+    const two = addWidget(board, one, 'clock')
+    const three = addWidget(board, removeWidget(addWidget(board, two, 'clock'), 'clock-2'), 'clock')
+    expect(two.map((item) => item.i)).toEqual(['clock', 'clock-2'])
+    expect(two[1]).toMatchObject({ type: 'clock', config: { zone: 'local' } })
+    expect(three.map((item) => item.i)).toEqual(['clock', 'clock-3', 'clock-2'])
+    expect(addableWidgets(board, two)).toEqual(['clock', 'notes'])
+  })
+
+  it('changes one copy\'s settings, which counts as a different layout', () => {
+    const two = addWidget(board, addWidget(board, [], 'clock'), 'clock')
+    const changed = configureWidget(two, 'clock-2', { zone: 'Asia/Tokyo' })
+    expect(changed.map((item) => item.config)).toEqual([{ zone: 'local' }, { zone: 'Asia/Tokyo' }])
+    expect(sameLayout(two, changed)).toBe(false)
+    expect(sameLayout(changed, normalizeLayout(board, JSON.parse(JSON.stringify(changed))))).toBe(true)
   })
 })
 
 describe('adding and removing widgets', () => {
   const layout: LayoutItem<WidgetId>[] = [
-    { i: 'calendar', x: 0, y: 0, w: 8, h: 10 },
-    { i: 'notepad', x: 8, y: 0, w: 4, h: 14 },
+    { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 8, h: 10 },
+    { i: 'notepad', type: 'notepad', x: 8, y: 0, w: 4, h: 14 },
   ]
 
-  it('lists only the widgets that are not placed, in registry order', () => {
-    expect(hiddenWidgets(OVERVIEW_BOARD, layout)).toEqual(WIDGET_IDS.filter((id) => id !== 'calendar' && id !== 'notepad'))
+  it('offers only the widgets that are not placed, in registry order', () => {
+    expect(addableWidgets(OVERVIEW_BOARD, layout)).toEqual(WIDGET_IDS.filter((id) => id !== 'calendar' && id !== 'notepad'))
   })
 
   it('adds a widget at its default size in the first free space on the board', () => {
-    const partial: LayoutItem<WidgetId>[] = [{ i: 'calendar', x: 0, y: 0, w: 8, h: 10 }]
+    const partial: LayoutItem<WidgetId>[] = [{ i: 'calendar', type: 'calendar', x: 0, y: 0, w: 8, h: 10 }]
     expect(addWidget(OVERVIEW_BOARD, partial, 'flashcardsDue').at(-1)).toEqual({
       i: 'flashcardsDue',
+      type: 'flashcardsDue',
       x: 8,
       y: 0,
       w: WIDGETS.flashcardsDue.defaultW,
@@ -127,11 +213,11 @@ describe('adding and removing widgets', () => {
 
   it('shrinks a widget towards its minimum size to fit the space left', () => {
     // Four rows free under the calendar, but the modules widget defaults to the full width.
-    expect(addWidget(OVERVIEW_BOARD, layout, 'modules').at(-1)).toEqual({ i: 'modules', x: 0, y: 10, w: 8, h: 4 })
+    expect(addWidget(OVERVIEW_BOARD, layout, 'modules').at(-1)).toEqual({ i: 'modules', type: 'modules', x: 0, y: 10, w: 8, h: 4 })
   })
 
   it('leaves the layout alone when there is no room, even at the minimum size', () => {
-    const full: LayoutItem<WidgetId>[] = [{ i: 'notepad', x: 0, y: 0, w: 12, h: DASHBOARD_ROWS }]
+    const full: LayoutItem<WidgetId>[] = [{ i: 'notepad', type: 'notepad', x: 0, y: 0, w: 12, h: DASHBOARD_ROWS }]
     expect(canAddWidget(OVERVIEW_BOARD, full, 'todo')).toBe(false)
     expect(addWidget(OVERVIEW_BOARD, full, 'todo')).toBe(full)
     expect(canAddWidget(OVERVIEW_BOARD, layout, 'todo')).toBe(true)
@@ -195,7 +281,7 @@ describe('swapTiles', () => {
   })
 
   it('keeps each size when the sizes differ, compacting whatever they now overlap', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 4, h: 4 },
       { i: 'b', x: 4, y: 0, w: 4, h: 6 },
       { i: 'c', x: 0, y: 4, w: 4, h: 4 },
@@ -212,7 +298,7 @@ describe('swapTiles', () => {
   })
 
   it('pulls a widget too wide for the other column back onto the board', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 8, h: 4 },
       { i: 'b', x: 10, y: 0, w: 2, h: 4 },
     ]
@@ -225,7 +311,7 @@ describe('swapTiles', () => {
   })
 
   it('refuses a swap that would push a widget off the bottom of the board', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 6, h: DASHBOARD_ROWS },
       { i: 'b', x: 6, y: 0, w: 6, h: 7 },
       { i: 'c', x: 6, y: 7, w: 6, h: 7 },
@@ -269,16 +355,16 @@ describe('resizeTile', () => {
   const sized = (minW: number, minH: number): WidgetInfo => ({ title: '', description: '', minW, minH, defaultW: minW, defaultH: minH })
   const widgets: Record<string, WidgetInfo> = { a: sized(4, 4), b: sized(2, 3), c: sized(3, 3), d: sized(2, 3) }
   // Grows or shrinks widget a from its right and bottom edges, like the corner handle.
-  const resized = (layout: LayoutItem[], w: number, h: number) => {
+  const resized = (layout: Tile[], w: number, h: number) => {
     const { x, y } = layout.find((item) => item.i === 'a')!
     return resizeTile(widgets, layout, 'a', { x, y, w, h })
   }
-  const expectLayout = (actual: LayoutItem[] | null, expected: LayoutItem[]) => {
+  const expectLayout = (actual: Tile[] | null, expected: Tile[]) => {
     expect(actual).not.toBeNull()
     expect([...actual!].sort((x, y) => x.i.localeCompare(y.i))).toEqual(expected)
   }
 
-  const sideBySide: LayoutItem[] = [
+  const sideBySide: Tile[] = [
     { i: 'a', x: 0, y: 0, w: 6, h: 7 },
     { i: 'b', x: 6, y: 0, w: 6, h: 7 },
   ]
@@ -306,7 +392,7 @@ describe('resizeTile', () => {
   })
 
   it('narrows every widget it runs into by the same amount, stopping at the first minimum', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 6, h: 8 },
       { i: 'b', x: 6, y: 0, w: 6, h: 4 },
       { i: 'c', x: 6, y: 4, w: 6, h: 4 },
@@ -325,7 +411,7 @@ describe('resizeTile', () => {
   })
 
   it('grows into free space without touching anything', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 4, h: 4 },
       { i: 'b', x: 8, y: 0, w: 4, h: 4 },
     ]
@@ -336,7 +422,7 @@ describe('resizeTile', () => {
   })
 
   it('pushes the widgets below down when growing down and there is room', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 4, h: 4 },
       { i: 'b', x: 0, y: 4, w: 4, h: 4 },
     ]
@@ -347,7 +433,7 @@ describe('resizeTile', () => {
   })
 
   it('shortens the widgets below, keeping their bottom edges, when the board is full', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 4, h: 7 },
       { i: 'b', x: 0, y: 7, w: 4, h: 7 },
     ]
@@ -362,7 +448,7 @@ describe('resizeTile', () => {
   })
 
   it('narrows the widget beside it and shortens the one below when growing from the corner', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 6, h: 7 },
       { i: 'b', x: 6, y: 0, w: 6, h: 14 },
       { i: 'c', x: 0, y: 7, w: 6, h: 7 },
@@ -381,7 +467,7 @@ describe('resizeTile', () => {
   })
 
   it('narrows the widget to its left when growing left, keeping its left edge', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'b', x: 0, y: 0, w: 6, h: 7 },
       { i: 'a', x: 6, y: 0, w: 6, h: 7 },
     ]
@@ -402,7 +488,7 @@ describe('resizeTile', () => {
   })
 
   it('shortens the widget above when growing up, keeping its top', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'b', x: 0, y: 0, w: 6, h: 7 },
       { i: 'a', x: 0, y: 7, w: 6, h: 7 },
     ]
@@ -417,7 +503,7 @@ describe('resizeTile', () => {
   })
 
   it('squeezes the widgets to the left and above when growing from the top-left corner', () => {
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'b', x: 0, y: 0, w: 6, h: 7 },
       { i: 'c', x: 6, y: 0, w: 6, h: 7 },
       { i: 'd', x: 0, y: 7, w: 6, h: 7 },
@@ -455,7 +541,7 @@ describe('neighbourInDirection', () => {
 
   it('prefers the topmost of two equally near widgets', () => {
     // a's rows reach both b (on top) and c (below it), both at x 6.
-    const layout: LayoutItem[] = [
+    const layout: Tile[] = [
       { i: 'a', x: 0, y: 0, w: 6, h: 10 },
       { i: 'c', x: 6, y: 5, w: 6, h: 5 },
       { i: 'b', x: 6, y: 0, w: 6, h: 5 },
@@ -465,7 +551,7 @@ describe('neighbourInDirection', () => {
 })
 
 describe('nudgeTile', () => {
-  const layout: LayoutItem[] = [
+  const layout: Tile[] = [
     { i: 'a', x: 0, y: 0, w: 4, h: 4 },
     { i: 'b', x: 8, y: 0, w: 4, h: 4 },
   ]
