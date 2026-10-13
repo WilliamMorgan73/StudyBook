@@ -11,6 +11,8 @@ import {
   DEFAULT_LAYOUT,
   fitRowHeight,
   layoutBottom,
+  neighbourInDirection,
+  nudgeTile,
   hiddenWidgets,
   normalizeLayout,
   removeWidget,
@@ -428,5 +430,53 @@ describe('resizeTile', () => {
       { i: 'c', x: 6, y: 0, w: 6, h: 5 },
       { i: 'd', x: 0, y: 5, w: 4, h: 7 },
     ])
+  })
+})
+
+describe('neighbourInDirection', () => {
+  // The default Overview: Calendar over Day agenda; Upcoming over To-do; Progress over Notepad;
+  // Modules across the bottom.
+  it.each<[WidgetId, 'left' | 'right' | 'up' | 'down', WidgetId | null]>([
+    ['calendar', 'right', 'upcoming'],
+    ['upcoming', 'right', 'progress'],
+    ['progress', 'right', null],
+    ['todo', 'left', 'calendar'],
+    ['notepad', 'left', 'todo'],
+    ['calendar', 'left', null],
+    ['calendar', 'down', 'agenda'],
+    ['agenda', 'down', 'modules'],
+    ['modules', 'down', null],
+    ['modules', 'up', 'agenda'],
+    ['todo', 'up', 'upcoming'],
+    ['upcoming', 'up', null],
+  ])('%s, going %s, finds %s', (id, dir, expected) => {
+    expect(neighbourInDirection(DEFAULT_LAYOUT, id, dir)).toBe(expected)
+  })
+
+  it('prefers the topmost of two equally near widgets', () => {
+    // a's rows reach both b (on top) and c (below it), both at x 6.
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 6, h: 10 },
+      { i: 'c', x: 6, y: 5, w: 6, h: 5 },
+      { i: 'b', x: 6, y: 0, w: 6, h: 5 },
+    ]
+    expect(neighbourInDirection(layout, 'a', 'right')).toBe('b')
+  })
+})
+
+describe('nudgeTile', () => {
+  const layout: LayoutItem[] = [
+    { i: 'a', x: 0, y: 0, w: 4, h: 4 },
+    { i: 'b', x: 8, y: 0, w: 4, h: 4 },
+  ]
+
+  it('moves a widget one column into free space', () => {
+    expect(nudgeTile(layout, 'a', 1)).toEqual(expect.arrayContaining([{ i: 'a', x: 1, y: 0, w: 4, h: 4 }]))
+  })
+
+  it('refuses to leave the board or run into another widget', () => {
+    expect(nudgeTile(layout, 'a', -1)).toBeNull()
+    expect(nudgeTile(layout, 'b', 1)).toBeNull()
+    expect(nudgeTile([layout[0], { i: 'b', x: 4, y: 2, w: 4, h: 4 }], 'a', 1)).toBeNull()
   })
 })

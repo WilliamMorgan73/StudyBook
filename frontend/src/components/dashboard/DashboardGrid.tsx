@@ -12,18 +12,23 @@ import ReactGridLayout, {
 } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 
-import { DRAG_HANDLE_CLASS } from '@/components/dashboard/DashboardWidget'
+import { DRAG_GRIP_ATTRIBUTE, DRAG_HANDLE_CLASS } from '@/components/dashboard/DashboardWidget'
+import { TileControlsContext, type TileControls } from '@/components/dashboard/tileControls'
 import {
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
   DASHBOARD_ROWS,
   cellAt,
+  neighbourInDirection,
+  nudgeTile,
+  sameLayout,
   fitRowHeight,
   stackedOrder,
   resizeTile,
   swapTiles,
   tileAt,
   widgetHeight,
+  type Direction,
   type LayoutItem,
   type WidgetInfo,
 } from '@/lib/dashboardLayout'
@@ -187,6 +192,54 @@ export function DashboardGrid<Id extends string>({
     setSwapHint(null)
   }
 
+  // What the keyboard and the "Swap with…" menu did, for screen readers.
+  const [announcement, setAnnouncement] = useState('')
+  const titleOf = (id: Id) => widgets[id].title
+
+  function apply(next: LayoutItem<Id>[] | null, done: string, refused: string) {
+    if (next && !sameLayout(next, layout)) {
+      onLayoutChange(next)
+      setAnnouncement(done)
+    } else {
+      setAnnouncement(refused)
+    }
+  }
+
+  function swap(id: Id, other: Id) {
+    apply(swapTiles(layout, id, other), `${titleOf(id)} swapped with ${titleOf(other)}`, `${titleOf(other)} won’t fit there`)
+  }
+
+  function controlsFor(id: Id): TileControls {
+    return {
+      move(dir: Direction) {
+        const other = neighbourInDirection(layout, id, dir)
+        if (other) swap(id, other)
+        else if (dir === 'left' || dir === 'right')
+          apply(nudgeTile(layout, id, dir === 'left' ? -1 : 1), `${titleOf(id)} moved ${dir}`, `${titleOf(id)} can’t move ${dir}`)
+        else setAnnouncement(`Nothing ${dir === 'up' ? 'above' : 'below'} ${titleOf(id)}`)
+      },
+      resize(dir: Direction) {
+        const item = layout.find((other) => other.i === id)
+        if (!item) return
+        const { minW, minH } = widgets[id]
+        const w = item.w + (dir === 'right' ? 1 : dir === 'left' ? -1 : 0)
+        const h = item.h + (dir === 'down' ? 1 : dir === 'up' ? -1 : 0)
+        if (w < minW || h < minH) {
+          setAnnouncement(`${titleOf(id)} is at its smallest ${w < minW ? 'width' : 'height'}`)
+          return
+        }
+        const next = resizeTile(widgets, layout, id, { x: item.x, y: item.y, w, h })
+        const sized = next?.find((other) => other.i === id)
+        apply(next, sized ? `${titleOf(id)} ${sized.w} wide, ${sized.h} tall` : '', `${titleOf(id)} can’t grow that way`)
+      },
+      swapOptions: () =>
+        layout
+          .filter((other) => other.i !== id)
+          .map((other) => ({ id: other.i, title: titleOf(other.i), fits: swapTiles(layout, id, other.i) !== null })),
+      swapWith: (other: string) => swap(id, other as Id),
+    }
+  }
+
   return (
     // Bleeds into the page padding by one grid margin, so the grid's own padding lines up with it.
     // The tint while editing marks the board's edges.
@@ -217,7 +270,13 @@ export function DashboardGrid<Id extends string>({
                 containerPadding: [DASHBOARD_MARGIN, DASHBOARD_MARGIN],
               }}
               compactor={compactor}
-              dragConfig={{ enabled: editing, bounded: true, handle: `.${DRAG_HANDLE_CLASS}`, cancel: 'button' }}
+              // Buttons in the header don't start a drag, except the grip.
+              dragConfig={{
+                enabled: editing,
+                bounded: true,
+                handle: `.${DRAG_HANDLE_CLASS}`,
+                cancel: `button:not([${DRAG_GRIP_ATTRIBUTE}])`,
+              }}
               resizeConfig={{ enabled: editing, handles: ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw'] }}
               onDragStart={(current, item) => {
                 if (item) dragRef.current = { id: item.i, start: cloneLayout(current), target: null, swapped: null, leftSwap: false }
@@ -243,7 +302,9 @@ export function DashboardGrid<Id extends string>({
                     key={item.i}
                     className={target ? `rounded-xl ring-2 ${swapHint.fits ? 'ring-primary' : 'ring-destructive'}` : undefined}
                   >
-                    {renderWidget(item.i, order.indexOf(item))}
+                    <TileControlsContext.Provider value={editing ? controlsFor(item.i) : null}>
+                      {renderWidget(item.i, order.indexOf(item))}
+                    </TileControlsContext.Provider>
                     {wontFit && (
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">
                         <span className="rounded-full bg-destructive px-3 py-1 text-xs font-medium text-white shadow">
@@ -256,6 +317,9 @@ export function DashboardGrid<Id extends string>({
               })}
             </ReactGridLayout>
           ))}
+      </div>
+      <div aria-live="polite" className="sr-only">
+        {announcement}
       </div>
     </div>
   )
