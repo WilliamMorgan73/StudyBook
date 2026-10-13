@@ -351,3 +351,66 @@ export function tileAt<Id extends string>(layout: readonly LayoutItem<Id>[], col
   )
   return hit ? hit.i : null
 }
+
+/**
+ * The layout with widget `id` resized to `w` × `h` from its spot in `layout` (the layout when the
+ * resize began; the board's handles only ever grow a widget right and down). Growing right narrows
+ * the widgets it runs into, which keep their right edges; growing down pushes the widgets below
+ * further down if the board has room, else shortens them, keeping their bottom edges. Either way
+ * the widget stops growing once a widget it's squeezing reaches its minimum size, and the widgets
+ * squeezed all lose the same amount. Shrinking leaves the others as they were in `layout`. Null if
+ * the result still wouldn't fit the board.
+ */
+export function resizeTile<Id extends string>(
+  widgets: Record<Id, WidgetInfo>,
+  layout: readonly LayoutItem<Id>[],
+  id: Id,
+  w: number,
+  h: number,
+): LayoutItem<Id>[] | null {
+  const start = layout.find((item) => item.i === id)
+  if (!start) return null
+  let items = layout.map((item) => ({ ...item }))
+  const self = items.find((item) => item.i === id)!
+
+  // Growing right: everything that starts inside the new width, on the widget's rows, gives way.
+  const oldRight = start.x + start.w
+  const inRows = (item: LayoutItem) => item.y < start.y + start.h && start.y < item.y + item.h
+  const toRight = items.filter((item) => item !== self && inRows(item) && item.x >= oldRight)
+  let right = Math.min(DASHBOARD_COLUMNS, start.x + Math.max(start.w, w))
+  for (const item of toRight) {
+    if (item.x < right) right = Math.min(right, item.x + item.w - widgets[item.i].minW)
+  }
+  right = Math.max(oldRight, right)
+  for (const item of toRight) {
+    if (item.x < right) {
+      item.w -= right - item.x
+      item.x = right
+    }
+  }
+  self.w = w > start.w ? right - start.x : w
+  self.h = h
+
+  const compact = (l: LayoutItem<Id>[]) =>
+    verticalCompactor.compact(l, DASHBOARD_COLUMNS).map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
+  const fits = (l: LayoutItem<Id>[]) => layoutBottom(l) <= DASHBOARD_ROWS
+
+  const pushed = compact(items)
+  if (h <= start.h || fits(pushed)) return fits(pushed) ? pushed : null
+
+  // No room to push down: what starts inside the new height, under the widget, gets shorter.
+  const oldBottom = start.y + start.h
+  const inCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
+  const below = items.filter((item) => item !== self && inCols(item) && item.y >= oldBottom)
+  let bottomEdge = start.y + h
+  for (const item of below) {
+    if (item.y < bottomEdge) bottomEdge = Math.min(bottomEdge, item.y + item.h - widgets[item.i].minH)
+  }
+  bottomEdge = Math.max(oldBottom, bottomEdge)
+  items = items.map((item) =>
+    below.includes(item) && item.y < bottomEdge ? { ...item, h: item.h - (bottomEdge - item.y), y: bottomEdge } : item,
+  )
+  items.find((item) => item.i === id)!.h = bottomEdge - start.y
+  const shrunk = compact(items)
+  return fits(shrunk) ? shrunk : null
+}

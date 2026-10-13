@@ -20,6 +20,7 @@ import {
   cellAt,
   fitRowHeight,
   stackedOrder,
+  resizeTile,
   swapTiles,
   tileAt,
   widgetHeight,
@@ -48,6 +49,23 @@ interface DragSession {
   leftSwap: boolean
 }
 
+/** The resize in progress. */
+interface ResizeSession {
+  id: string
+  /** The layout when the resize began. */
+  start: Layout
+  /** The last layout this resize produced that fit the board. */
+  fit: Layout
+}
+
+/** `base` with each widget moved and sized as in `positions`, keeping its other fields (minimum sizes). */
+function withPositions(base: Layout, positions: readonly LayoutItem[]): Layout {
+  return base.map((item) => {
+    const at = positions.find((other) => other.i === item.i)
+    return at ? { ...item, x: at.x, y: at.y, w: at.w, h: at.h } : { ...item }
+  })
+}
+
 /** Where a mouse or touch event happened, in viewport px. */
 function clientPoint(e: Event): { x: number; y: number } | null {
   if ('touches' in e) {
@@ -62,14 +80,27 @@ function clientPoint(e: Event): { x: number; y: number } | null {
  * which would push a widget off the bottom of the board is refused: the layout stays as it was
  * before that step of the drag or resize. While the dragged widget is over another one, the board
  * shows the two swapped instead (or the layout from before the drag, if the swap won't fit), and
- * that's what a drop there keeps.
+ * that's what a drop there keeps. A resize squeezes the widgets in the way (see `resizeTile`),
+ * always from the layout when the resize began, so shrinking back gives them their space back.
  */
-function useBoardCompactor(dragRef: RefObject<DragSession | null>): Compactor {
+function useBoardCompactor(
+  widgets: Record<string, WidgetInfo>,
+  dragRef: RefObject<DragSession | null>,
+  resizeRef: RefObject<ResizeSession | null>,
+): Compactor {
   const lastFit = useRef<Layout | null>(null)
   return useMemo(
     () => ({
       ...verticalCompactor,
       compact(layout, cols) {
+        const resize = resizeRef.current
+        const resized = resize && getLayoutItem(layout, resize.id)
+        if (resize && resized) {
+          const out = resizeTile(widgets, resize.start, resize.id, resized.w, resized.h)
+          if (out) resize.fit = withPositions(resize.start, out)
+          lastFit.current = cloneLayout(resize.fit)
+          return cloneLayout(resize.fit)
+        }
         const drag = dragRef.current
         if (drag?.target) {
           lastFit.current = cloneLayout(drag.swapped ?? drag.start)
@@ -96,7 +127,7 @@ function useBoardCompactor(dragRef: RefObject<DragSession | null>): Compactor {
         return previous && sameWidgets(previous, out) ? cloneLayout(previous) : out
       },
     }),
-    [dragRef],
+    [widgets, dragRef, resizeRef],
   )
 }
 
@@ -123,7 +154,8 @@ export function DashboardGrid<Id extends string>({
   const { width, containerRef, mounted } = useContainerWidth()
   const [scrollerRef, { height }] = useElementSize<HTMLDivElement>()
   const dragRef = useRef<DragSession | null>(null)
-  const compactor = useBoardCompactor(dragRef)
+  const resizeRef = useRef<ResizeSession | null>(null)
+  const compactor = useBoardCompactor(widgets, dragRef, resizeRef)
   // The widget being dragged, the one a drop would swap it with, and whether that swap fits: the
   // target is outlined, and the dragged widget (always in view) says when it won't fit.
   const [swapHint, setSwapHint] = useState<{ id: string; target: string; fits: boolean } | null>(null)
@@ -145,7 +177,7 @@ export function DashboardGrid<Id extends string>({
     if (drag.target && !target) drag.leftSwap = true
     drag.target = target
     const swapped = target ? swapTiles(drag.start, drag.id, target) : null
-    drag.swapped = swapped && drag.start.map((item) => ({ ...item, ...getLayoutItem(swapped, item.i) }))
+    drag.swapped = swapped && withPositions(drag.start, swapped)
     setSwapHint(target ? { id: drag.id, target, fits: swapped !== null } : null)
   }
 
@@ -191,6 +223,12 @@ export function DashboardGrid<Id extends string>({
               }}
               onDrag={(_layout, _old, _item, _placeholder, e) => onDrag(e)}
               onDragStop={endDrag}
+              onResizeStart={(current, item) => {
+                if (item) resizeRef.current = { id: item.i, start: cloneLayout(current), fit: cloneLayout(current) }
+              }}
+              onResizeStop={() => {
+                resizeRef.current = null
+              }}
               onLayoutChange={(next: Layout) => {
                 if (editing) onLayoutChange(next.map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h })))
               }}

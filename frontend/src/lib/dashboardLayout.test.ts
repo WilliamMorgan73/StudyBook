@@ -14,6 +14,7 @@ import {
   hiddenWidgets,
   normalizeLayout,
   removeWidget,
+  resizeTile,
   sameLayout,
   stackedOrder,
   swapTiles,
@@ -24,6 +25,7 @@ import {
   type Board,
   type LayoutItem,
   type WidgetId,
+  type WidgetInfo,
 } from '@/lib/dashboardLayout'
 import { MODULE_BOARD } from '@/lib/moduleLayout'
 
@@ -258,5 +260,117 @@ describe('cellAt and tileAt', () => {
     expect(tileAt(DEFAULT_LAYOUT, 10, 6, 'calendar')).toBe('notepad')
     expect(tileAt(DEFAULT_LAYOUT, 0, 0, 'calendar')).toBeNull()
     expect(tileAt([{ i: 'todo', x: 0, y: 0, w: 3, h: 3 }], 5, 5, 'calendar')).toBeNull()
+  })
+})
+
+describe('resizeTile', () => {
+  const sized = (minW: number, minH: number): WidgetInfo => ({ title: '', description: '', minW, minH, defaultW: minW, defaultH: minH })
+  const widgets: Record<string, WidgetInfo> = { a: sized(4, 4), b: sized(2, 3), c: sized(3, 3) }
+  const resized = (layout: LayoutItem[], w: number, h: number) => resizeTile(widgets, layout, 'a', w, h)
+  const expectLayout = (actual: LayoutItem[] | null, expected: LayoutItem[]) => {
+    expect(actual).not.toBeNull()
+    expect([...actual!].sort((x, y) => x.i.localeCompare(y.i))).toEqual(expected)
+  }
+
+  const sideBySide: LayoutItem[] = [
+    { i: 'a', x: 0, y: 0, w: 6, h: 7 },
+    { i: 'b', x: 6, y: 0, w: 6, h: 7 },
+  ]
+
+  it('narrows the widget beside it when growing right, keeping its right edge', () => {
+    expectLayout(resized(sideBySide, 8, 7), [
+      { i: 'a', x: 0, y: 0, w: 8, h: 7 },
+      { i: 'b', x: 8, y: 0, w: 4, h: 7 },
+    ])
+  })
+
+  it('stops growing right once the widget beside it is at its minimum width', () => {
+    expectLayout(resized(sideBySide, 12, 7), [
+      { i: 'a', x: 0, y: 0, w: 10, h: 7 },
+      { i: 'b', x: 10, y: 0, w: 2, h: 7 },
+    ])
+  })
+
+  it('works from the layout at the start of the resize, so shrinking back restores the others', () => {
+    expectLayout(resized(sideBySide, 6, 7), sideBySide)
+    expectLayout(resized(sideBySide, 5, 7), [
+      { i: 'a', x: 0, y: 0, w: 5, h: 7 },
+      { i: 'b', x: 6, y: 0, w: 6, h: 7 },
+    ])
+  })
+
+  it('narrows every widget it runs into by the same amount, stopping at the first minimum', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 6, h: 8 },
+      { i: 'b', x: 6, y: 0, w: 6, h: 4 },
+      { i: 'c', x: 6, y: 4, w: 6, h: 4 },
+    ]
+    expectLayout(resized(layout, 8, 8), [
+      { i: 'a', x: 0, y: 0, w: 8, h: 8 },
+      { i: 'b', x: 8, y: 0, w: 4, h: 4 },
+      { i: 'c', x: 8, y: 4, w: 4, h: 4 },
+    ])
+    // c's minimum width (3) stops it before b's (2) would.
+    expectLayout(resized(layout, 12, 8), [
+      { i: 'a', x: 0, y: 0, w: 9, h: 8 },
+      { i: 'b', x: 9, y: 0, w: 3, h: 4 },
+      { i: 'c', x: 9, y: 4, w: 3, h: 4 },
+    ])
+  })
+
+  it('grows into free space without touching anything', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 4 },
+      { i: 'b', x: 8, y: 0, w: 4, h: 4 },
+    ]
+    expectLayout(resized(layout, 8, 4), [
+      { i: 'a', x: 0, y: 0, w: 8, h: 4 },
+      { i: 'b', x: 8, y: 0, w: 4, h: 4 },
+    ])
+  })
+
+  it('pushes the widgets below down when growing down and there is room', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 4 },
+      { i: 'b', x: 0, y: 4, w: 4, h: 4 },
+    ]
+    expectLayout(resized(layout, 4, 6), [
+      { i: 'a', x: 0, y: 0, w: 4, h: 6 },
+      { i: 'b', x: 0, y: 6, w: 4, h: 4 },
+    ])
+  })
+
+  it('shortens the widgets below, keeping their bottom edges, when the board is full', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 4, h: 7 },
+      { i: 'b', x: 0, y: 7, w: 4, h: 7 },
+    ]
+    expectLayout(resized(layout, 4, 9), [
+      { i: 'a', x: 0, y: 0, w: 4, h: 9 },
+      { i: 'b', x: 0, y: 9, w: 4, h: 5 },
+    ])
+    expectLayout(resized(layout, 4, DASHBOARD_ROWS), [
+      { i: 'a', x: 0, y: 0, w: 4, h: 11 },
+      { i: 'b', x: 0, y: 11, w: 4, h: 3 },
+    ])
+  })
+
+  it('narrows the widget beside it and shortens the one below when growing from the corner', () => {
+    const layout: LayoutItem[] = [
+      { i: 'a', x: 0, y: 0, w: 6, h: 7 },
+      { i: 'b', x: 6, y: 0, w: 6, h: 14 },
+      { i: 'c', x: 0, y: 7, w: 6, h: 7 },
+    ]
+    expectLayout(resized(layout, 8, 9), [
+      { i: 'a', x: 0, y: 0, w: 8, h: 9 },
+      { i: 'b', x: 8, y: 0, w: 4, h: 14 },
+      { i: 'c', x: 0, y: 9, w: 6, h: 5 },
+    ])
+  })
+
+  it("doesn't grow at all when the widgets beside it are already at their minimum width", () => {
+    // Upcoming and To-do, beside the default Calendar, are 3 wide: their minimum.
+    const out = resizeTile(WIDGETS, DEFAULT_LAYOUT, 'calendar', 8, 7)
+    expect(out && sameLayout(out, DEFAULT_LAYOUT)).toBe(true)
   })
 })
