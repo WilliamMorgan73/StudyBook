@@ -1,22 +1,91 @@
-import type { ReactNode } from 'react'
+import type { KeyboardEvent, ReactNode, SyntheticEvent } from 'react'
 
-import { GripVertical, X } from 'lucide-react'
+import { ArrowLeftRight, GripVertical, X } from 'lucide-react'
 import { motion } from 'motion/react'
 
+import { useTileControls, type TileControls } from '@/components/dashboard/tileControls'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import type { Direction } from '@/lib/dashboardLayout'
 import { fadeUpAt } from '@/lib/motion'
 
 const MotionCard = motion.create(Card)
 
 /** Grid items with this class drag by it (`dragConfig.handle`). */
 export const DRAG_HANDLE_CLASS = 'widget-drag-handle'
+/** Marks the grip, the one button in the header that still starts a drag. */
+export const DRAG_GRIP_ATTRIBUTE = 'data-drag-grip'
+
+const ARROWS: Record<string, Direction> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
+
+/** Keep a press on a header button from starting a drag on the header it sits in. */
+const stopDrag = {
+  onPointerDown: (e: SyntheticEvent) => e.stopPropagation(),
+  onMouseDown: (e: SyntheticEvent) => e.stopPropagation(),
+}
+
+/**
+ * The header grip while editing: drag it like the rest of the header, or focus it and use the
+ * arrow keys to swap the widget with a neighbour (Shift + arrows to resize it).
+ */
+function Grip({ title, controls }: { title: string; controls: TileControls }) {
+  function onKeyDown(e: KeyboardEvent) {
+    const dir = ARROWS[e.key]
+    if (!dir) return
+    e.preventDefault()
+    if (e.shiftKey) controls.resize(dir)
+    else controls.move(dir)
+  }
+  return (
+    <button
+      type="button"
+      {...{ [DRAG_GRIP_ATTRIBUTE]: '' }}
+      aria-label={`Move ${title}`}
+      aria-description="Arrow keys swap it with the widget that way; Shift and arrow keys resize it."
+      title="Drag, or focus and use the arrow keys (Shift to resize)"
+      onKeyDown={onKeyDown}
+      className="-ml-1 shrink-0 cursor-grab rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+    >
+      <GripVertical className="size-4" aria-hidden />
+    </button>
+  )
+}
+
+/** The "Swap with…" menu while editing: the other widgets, greyed out where a swap won't fit. */
+function SwapMenu({ title, controls }: { title: string; controls: TileControls }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button size="icon-sm" variant="ghost" aria-label={`Swap ${title} with…`} title="Swap with…" {...stopDrag} className="-my-1">
+          <ArrowLeftRight />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Swap with</DropdownMenuLabel>
+        {controls.swapOptions().map((option) => (
+          <DropdownMenuItem key={option.id} disabled={!option.fits} onSelect={() => controls.swapWith(option.id)}>
+            <span className="min-w-0 flex-1 truncate">{option.title}</span>
+            {!option.fits && <span className="text-xs text-muted-foreground">Won’t fit</span>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 /**
  * The card every Overview widget sits in. It fills its grid cell; the body scrolls inside it and
  * is a size container, so widgets adapt with `@md:`-style container queries rather than viewport
- * breakpoints. In edit mode the header is the drag handle and the body ignores the pointer, so a
- * drag can't type into the notepad or pick a calendar day.
+ * breakpoints. In edit mode the header is the drag handle and the body is inert: no pointer, no
+ * focus, no typing. A drag can't pick a calendar day, and Tab only reaches the header's controls,
+ * never the to-do box.
  */
 export function DashboardWidget({
   title,
@@ -40,6 +109,7 @@ export function DashboardWidget({
   scroll?: boolean
   children: ReactNode
 }) {
+  const controls = useTileControls()
   return (
     <MotionCard
       className={`h-full ${editing ? 'outline-2 outline-offset-2 outline-ring/60 outline-dashed' : ''}`}
@@ -51,17 +121,21 @@ export function DashboardWidget({
       <CardHeader
         className={`flex items-center gap-2 ${editing ? `${DRAG_HANDLE_CLASS} cursor-grab select-none active:cursor-grabbing` : ''}`}
       >
-        {editing && <GripVertical className="-ml-1 size-4 shrink-0 text-muted-foreground" aria-hidden />}
+        {editing &&
+          (controls ? (
+            <Grip title={title} controls={controls} />
+          ) : (
+            <GripVertical className="-ml-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
+          ))}
         <CardTitle className="min-w-0 flex-1 truncate">{title}</CardTitle>
+        {editing && controls && <SwapMenu title={title} controls={controls} />}
         {editing ? (
           <Button
             size="icon-sm"
             variant="ghost"
             aria-label={`Remove ${title}`}
             title={`Remove ${title}`}
-            // Keep the press from starting a drag on the handle it sits in.
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
+            {...stopDrag}
             onClick={onRemove}
             className="-my-1 -mr-1"
           >
@@ -72,7 +146,8 @@ export function DashboardWidget({
         )}
       </CardHeader>
       <CardContent
-        className={`@container flex min-h-0 flex-1 flex-col ${scroll ? 'overflow-y-auto' : 'overflow-hidden'} ${editing ? 'pointer-events-none select-none' : ''} ${bodyClassName}`}
+        inert={editing}
+        className={`@container flex min-h-0 flex-1 flex-col ${scroll ? 'overflow-y-auto' : 'overflow-hidden'} ${editing ? 'select-none' : ''} ${bodyClassName}`}
       >
         {children}
       </CardContent>

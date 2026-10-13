@@ -430,3 +430,47 @@ export function resizeTile<Id extends string>(
   const shrunk = compact(items)
   return fits(shrunk) ? shrunk : null
 }
+
+export type Direction = 'left' | 'right' | 'up' | 'down'
+
+/**
+ * The closest widget beside `id` in a direction: one sharing some of its rows (left and right) or
+ * columns (up and down), nearest first, then topmost or leftmost. Null if there's none that way.
+ */
+export function neighbourInDirection<Id extends string>(layout: readonly LayoutItem<Id>[], id: Id, dir: Direction): Id | null {
+  const self = layout.find((item) => item.i === id)
+  if (!self) return null
+  const sharesRows = (item: LayoutItem) => item.y < self.y + self.h && self.y < item.y + item.h
+  const sharesCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
+  // How far each candidate is (smaller is nearer), and the tiebreak (smaller wins).
+  const measures: Record<Direction, (item: LayoutItem) => [number, number] | null> = {
+    right: (item) => (sharesRows(item) && item.x >= self.x + self.w ? [item.x, item.y] : null),
+    left: (item) => (sharesRows(item) && item.x + item.w <= self.x ? [-(item.x + item.w), item.y] : null),
+    down: (item) => (sharesCols(item) && item.y >= self.y + self.h ? [item.y, item.x] : null),
+    up: (item) => (sharesCols(item) && item.y + item.h <= self.y ? [-(item.y + item.h), item.x] : null),
+  }
+  let best: { id: Id; at: [number, number] } | null = null
+  for (const item of layout) {
+    const at = item.i === id ? null : measures[dir](item)
+    if (at && (!best || at[0] < best.at[0] || (at[0] === best.at[0] && at[1] < best.at[1]))) best = { id: item.i, at }
+  }
+  return best?.id ?? null
+}
+
+/**
+ * The layout with widget `id` moved one column left (-1) or right (1), compacted. Null if that
+ * would leave the board or the column isn't free on the widget's rows.
+ */
+export function nudgeTile<Id extends string>(layout: readonly LayoutItem<Id>[], id: Id, dx: -1 | 1): LayoutItem<Id>[] | null {
+  const self = layout.find((item) => item.i === id)
+  if (!self) return null
+  const moved = { ...self, x: self.x + dx }
+  if (moved.x < 0 || moved.x + moved.w > DASHBOARD_COLUMNS) return null
+  if (layout.some((item) => item.i !== id && overlaps(moved, item))) return null
+  return verticalCompactor
+    .compact(
+      layout.map((item) => (item.i === id ? moved : { ...item })),
+      DASHBOARD_COLUMNS,
+    )
+    .map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
+}

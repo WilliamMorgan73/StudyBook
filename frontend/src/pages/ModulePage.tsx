@@ -168,7 +168,12 @@ function ModuleView({ id }: { id: number }) {
     <motion.div className="flex h-full flex-col overflow-hidden" {...enter}>
       <PageHeader
         left={
-          <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+          // While editing, Tab sticks to the layout controls (finish or cancel the edit to leave).
+          <Link
+            to="/"
+            tabIndex={editing ? -1 : undefined}
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="size-4 shrink-0" />
             <span className="truncate">Overview</span>
           </Link>
