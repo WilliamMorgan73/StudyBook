@@ -353,64 +353,80 @@ export function tileAt<Id extends string>(layout: readonly LayoutItem<Id>[], col
 }
 
 /**
- * The layout with widget `id` resized to `w` × `h` from its spot in `layout` (the layout when the
- * resize began; the board's handles only ever grow a widget right and down). Growing right narrows
- * the widgets it runs into, which keep their right edges; growing down pushes the widgets below
- * further down if the board has room, else shortens them, keeping their bottom edges. Either way
- * the widget stops growing once a widget it's squeezing reaches its minimum size, and the widgets
- * squeezed all lose the same amount. Shrinking leaves the others as they were in `layout`. Null if
+ * The layout with widget `id` resized to `to` from its spot in `layout` (the layout when the resize
+ * began). Each edge that moves outwards squeezes what's in its way:
+ * - right or left: the widgets beside it get narrower, keeping their far edges;
+ * - down: the widgets below are pushed further down if the board has room, else get shorter,
+ *   keeping their bottom edges;
+ * - up: the widgets above get shorter, keeping their tops (the board packs widgets upwards, so
+ *   there's nowhere to push them).
+ * An edge stops once a widget it's squeezing reaches its minimum size, so the widgets squeezed all
+ * lose the same amount. Edges moving inwards leave the others as they were in `layout`. Null if
  * the result still wouldn't fit the board.
  */
 export function resizeTile<Id extends string>(
   widgets: Record<Id, WidgetInfo>,
   layout: readonly LayoutItem<Id>[],
   id: Id,
-  w: number,
-  h: number,
+  to: Omit<LayoutItem, 'i'>,
 ): LayoutItem<Id>[] | null {
   const start = layout.find((item) => item.i === id)
   if (!start) return null
   let items = layout.map((item) => ({ ...item }))
   const self = items.find((item) => item.i === id)!
+  const others = items.filter((item) => item !== self)
+  const minW = (item: LayoutItem<Id>) => widgets[item.i].minW
+  const minH = (item: LayoutItem<Id>) => widgets[item.i].minH
+  const [oldLeft, oldRight, oldTop, oldBottom] = [start.x, start.x + start.w, start.y, start.y + start.h]
 
-  // Growing right: everything that starts inside the new width, on the widget's rows, gives way.
-  const oldRight = start.x + start.w
-  const inRows = (item: LayoutItem) => item.y < start.y + start.h && start.y < item.y + item.h
-  const toRight = items.filter((item) => item !== self && inRows(item) && item.x >= oldRight)
-  let right = Math.min(DASHBOARD_COLUMNS, start.x + Math.max(start.w, w))
-  for (const item of toRight) {
-    if (item.x < right) right = Math.min(right, item.x + item.w - widgets[item.i].minW)
-  }
+  // Sideways: what starts inside the new width, on the widget's rows, gives way.
+  const inRows = (item: LayoutItem) => item.y < oldBottom && oldTop < item.y + item.h
+  let right = Math.min(DASHBOARD_COLUMNS, Math.max(oldRight, to.x + to.w))
+  const toRight = others.filter((item) => inRows(item) && item.x >= oldRight)
+  for (const item of toRight) if (item.x < right) right = Math.min(right, item.x + item.w - minW(item))
   right = Math.max(oldRight, right)
   for (const item of toRight) {
-    if (item.x < right) {
-      item.w -= right - item.x
-      item.x = right
-    }
+    if (item.x < right) [item.w, item.x] = [item.x + item.w - right, right]
   }
-  self.w = w > start.w ? right - start.x : w
-  self.h = h
+  let left = Math.max(0, Math.min(oldLeft, to.x))
+  const toLeft = others.filter((item) => inRows(item) && item.x + item.w <= oldLeft)
+  for (const item of toLeft) if (item.x + item.w > left) left = Math.max(left, item.x + minW(item))
+  left = Math.min(oldLeft, left)
+  for (const item of toLeft) {
+    if (item.x + item.w > left) item.w = left - item.x
+  }
+  self.x = to.x < oldLeft ? left : to.x
+  self.w = (to.x + to.w > oldRight ? right : to.x + to.w) - self.x
+
+  // Up: what ends inside the new height, above the widget (at its new width), gets shorter.
+  const inCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
+  let top = Math.max(0, Math.min(oldTop, to.y))
+  const above = others.filter((item) => inCols(item) && item.y + item.h <= oldTop)
+  for (const item of above) if (item.y + item.h > top) top = Math.max(top, item.y + minH(item))
+  top = Math.min(oldTop, top)
+  for (const item of above) {
+    if (item.y + item.h > top) item.h = top - item.y
+  }
+  self.y = to.y < oldTop ? top : to.y
+  const wantBottom = to.y + to.h
+  self.h = wantBottom - self.y
 
   const compact = (l: LayoutItem<Id>[]) =>
     verticalCompactor.compact(l, DASHBOARD_COLUMNS).map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
   const fits = (l: LayoutItem<Id>[]) => layoutBottom(l) <= DASHBOARD_ROWS
 
   const pushed = compact(items)
-  if (h <= start.h || fits(pushed)) return fits(pushed) ? pushed : null
+  if (wantBottom <= oldBottom || fits(pushed)) return fits(pushed) ? pushed : null
 
-  // No room to push down: what starts inside the new height, under the widget, gets shorter.
-  const oldBottom = start.y + start.h
-  const inCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
-  const below = items.filter((item) => item !== self && inCols(item) && item.y >= oldBottom)
-  let bottomEdge = start.y + h
-  for (const item of below) {
-    if (item.y < bottomEdge) bottomEdge = Math.min(bottomEdge, item.y + item.h - widgets[item.i].minH)
-  }
-  bottomEdge = Math.max(oldBottom, bottomEdge)
+  // Down, with no room to push: what starts inside the new height, below the widget, gets shorter.
+  const below = others.filter((item) => inCols(item) && item.y >= oldBottom)
+  let bottom = wantBottom
+  for (const item of below) if (item.y < bottom) bottom = Math.min(bottom, item.y + item.h - minH(item))
+  bottom = Math.max(oldBottom, bottom)
   items = items.map((item) =>
-    below.includes(item) && item.y < bottomEdge ? { ...item, h: item.h - (bottomEdge - item.y), y: bottomEdge } : item,
+    below.includes(item) && item.y < bottom ? { ...item, h: item.y + item.h - bottom, y: bottom } : item,
   )
-  items.find((item) => item.i === id)!.h = bottomEdge - start.y
+  items.find((item) => item.i === id)!.h = bottom - self.y
   const shrunk = compact(items)
   return fits(shrunk) ? shrunk : null
 }

@@ -96,7 +96,8 @@ function useBoardCompactor(
         const resize = resizeRef.current
         const resized = resize && getLayoutItem(layout, resize.id)
         if (resize && resized) {
-          const out = resizeTile(widgets, resize.start, resize.id, resized.w, resized.h)
+          const { x, y, w, h } = resized
+          const out = resizeTile(widgets, resize.start, resize.id, { x, y, w, h })
           if (out) resize.fit = withPositions(resize.start, out)
           lastFit.current = cloneLayout(resize.fit)
           return cloneLayout(resize.fit)
@@ -134,8 +135,8 @@ function useBoardCompactor(
 /**
  * Lays the widgets out on a board DASHBOARD_COLUMNS wide and DASHBOARD_ROWS tall, stretched to fill
  * the height it's given (it scrolls only if rows would get shorter than the minimum, or when
- * stacked). While `editing`, widgets drag by their header and resize from their right edge, bottom
- * edge or corner, never past the board's edges, and every move reports the new layout.
+ * stacked). While `editing`, widgets drag by their header and resize from any edge or corner, never
+ * past the board's edges, and every move reports the new layout.
  */
 export function DashboardGrid<Id extends string>({
   widgets,
@@ -217,7 +218,7 @@ export function DashboardGrid<Id extends string>({
               }}
               compactor={compactor}
               dragConfig={{ enabled: editing, bounded: true, handle: `.${DRAG_HANDLE_CLASS}`, cancel: 'button' }}
-              resizeConfig={{ enabled: editing, handles: ['e', 's', 'se'] }}
+              resizeConfig={{ enabled: editing, handles: ['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw'] }}
               onDragStart={(current, item) => {
                 if (item) dragRef.current = { id: item.i, start: cloneLayout(current), target: null, swapped: null, leftSwap: false }
               }}

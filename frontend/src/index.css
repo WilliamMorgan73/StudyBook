@@ -288,35 +288,85 @@
   opacity: 0.12;
   border-radius: var(--radius-xl);
 }
-.dashboard-grid .react-grid-item > .react-resizable-handle {
+/* Resize handles on every edge and corner. Each straddles the widget's edge, 8px in and 8px out
+   (half the gap between widgets), and the library's rotated corner marks give way to a grip in the
+   middle of each edge, always shown while editing and highlighted under the pointer. */
+/* The class is doubled to outrank the library's per-handle rules, which rotate each handle. */
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle {
   z-index: 1;
+  opacity: 1;
+  margin: 0;
+  transform: none;
 }
 .dashboard-grid .react-grid-item > .react-resizable-handle::after {
-  border-color: var(--muted-foreground);
+  border: 0;
+  right: auto;
+  bottom: auto;
+  width: 0;
+  height: 0;
 }
-/* The edge handles span the whole edge (the library makes them a 20px square in the middle). */
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e {
-  top: 12px;
-  bottom: 12px;
+.dashboard-grid .react-grid-item > .react-resizable-handle:is(
+    .react-resizable-handle-e,
+    .react-resizable-handle-w,
+    .react-resizable-handle-n,
+    .react-resizable-handle-s
+  )::after {
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+  opacity: 0.35;
+  transition: opacity 150ms, background-color 150ms;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle:hover::after {
+  background: var(--primary);
+  opacity: 1;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  top: 16px;
+  bottom: 16px;
+  width: 16px;
   height: auto;
-  margin-top: 0;
-  width: 10px;
-  right: -5px;
-  transform: none;
 }
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
-  left: 12px;
-  right: 12px;
-  width: auto;
-  margin-left: 0;
-  height: 10px;
-  bottom: -5px;
-  transform: none;
-}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e { right: -8px; left: auto; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w { left: -8px; right: auto; }
 .dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
-.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
-  display: none;
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
+  left: 6px;
+  top: calc(50% - 16px);
+  width: 4px;
+  height: 32px;
 }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: 16px;
+  right: 16px;
+  height: 16px;
+  width: auto;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-n { top: -8px; bottom: auto; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s { bottom: -8px; top: auto; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-n::after,
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
+  top: 6px;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 4px;
+}
+/* Corners sit above the edges, and stay clear of the header's remove button. */
+.dashboard-grid .react-grid-item > .react-resizable-handle:is(
+    .react-resizable-handle-ne,
+    .react-resizable-handle-se,
+    .react-resizable-handle-sw,
+    .react-resizable-handle-nw
+  ) {
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+}
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-ne { top: -8px; right: -8px; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-se { bottom: -8px; right: -8px; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-sw { bottom: -8px; left: -8px; }
+.dashboard-grid .react-grid-item > .react-resizable-handle.react-resizable-handle-nw { top: -8px; left: -8px; }
 
 /* Note blocks, shared by the editor's live preview (MarkdownEditor) and MarkdownView. Each type
    class only picks the accent; .callout (MarkdownView) and .cm-callout (editor lines) draw it. */
