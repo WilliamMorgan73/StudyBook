@@ -564,7 +564,7 @@ function LayoutThumbnail({
             boxShadow: `inset 0 3px 0 ${accent}`,
           }}
         >
-          <span className="truncate text-foreground/80">{titles[item.i]}</span>
+          <span className="truncate text-foreground/80">{titles[item.type]}</span>
         </span>
       ))}
     </span>

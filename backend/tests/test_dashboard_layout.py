@@ -76,3 +76,18 @@ def test_rejects_invalid_items(client: TestClient, item: dict) -> None:
 def test_rejects_too_many_items(client: TestClient) -> None:
     layout = [{"i": f"w{n}", "x": 0, "y": n, "w": 1, "h": 1} for n in range(33)]
     assert client.patch("/settings", json={"dashboard_layout": layout}).status_code == 422
+
+
+def test_widget_instances_round_trip(client: TestClient) -> None:
+    layout = [
+        {"i": "calendar", "type": "calendar", "x": 0, "y": 0, "w": 6, "h": 14},
+        {"i": "notepad", "type": "notepad", "config": {"zone": "Europe/London"}, "x": 6, "y": 0, "w": 3, "h": 5},
+        {"i": "notepad-2", "type": "notepad", "config": {"zone": "Asia/Tokyo"}, "x": 9, "y": 0, "w": 3, "h": 5},
+    ]
+    assert client.patch("/settings", json={"dashboard_layout": layout}).json()["dashboard_layout"] == layout
+    assert client.get("/settings").json()["dashboard_layout"] == layout
+
+
+def test_rejects_oversized_widget_config(client: TestClient) -> None:
+    layout = [{"i": "notepad", "type": "notepad", "config": {"text": "x" * 5000}, "x": 0, "y": 0, "w": 3, "h": 5}]
+    assert client.patch("/settings", json={"dashboard_layout": layout}).status_code == 422

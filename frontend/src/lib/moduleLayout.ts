@@ -94,10 +94,10 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
 
 /** The page as it was before it was customisable: Schedule on top of three lists. */
 export const MODULE_DEFAULT_LAYOUT: LayoutItem<ModuleWidgetId>[] = [
-  { i: 'schedule', x: 0, y: 0, w: 12, h: 5 },
-  { i: 'submodules', x: 0, y: 5, w: 4, h: 9 },
-  { i: 'assignments', x: 4, y: 5, w: 4, h: 9 },
-  { i: 'flashcards', x: 8, y: 5, w: 4, h: 9 },
+  { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 12, h: 5 },
+  { i: 'submodules', type: 'submodules', x: 0, y: 5, w: 4, h: 9 },
+  { i: 'assignments', type: 'assignments', x: 4, y: 5, w: 4, h: 9 },
+  { i: 'flashcards', type: 'flashcards', x: 8, y: 5, w: 4, h: 9 },
 ]
 
 export const MODULE_BOARD: Board<ModuleWidgetId> = { widgets: MODULE_WIDGETS, defaultLayout: MODULE_DEFAULT_LAYOUT }
@@ -124,11 +124,11 @@ export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: st
     label: 'Revision',
     description: 'Flashcards and revision sessions up front, with exam countdowns.',
     layout: [
-      { i: 'schedule', x: 0, y: 0, w: 8, h: 5 },
-      { i: 'exams', x: 8, y: 0, w: 4, h: 5 },
-      { i: 'flashcards', x: 0, y: 5, w: 4, h: 9 },
-      { i: 'revision', x: 4, y: 5, w: 4, h: 9 },
-      { i: 'submodules', x: 8, y: 5, w: 4, h: 9 },
+      { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 8, h: 5 },
+      { i: 'exams', type: 'exams', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'flashcards', type: 'flashcards', x: 0, y: 5, w: 4, h: 9 },
+      { i: 'revision', type: 'revision', x: 4, y: 5, w: 4, h: 9 },
+      { i: 'submodules', type: 'submodules', x: 8, y: 5, w: 4, h: 9 },
     ],
   },
   {
@@ -136,10 +136,10 @@ export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: st
     label: 'Deadlines',
     description: 'Assignments, their open to-dos and the grade breakdown.',
     layout: [
-      { i: 'schedule', x: 0, y: 0, w: 12, h: 5 },
-      { i: 'assignments', x: 0, y: 5, w: 4, h: 9 },
-      { i: 'openTodos', x: 4, y: 5, w: 4, h: 9 },
-      { i: 'grades', x: 8, y: 5, w: 4, h: 9 },
+      { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 12, h: 5 },
+      { i: 'assignments', type: 'assignments', x: 0, y: 5, w: 4, h: 9 },
+      { i: 'openTodos', type: 'openTodos', x: 4, y: 5, w: 4, h: 9 },
+      { i: 'grades', type: 'grades', x: 8, y: 5, w: 4, h: 9 },
     ],
   },
   {
@@ -147,9 +147,9 @@ export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: st
     label: 'Notes first',
     description: 'A tall list of topics, with flashcards and assignments beside it.',
     layout: [
-      { i: 'submodules', x: 0, y: 0, w: 6, h: 14 },
-      { i: 'flashcards', x: 6, y: 0, w: 6, h: 7 },
-      { i: 'assignments', x: 6, y: 7, w: 6, h: 7 },
+      { i: 'submodules', type: 'submodules', x: 0, y: 0, w: 6, h: 14 },
+      { i: 'flashcards', type: 'flashcards', x: 6, y: 0, w: 6, h: 7 },
+      { i: 'assignments', type: 'assignments', x: 6, y: 7, w: 6, h: 7 },
     ],
   },
 ]

@@ -33,7 +33,7 @@ export function LayoutEditControls<Id extends string>({
   /** Extra buttons shown while editing, before Reset. */
   editingActions?: ReactNode
 }) {
-  const { board, layout, hidden, saving } = editor
+  const { board, layout, addable, saving } = editor
 
   if (!editor.editing) {
     return (
@@ -51,24 +51,24 @@ export function LayoutEditControls<Id extends string>({
       {editor.saveError && <span className="text-sm text-destructive">{editor.saveError}</span>}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" disabled={hidden.length === 0}>
+          <Button variant="outline" size="sm" disabled={addable.length === 0}>
             <Plus /> Add widget
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-72">
           <DropdownMenuLabel>{menuLabel}</DropdownMenuLabel>
-          {hidden.map((id) => {
-            const fits = editor.canAdd(id)
+          {addable.map((type) => {
+            const fits = editor.canAdd(type)
             return (
               <DropdownMenuItem
-                key={id}
+                key={type}
                 disabled={!fits}
-                onSelect={() => editor.add(id)}
+                onSelect={() => editor.add(type)}
                 className="flex-col items-start gap-0"
               >
-                <span>{board.widgets[id].title}</span>
+                <span>{board.widgets[type].title}</span>
                 <span className="text-xs text-muted-foreground">
-                  {fits ? board.widgets[id].description : 'No room left. Shrink or remove a widget first.'}
+                  {fits ? board.widgets[type].description : 'No room left. Shrink or remove a widget first.'}
                 </span>
               </DropdownMenuItem>
             )

@@ -99,7 +99,7 @@ function ModulePreview({ sample, layout }: { sample: SampleData; layout: LayoutI
     setRevisionDone: noop,
     selectedDay,
     setSelectedDay,
-    dayAgendaPlaced: layout.some((item) => item.i === 'dayAgenda'),
+    dayAgendaPlaced: layout.some((item) => item.type === 'dayAgenda'),
   }
 
   return (
@@ -111,11 +111,11 @@ function ModulePreview({ sample, layout }: { sample: SampleData; layout: LayoutI
           layout={layout}
           editing={false}
           onLayoutChange={() => {}}
-          renderWidget={(id, slot) => {
-            const { body, action, scroll } = MODULE_WIDGET_CONTENT[id]
+          renderWidget={(item, slot) => {
+            const { body, action, scroll } = MODULE_WIDGET_CONTENT[item.type]
             return (
               <DashboardWidget
-                title={id === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[id].title}
+                title={item.type === 'dayAgenda' ? selectedDayLabel(selectedDay) : MODULE_WIDGETS[item.type].title}
                 slot={slot + 1}
                 editing={false}
                 onRemove={() => {}}
@@ -148,7 +148,7 @@ function OverviewPreview({
     // Their own settings, but no credit cap: it would hide the sample's "Add module" tile.
     appSettings: { ...settings, max_credits: null },
     calendar,
-    agendaPlaced: layout.some((item) => item.i === 'agenda'),
+    agendaPlaced: layout.some((item) => item.type === 'agenda'),
     moduleName: (id) => sample.modules.find((m) => m.id === id)?.name ?? 'Unknown module',
     moduleColor: (id) => sample.modules.find((m) => m.id === id)?.color ?? 'var(--muted-foreground)',
   }
@@ -161,17 +161,20 @@ function OverviewPreview({
           layout={layout}
           editing={false}
           onLayoutChange={() => {}}
-          renderWidget={(id, slot) => (
-            <DashboardWidget
-              title={id === 'agenda' ? selectedDayLabel(calendar.selected) : WIDGETS[id].title}
-              slot={slot}
-              editing={false}
-              onRemove={() => {}}
-              scroll={id !== 'progress'}
-            >
-              {OVERVIEW_WIDGET_CONTENT[id]}
-            </DashboardWidget>
-          )}
+          renderWidget={(item, slot) => {
+            const { body, scroll } = OVERVIEW_WIDGET_CONTENT[item.type]
+            return (
+              <DashboardWidget
+                title={item.type === 'agenda' ? selectedDayLabel(calendar.selected) : WIDGETS[item.type].title}
+                slot={slot}
+                editing={false}
+                onRemove={() => {}}
+                scroll={scroll}
+              >
+                {body}
+              </DashboardWidget>
+            )
+          }}
         />
       </div>
     </OverviewContext>

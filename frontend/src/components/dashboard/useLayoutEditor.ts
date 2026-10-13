@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 
 import {
+  addableWidgets,
   addWidget,
   canAddWidget,
-  hiddenWidgets,
   normalizeLayout,
   removeWidget,
   sameLayout,
@@ -16,16 +16,17 @@ export interface LayoutEditor<Id extends string> {
   /** The layout to show: the draft while editing, else the saved one. */
   layout: LayoutItem<Id>[]
   editing: boolean
-  /** Widgets not on the layout, for "Add widget". */
-  hidden: Id[]
+  /** Widget types "Add widget" offers. */
+  addable: Id[]
   saving: boolean
   saveError: string | null
   start: () => void
   cancel: () => void
   reset: () => void
-  add: (id: Id) => void
-  remove: (id: Id) => void
-  canAdd: (id: Id) => boolean
+  add: (type: Id) => void
+  /** Removes one widget, by instance id. */
+  remove: (id: string) => void
+  canAdd: (type: Id) => boolean
   /** The grid's `onLayoutChange` while editing. */
   setDraft: (layout: LayoutItem<Id>[]) => void
   save: () => Promise<void>
@@ -67,7 +68,7 @@ export function useLayoutEditor<Id extends string>(
     board,
     layout,
     editing: draft !== null,
-    hidden: hiddenWidgets(board, layout),
+    addable: addableWidgets(board, layout),
     saving,
     saveError,
     start: () => {
@@ -76,9 +77,9 @@ export function useLayoutEditor<Id extends string>(
     },
     cancel: () => setDraft(null),
     reset: () => setDraft(board.defaultLayout),
-    add: (id) => setDraft((current) => addWidget(board, current ?? saved, id)),
+    add: (type) => setDraft((current) => addWidget(board, current ?? saved, type)),
     remove: (id) => setDraft((current) => removeWidget(current ?? saved, id)),
-    canAdd: (id) => canAddWidget(board, layout, id),
+    canAdd: (type) => canAddWidget(board, layout, type),
     setDraft,
     save,
   }

@@ -14,11 +14,13 @@ import 'react-grid-layout/css/styles.css'
 
 import { DRAG_GRIP_ATTRIBUTE, DRAG_HANDLE_CLASS } from '@/components/dashboard/DashboardWidget'
 import { TileControlsContext, type TileControls } from '@/components/dashboard/tileControls'
+import { WidgetInstanceContext } from '@/components/dashboard/widgetInstance'
 import {
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
   DASHBOARD_ROWS,
   cellAt,
+  configureWidget,
   neighbourInDirection,
   nudgeTile,
   sameLayout,
@@ -28,8 +30,11 @@ import {
   swapTiles,
   tileAt,
   widgetHeight,
+  widgetsByInstance,
   type Direction,
   type LayoutItem,
+  type Tile,
+  type WidgetConfig,
   type WidgetInfo,
 } from '@/lib/dashboardLayout'
 import { useElementSize } from '@/lib/useElementSize'
@@ -64,7 +69,7 @@ interface ResizeSession {
 }
 
 /** `base` with each widget moved and sized as in `positions`, keeping its other fields (minimum sizes). */
-function withPositions(base: Layout, positions: readonly LayoutItem[]): Layout {
+function withPositions<T extends Tile>(base: readonly T[], positions: readonly Tile[]): T[] {
   return base.map((item) => {
     const at = positions.find((other) => other.i === item.i)
     return at ? { ...item, x: at.x, y: at.y, w: at.w, h: at.h } : { ...item }
@@ -89,6 +94,7 @@ function clientPoint(e: Event): { x: number; y: number } | null {
  * always from the layout when the resize began, so shrinking back gives them their space back.
  */
 function useBoardCompactor(
+  /** Each widget's size limits, by instance id. */
   widgets: Record<string, WidgetInfo>,
   dragRef: RefObject<DragSession | null>,
   resizeRef: RefObject<ResizeSession | null>,
@@ -150,18 +156,25 @@ export function DashboardGrid<Id extends string>({
   onLayoutChange,
   renderWidget,
 }: {
-  /** The board's widget registry, for each widget's minimum size. */
+  /** The board's widget registry, for each widget's title and minimum size. */
   widgets: Record<Id, WidgetInfo>
   layout: LayoutItem<Id>[]
   editing: boolean
   onLayoutChange: (layout: LayoutItem<Id>[]) => void
-  renderWidget: (id: Id, slot: number) => ReactNode
+  /** A widget, inside its `WidgetInstanceContext` (and, while editing, its `TileControlsContext`). */
+  renderWidget: (item: LayoutItem<Id>, slot: number) => ReactNode
 }) {
   const { width, containerRef, mounted } = useContainerWidth()
   const [scrollerRef, { height }] = useElementSize<HTMLDivElement>()
   const dragRef = useRef<DragSession | null>(null)
   const resizeRef = useRef<ResizeSession | null>(null)
-  const compactor = useBoardCompactor(widgets, dragRef, resizeRef)
+  // Keyed on which widgets are placed, not where, so moving one doesn't remake the compactor.
+  const instances = JSON.stringify(layout.map(({ i, type }) => ({ i, type })))
+  const limits = useMemo(
+    () => widgetsByInstance(widgets, JSON.parse(instances) as Pick<LayoutItem<Id>, 'i' | 'type'>[]),
+    [widgets, instances],
+  )
+  const compactor = useBoardCompactor(limits, dragRef, resizeRef)
   // The widget being dragged, the one a drop would swap it with, and whether that swap fits: the
   // target is outlined, and the dragged widget (always in view) says when it won't fit.
   const [swapHint, setSwapHint] = useState<{ id: string; target: string; fits: boolean } | null>(null)
@@ -194,7 +207,7 @@ export function DashboardGrid<Id extends string>({
 
   // What the keyboard and the "Swap with…" menu did, for screen readers.
   const [announcement, setAnnouncement] = useState('')
-  const titleOf = (id: Id) => widgets[id].title
+  const titleOf = (id: string) => limits[id]?.title ?? ''
 
   function apply(next: LayoutItem<Id>[] | null, done: string, refused: string) {
     if (next && !sameLayout(next, layout)) {
@@ -205,11 +218,11 @@ export function DashboardGrid<Id extends string>({
     }
   }
 
-  function swap(id: Id, other: Id) {
+  function swap(id: string, other: string) {
     apply(swapTiles(layout, id, other), `${titleOf(id)} swapped with ${titleOf(other)}`, `${titleOf(other)} won’t fit there`)
   }
 
-  function controlsFor(id: Id): TileControls {
+  function controlsFor(id: string): TileControls {
     return {
       move(dir: Direction) {
         const other = neighbourInDirection(layout, id, dir)
@@ -221,14 +234,14 @@ export function DashboardGrid<Id extends string>({
       resize(dir: Direction) {
         const item = layout.find((other) => other.i === id)
         if (!item) return
-        const { minW, minH } = widgets[id]
+        const { minW, minH } = limits[id]
         const w = item.w + (dir === 'right' ? 1 : dir === 'left' ? -1 : 0)
         const h = item.h + (dir === 'down' ? 1 : dir === 'up' ? -1 : 0)
         if (w < minW || h < minH) {
           setAnnouncement(`${titleOf(id)} is at its smallest ${w < minW ? 'width' : 'height'}`)
           return
         }
-        const next = resizeTile(widgets, layout, id, { x: item.x, y: item.y, w, h })
+        const next = resizeTile(limits, layout, id, { x: item.x, y: item.y, w, h })
         const sized = next?.find((other) => other.i === id)
         apply(next, sized ? `${titleOf(id)} ${sized.w} wide, ${sized.h} tall` : '', `${titleOf(id)} can’t grow that way`)
       },
@@ -236,8 +249,18 @@ export function DashboardGrid<Id extends string>({
         layout
           .filter((other) => other.i !== id)
           .map((other) => ({ id: other.i, title: titleOf(other.i), fits: swapTiles(layout, id, other.i) !== null })),
-      swapWith: (other: string) => swap(id, other as Id),
+      swapWith: (other: string) => swap(id, other),
     }
+  }
+
+  // Settings change only while editing, through the draft like every other edit.
+  function renderInstance(item: LayoutItem<Id>, slot: number) {
+    const instance = {
+      id: item.i,
+      config: item.config ?? {},
+      setConfig: (config: WidgetConfig) => onLayoutChange(configureWidget(layout, item.i, config)),
+    }
+    return <WidgetInstanceContext value={instance}>{renderWidget(item, slot)}</WidgetInstanceContext>
   }
 
   return (
@@ -254,14 +277,14 @@ export function DashboardGrid<Id extends string>({
             <div className="flex flex-col gap-6 p-6">
               {order.map((item, slot) => (
                 <div key={item.i} style={{ height: widgetHeight(item.h) }}>
-                  {renderWidget(item.i, slot)}
+                  {renderInstance(item, slot)}
                 </div>
               ))}
             </div>
           ) : (
             <ReactGridLayout
               width={width}
-              layout={layout.map((item) => ({ ...item, minW: widgets[item.i].minW, minH: widgets[item.i].minH }))}
+              layout={layout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h, minW: limits[i].minW, minH: limits[i].minH }))}
               gridConfig={{
                 cols: DASHBOARD_COLUMNS,
                 rowHeight,
@@ -290,7 +313,7 @@ export function DashboardGrid<Id extends string>({
                 resizeRef.current = null
               }}
               onLayoutChange={(next: Layout) => {
-                if (editing) onLayoutChange(next.map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h })))
+                if (editing) onLayoutChange(withPositions(layout, next))
               }}
               className="dashboard-grid"
             >
@@ -303,7 +326,7 @@ export function DashboardGrid<Id extends string>({
                     className={target ? `rounded-xl ring-2 ${swapHint.fits ? 'ring-primary' : 'ring-destructive'}` : undefined}
                   >
                     <TileControlsContext.Provider value={editing ? controlsFor(item.i) : null}>
-                      {renderWidget(item.i, order.indexOf(item))}
+                      {renderInstance(item, order.indexOf(item))}
                     </TileControlsContext.Provider>
                     {wontFit && (
                       <div className="pointer-events-none absolute inset-0 grid place-items-center">

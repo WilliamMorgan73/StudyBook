@@ -1,9 +1,9 @@
 // Dashboard boards and their layout rules. A board is a widget registry plus a default layout;
 // the Overview's lives here (OVERVIEW_BOARD, saved as `app_settings.dashboard_layout`) and the
 // module page's in `lib/moduleLayout.ts` (saved per module as `modules.dashboard_layout`). A layout
-// is a list of react-grid-layout items on a 12-column grid, stored as null when it's the board's
-// default. The backend only checks the shape; widget ids are owned here, so everything read back
-// from storage goes through `normalizeLayout`.
+// is a list of widgets on a 12-column grid (an instance id, a widget type, its settings and a place),
+// stored as null when it's the board's default. The backend only checks the shape; widget types and
+// their settings are owned here, so everything read back from storage goes through `normalizeLayout`.
 //
 // The grid is a fixed board, DASHBOARD_COLUMNS wide and DASHBOARD_ROWS tall, stretched to fill the
 // screen: a widget's size is a share of the screen, so a layout looks the same on any display and
@@ -31,12 +31,32 @@ export type WidgetId =
   | 'revisionToday'
   | 'flashcardsDue'
 
-export interface LayoutItem<Id extends string = string> {
-  i: Id
+/** A widget's place on the grid. `i` is the instance id, unique on its board. */
+export interface Tile {
+  i: string
   x: number
   y: number
   w: number
   h: number
+}
+
+/** A widget's own settings, shaped by its `WidgetInfo.config`. */
+export type WidgetConfig = Record<string, unknown>
+
+/**
+ * One widget on a board. The first copy of a widget has its type as its id (as every layout saved
+ * before copies existed does); further copies get `<type>-2`, `<type>-3`, ...
+ */
+export interface LayoutItem<Id extends string = string> extends Tile {
+  type: Id
+  /** Present exactly when the widget has settings (`WidgetInfo.config`), normalized. */
+  config?: WidgetConfig
+}
+
+/** How a widget's settings are read back from storage. */
+export interface WidgetConfigSpec<C extends WidgetConfig = WidgetConfig> {
+  /** Usable settings from whatever was stored, filling in defaults; `normalize(undefined)` is the default. */
+  normalize: (raw: unknown) => C
 }
 
 export interface WidgetInfo {
@@ -47,6 +67,10 @@ export interface WidgetInfo {
   minH: number
   defaultW: number
   defaultH: number
+  /** Can be placed more than once, so "Add widget" still offers it once it's on the board. */
+  multiple?: boolean
+  /** Has settings of its own, edited from the ⚙ in its header while editing the layout. */
+  config?: WidgetConfigSpec
 }
 
 /** A widget registry and the layout a board starts with (and resets to). */
@@ -113,13 +137,13 @@ export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]
 
 /** Today's page: Calendar over its day agenda, two columns of two cards, Modules across the bottom. */
 export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
-  { i: 'calendar', x: 0, y: 0, w: 6, h: 7 },
-  { i: 'agenda', x: 0, y: 7, w: 6, h: 3 },
-  { i: 'upcoming', x: 6, y: 0, w: 3, h: 5 },
-  { i: 'todo', x: 6, y: 5, w: 3, h: 5 },
-  { i: 'progress', x: 9, y: 0, w: 3, h: 5 },
-  { i: 'notepad', x: 9, y: 5, w: 3, h: 5 },
-  { i: 'modules', x: 0, y: 10, w: 12, h: 4 },
+  { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 7 },
+  { i: 'agenda', type: 'agenda', x: 0, y: 7, w: 6, h: 3 },
+  { i: 'upcoming', type: 'upcoming', x: 6, y: 0, w: 3, h: 5 },
+  { i: 'todo', type: 'todo', x: 6, y: 5, w: 3, h: 5 },
+  { i: 'progress', type: 'progress', x: 9, y: 0, w: 3, h: 5 },
+  { i: 'notepad', type: 'notepad', x: 9, y: 5, w: 3, h: 5 },
+  { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
 ]
 
 export const OVERVIEW_BOARD: Board<WidgetId> = { widgets: WIDGETS, defaultLayout: DEFAULT_LAYOUT }
@@ -137,10 +161,10 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Planner',
     description: 'A big calendar, with the day and what’s due beside it.',
     layout: [
-      { i: 'calendar', x: 0, y: 0, w: 8, h: 10 },
-      { i: 'agenda', x: 8, y: 0, w: 4, h: 5 },
-      { i: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
-      { i: 'modules', x: 0, y: 10, w: 12, h: 4 },
+      { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 8, h: 10 },
+      { i: 'agenda', type: 'agenda', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'upcoming', type: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
+      { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
     ],
   },
   {
@@ -148,12 +172,12 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Study',
     description: 'Today’s revision and due flashcards first, then the calendar.',
     layout: [
-      { i: 'revisionToday', x: 0, y: 0, w: 4, h: 5 },
-      { i: 'flashcardsDue', x: 4, y: 0, w: 4, h: 5 },
-      { i: 'progress', x: 8, y: 0, w: 4, h: 5 },
-      { i: 'calendar', x: 0, y: 5, w: 6, h: 9 },
-      { i: 'upcoming', x: 6, y: 5, w: 3, h: 9 },
-      { i: 'todo', x: 9, y: 5, w: 3, h: 9 },
+      { i: 'revisionToday', type: 'revisionToday', x: 0, y: 0, w: 4, h: 5 },
+      { i: 'flashcardsDue', type: 'flashcardsDue', x: 4, y: 0, w: 4, h: 5 },
+      { i: 'progress', type: 'progress', x: 8, y: 0, w: 4, h: 5 },
+      { i: 'calendar', type: 'calendar', x: 0, y: 5, w: 6, h: 9 },
+      { i: 'upcoming', type: 'upcoming', x: 6, y: 5, w: 3, h: 9 },
+      { i: 'todo', type: 'todo', x: 9, y: 5, w: 3, h: 9 },
     ],
   },
   {
@@ -161,9 +185,9 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Simple',
     description: 'Your modules, what’s due, and a to-do list. Nothing else.',
     layout: [
-      { i: 'modules', x: 0, y: 0, w: 12, h: 6 },
-      { i: 'upcoming', x: 0, y: 6, w: 6, h: 8 },
-      { i: 'todo', x: 6, y: 6, w: 6, h: 8 },
+      { i: 'modules', type: 'modules', x: 0, y: 0, w: 12, h: 6 },
+      { i: 'upcoming', type: 'upcoming', x: 0, y: 6, w: 6, h: 8 },
+      { i: 'todo', type: 'todo', x: 6, y: 6, w: 6, h: 8 },
     ],
   },
 ]
@@ -176,39 +200,61 @@ function toInt(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null
 }
 
+/** Longest instance id the backend stores. */
+const MAX_INSTANCE_ID = 32
+
 /**
- * A usable layout from whatever was stored: unknown, duplicate or malformed items are dropped,
- * each item is clamped to its widget's minimum size and the board, and a layout taller than the
- * board is scaled down to fit it. Null, non-arrays and layouts left with no widgets fall back to
- * the board's default layout.
+ * A usable layout from whatever was stored: items of unknown type, with a duplicate instance id,
+ * a second copy of a widget that can't be placed twice, or malformed fields are dropped. Items
+ * saved before copies existed (no `type`) are the widget their id names. Each item is clamped to
+ * its widget's minimum size and the board, its settings go through the widget's `normalize`, and a
+ * layout taller than the board is scaled down to fit it. Null, non-arrays and layouts left with no
+ * widgets fall back to the board's default layout.
  */
 export function normalizeLayout<Id extends string>(board: Board<Id>, raw: unknown): LayoutItem<Id>[] {
   if (!Array.isArray(raw)) return board.defaultLayout
-  const seen = new Set<Id>()
+  const seenIds = new Set<string>()
+  const seenTypes = new Set<Id>()
   const items: LayoutItem<Id>[] = []
   for (const entry of raw) {
     if (typeof entry !== 'object' || entry === null) continue
-    const { i, x, y, w, h } = entry as Record<string, unknown>
+    const { i, type = i, config, x, y, w, h } = entry as Record<string, unknown>
     const nums = [toInt(x), toInt(y), toInt(w), toInt(h)]
-    if (!isWidgetId(board, i) || seen.has(i) || nums.some((n) => n === null)) continue
+    if (typeof i !== 'string' || i === '' || i.length > MAX_INSTANCE_ID || seenIds.has(i)) continue
+    if (!isWidgetId(board, type) || nums.some((n) => n === null)) continue
+    const info = board.widgets[type]
+    if (seenTypes.has(type) && !info.multiple) continue
     const [nx, ny, nw, nh] = nums as number[]
-    const info = board.widgets[i]
     const width = Math.min(DASHBOARD_COLUMNS, Math.max(info.minW, nw))
     items.push({
       i,
+      type,
+      ...(info.config && { config: info.config.normalize(config) }),
       x: Math.min(DASHBOARD_COLUMNS - width, Math.max(0, nx)),
       y: Math.max(0, ny),
       w: width,
       h: Math.min(DASHBOARD_ROWS, Math.max(info.minH, nh)),
     })
-    seen.add(i)
+    seenIds.add(i)
+    seenTypes.add(type)
   }
   return items.length > 0 ? fitToBoard(board, items) : board.defaultLayout
 }
 
 /** How many rows the layout uses. */
-export function layoutBottom(layout: LayoutItem[]): number {
+export function layoutBottom(layout: readonly Tile[]): number {
   return Math.max(0, ...layout.map((item) => item.y + item.h))
+}
+
+/** The layout compacted the way the board compacts (widgets float up), keeping each item's other fields. */
+function compactTiles<T extends Tile>(layout: readonly T[]): T[] {
+  const byId = new Map(layout.map((item) => [item.i, item]))
+  return verticalCompactor
+    .compact(
+      layout.map(({ i, x, y, w, h }) => ({ i, x, y, w, h })),
+      DASHBOARD_COLUMNS,
+    )
+    .map(({ i, x, y, w, h }) => ({ ...byId.get(i)!, x, y, w, h }))
 }
 
 /** Squeezes a layout taller than the board (one saved before the board existed) down onto it. */
@@ -216,29 +262,35 @@ function fitToBoard<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[
   const bottom = layoutBottom(layout)
   if (bottom <= DASHBOARD_ROWS) return layout
   const scale = DASHBOARD_ROWS / bottom
+  const minH = (item: LayoutItem<Id>) => board.widgets[item.type].minH
   const scaled = layout.map((item) => ({
     ...item,
     y: Math.round(item.y * scale),
-    h: Math.max(board.widgets[item.i].minH, Math.round(item.h * scale)),
+    h: Math.max(minH(item), Math.round(item.h * scale)),
   }))
   // Rounding can leave overlaps or gaps; compacting settles every widget as high as it fits.
-  return verticalCompactor.compact(scaled, DASHBOARD_COLUMNS).map(({ i, x, y, w, h }) => ({
-    i: i as Id,
-    x,
-    y,
-    w,
-    // Whatever still hangs off the bottom shrinks, as far as its minimum allows.
-    h: Math.max(board.widgets[i as Id].minH, Math.min(h, DASHBOARD_ROWS - y)),
-  }))
+  // Whatever still hangs off the bottom shrinks, as far as its minimum allows.
+  return compactTiles(scaled).map((item) => ({ ...item, h: Math.max(minH(item), Math.min(item.h, DASHBOARD_ROWS - item.y)) }))
 }
 
-/** Widgets not on the layout, in registry order: what "Add widget" offers. */
-export function hiddenWidgets<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[]): Id[] {
-  const placed = new Set(layout.map((item) => item.i))
-  return (Object.keys(board.widgets) as Id[]).filter((id) => !placed.has(id))
+/**
+ * What "Add widget" offers, in registry order: widgets not on the layout, and those that can be
+ * placed more than once.
+ */
+export function addableWidgets<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[]): Id[] {
+  const placed = new Set(layout.map((item) => item.type))
+  return (Object.keys(board.widgets) as Id[]).filter((type) => board.widgets[type].multiple || !placed.has(type))
 }
 
-function overlaps(a: Omit<LayoutItem, 'i'>, b: LayoutItem): boolean {
+/** Each placed widget's size limits by instance id, for `resizeTile`. */
+export function widgetsByInstance<Id extends string>(
+  widgets: Record<Id, WidgetInfo>,
+  layout: readonly Pick<LayoutItem<Id>, 'i' | 'type'>[],
+): Record<string, WidgetInfo> {
+  return Object.fromEntries(layout.map((item) => [item.i, widgets[item.type]]))
+}
+
+function overlaps(a: Omit<Tile, 'i'>, b: Tile): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 }
 
@@ -247,8 +299,8 @@ function overlaps(a: Omit<LayoutItem, 'i'>, b: LayoutItem): boolean {
  * size it can have, from its default size down to its minimum. Null if there's no room even at
  * its minimum.
  */
-function findSpace<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): Omit<LayoutItem, 'i'> | null {
-  const { minW, minH, defaultW, defaultH } = board.widgets[id]
+function findSpace<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], type: Id): Omit<Tile, 'i'> | null {
+  const { minW, minH, defaultW, defaultH } = board.widgets[type]
   for (let h = defaultH; h >= minH; h--) {
     for (let w = defaultW; w >= minW; w--) {
       for (let y = 0; y + h <= DASHBOARD_ROWS; y++) {
@@ -263,26 +315,43 @@ function findSpace<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[]
 }
 
 /** Whether `addWidget` would find room for the widget. */
-export function canAddWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): boolean {
-  return findSpace(board, layout, id) !== null
+export function canAddWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], type: Id): boolean {
+  return findSpace(board, layout, type) !== null
+}
+
+/** An unused instance id for another copy of a widget: its type if free, else `<type>-2`, `<type>-3`, ... */
+function newInstanceId(layout: readonly Tile[], type: string): string {
+  const taken = new Set(layout.map((item) => item.i))
+  if (!taken.has(type)) return type
+  let n = 2
+  while (taken.has(`${type}-${n}`)) n++
+  return `${type}-${n}`
 }
 
 /**
- * Adds a widget in the board's free space (see `findSpace`). Unchanged if it's already placed or
- * there's no room for it.
+ * Adds a widget, with its default settings, in the board's free space (see `findSpace`).
+ * Unchanged if there's no room for it, or it's already placed and can't be placed twice.
  */
-export function addWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], id: Id): LayoutItem<Id>[] {
-  if (layout.some((item) => item.i === id)) return layout
-  const spot = findSpace(board, layout, id)
-  return spot ? [...layout, { i: id, ...spot }] : layout
+export function addWidget<Id extends string>(board: Board<Id>, layout: LayoutItem<Id>[], type: Id): LayoutItem<Id>[] {
+  const info = board.widgets[type]
+  if (!info.multiple && layout.some((item) => item.type === type)) return layout
+  const spot = findSpace(board, layout, type)
+  if (!spot) return layout
+  return [...layout, { i: newInstanceId(layout, type), type, ...(info.config && { config: info.config.normalize(undefined) }), ...spot }]
 }
 
-export function removeWidget<Id extends string>(layout: LayoutItem<Id>[], id: Id): LayoutItem<Id>[] {
+/** Removes one widget, by instance id. */
+export function removeWidget<Id extends string>(layout: LayoutItem<Id>[], id: string): LayoutItem<Id>[] {
   return layout.filter((item) => item.i !== id)
 }
 
+/** The layout with one widget's settings replaced. */
+export function configureWidget<Id extends string>(layout: LayoutItem<Id>[], id: string, config: WidgetConfig): LayoutItem<Id>[] {
+  return layout.map((item) => (item.i === id ? { ...item, config } : item))
+}
+
 /** Reading order (top to bottom, then left to right), for the single-column layout on narrow screens. */
-export function stackedOrder<Id extends string>(layout: LayoutItem<Id>[]): LayoutItem<Id>[] {
+export function stackedOrder<T extends Tile>(layout: readonly T[]): T[] {
   return [...layout].sort((a, b) => a.y - b.y || a.x - b.x)
 }
 
@@ -300,13 +369,23 @@ export function fitRowHeight(height: number): number {
   return Math.max(DASHBOARD_MIN_ROW_HEIGHT, Math.floor((height - DASHBOARD_MARGIN * (rows + 1)) / rows))
 }
 
-/** Same widgets at the same places and sizes, ignoring order. */
-export function sameLayout(a: LayoutItem[], b: LayoutItem[]): boolean {
+type Comparable = Tile & Pick<Partial<LayoutItem>, 'type' | 'config'>
+
+/** Same widgets with the same settings, at the same places and sizes, ignoring order. */
+export function sameLayout(a: readonly Comparable[], b: readonly Comparable[]): boolean {
   if (a.length !== b.length) return false
   const byId = new Map(b.map((item) => [item.i, item]))
   return a.every((item) => {
     const other = byId.get(item.i)
-    return other !== undefined && other.x === item.x && other.y === item.y && other.w === item.w && other.h === item.h
+    return (
+      other !== undefined &&
+      other.type === item.type &&
+      JSON.stringify(other.config) === JSON.stringify(item.config) &&
+      other.x === item.x &&
+      other.y === item.y &&
+      other.w === item.w &&
+      other.h === item.h
+    )
   })
 }
 
@@ -315,7 +394,7 @@ export function sameLayout(a: LayoutItem[], b: LayoutItem[]): boolean {
  * the board compacts. A widget too wide for the other's column is pulled left to stay on the
  * board. Null if the result would hang off the bottom of the board.
  */
-export function swapTiles<Id extends string>(layout: readonly LayoutItem<Id>[], a: Id, b: Id): LayoutItem<Id>[] | null {
+export function swapTiles<T extends Tile>(layout: readonly T[], a: string, b: string): T[] | null {
   const first = layout.find((item) => item.i === a)
   const second = layout.find((item) => item.i === b)
   if (!first || !second || a === b) return null
@@ -324,9 +403,7 @@ export function swapTiles<Id extends string>(layout: readonly LayoutItem<Id>[], 
     if (!other) return { ...item }
     return { ...item, x: Math.min(other.x, DASHBOARD_COLUMNS - item.w), y: other.y }
   })
-  const out = verticalCompactor
-    .compact(swapped, DASHBOARD_COLUMNS)
-    .map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
+  const out = compactTiles(swapped)
   return layoutBottom(out) <= DASHBOARD_ROWS ? out : null
 }
 
@@ -345,7 +422,7 @@ export function cellAt(px: number, py: number, width: number, rowHeight: number)
 }
 
 /** The widget covering a grid cell, other than `exclude`; null for empty space. */
-export function tileAt<Id extends string>(layout: readonly LayoutItem<Id>[], col: number, row: number, exclude: Id): Id | null {
+export function tileAt(layout: readonly Tile[], col: number, row: number, exclude: string): string | null {
   const hit = layout.find(
     (item) => item.i !== exclude && col >= item.x && col < item.x + item.w && row >= item.y && row < item.y + item.h,
   )
@@ -364,23 +441,23 @@ export function tileAt<Id extends string>(layout: readonly LayoutItem<Id>[], col
  * lose the same amount. Edges moving inwards leave the others as they were in `layout`. Null if
  * the result still wouldn't fit the board.
  */
-export function resizeTile<Id extends string>(
-  widgets: Record<Id, WidgetInfo>,
-  layout: readonly LayoutItem<Id>[],
-  id: Id,
-  to: Omit<LayoutItem, 'i'>,
-): LayoutItem<Id>[] | null {
+export function resizeTile<T extends Tile>(
+  widgets: Record<string, WidgetInfo>,
+  layout: readonly T[],
+  id: string,
+  to: Omit<Tile, 'i'>,
+): T[] | null {
   const start = layout.find((item) => item.i === id)
   if (!start) return null
   let items = layout.map((item) => ({ ...item }))
   const self = items.find((item) => item.i === id)!
   const others = items.filter((item) => item !== self)
-  const minW = (item: LayoutItem<Id>) => widgets[item.i].minW
-  const minH = (item: LayoutItem<Id>) => widgets[item.i].minH
+  const minW = (item: T) => widgets[item.i].minW
+  const minH = (item: T) => widgets[item.i].minH
   const [oldLeft, oldRight, oldTop, oldBottom] = [start.x, start.x + start.w, start.y, start.y + start.h]
 
   // Sideways: what starts inside the new width, on the widget's rows, gives way.
-  const inRows = (item: LayoutItem) => item.y < oldBottom && oldTop < item.y + item.h
+  const inRows = (item: Tile) => item.y < oldBottom && oldTop < item.y + item.h
   let right = Math.min(DASHBOARD_COLUMNS, Math.max(oldRight, to.x + to.w))
   const toRight = others.filter((item) => inRows(item) && item.x >= oldRight)
   for (const item of toRight) if (item.x < right) right = Math.min(right, item.x + item.w - minW(item))
@@ -399,7 +476,7 @@ export function resizeTile<Id extends string>(
   self.w = (to.x + to.w > oldRight ? right : to.x + to.w) - self.x
 
   // Up: what ends inside the new height, above the widget (at its new width), gets shorter.
-  const inCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
+  const inCols = (item: Tile) => item.x < self.x + self.w && self.x < item.x + item.w
   let top = Math.max(0, Math.min(oldTop, to.y))
   const above = others.filter((item) => inCols(item) && item.y + item.h <= oldTop)
   for (const item of above) if (item.y + item.h > top) top = Math.max(top, item.y + minH(item))
@@ -411,9 +488,8 @@ export function resizeTile<Id extends string>(
   const wantBottom = to.y + to.h
   self.h = wantBottom - self.y
 
-  const compact = (l: LayoutItem<Id>[]) =>
-    verticalCompactor.compact(l, DASHBOARD_COLUMNS).map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
-  const fits = (l: LayoutItem<Id>[]) => layoutBottom(l) <= DASHBOARD_ROWS
+  const compact = compactTiles<T>
+  const fits = (l: T[]) => layoutBottom(l) <= DASHBOARD_ROWS
 
   const pushed = compact(items)
   if (wantBottom <= oldBottom || fits(pushed)) return fits(pushed) ? pushed : null
@@ -437,19 +513,19 @@ export type Direction = 'left' | 'right' | 'up' | 'down'
  * The closest widget beside `id` in a direction: one sharing some of its rows (left and right) or
  * columns (up and down), nearest first, then topmost or leftmost. Null if there's none that way.
  */
-export function neighbourInDirection<Id extends string>(layout: readonly LayoutItem<Id>[], id: Id, dir: Direction): Id | null {
+export function neighbourInDirection(layout: readonly Tile[], id: string, dir: Direction): string | null {
   const self = layout.find((item) => item.i === id)
   if (!self) return null
-  const sharesRows = (item: LayoutItem) => item.y < self.y + self.h && self.y < item.y + item.h
-  const sharesCols = (item: LayoutItem) => item.x < self.x + self.w && self.x < item.x + item.w
+  const sharesRows = (item: Tile) => item.y < self.y + self.h && self.y < item.y + item.h
+  const sharesCols = (item: Tile) => item.x < self.x + self.w && self.x < item.x + item.w
   // How far each candidate is (smaller is nearer), and the tiebreak (smaller wins).
-  const measures: Record<Direction, (item: LayoutItem) => [number, number] | null> = {
+  const measures: Record<Direction, (item: Tile) => [number, number] | null> = {
     right: (item) => (sharesRows(item) && item.x >= self.x + self.w ? [item.x, item.y] : null),
     left: (item) => (sharesRows(item) && item.x + item.w <= self.x ? [-(item.x + item.w), item.y] : null),
     down: (item) => (sharesCols(item) && item.y >= self.y + self.h ? [item.y, item.x] : null),
     up: (item) => (sharesCols(item) && item.y + item.h <= self.y ? [-(item.y + item.h), item.x] : null),
   }
-  let best: { id: Id; at: [number, number] } | null = null
+  let best: { id: string; at: [number, number] } | null = null
   for (const item of layout) {
     const at = item.i === id ? null : measures[dir](item)
     if (at && (!best || at[0] < best.at[0] || (at[0] === best.at[0] && at[1] < best.at[1]))) best = { id: item.i, at }
@@ -461,16 +537,11 @@ export function neighbourInDirection<Id extends string>(layout: readonly LayoutI
  * The layout with widget `id` moved one column left (-1) or right (1), compacted. Null if that
  * would leave the board or the column isn't free on the widget's rows.
  */
-export function nudgeTile<Id extends string>(layout: readonly LayoutItem<Id>[], id: Id, dx: -1 | 1): LayoutItem<Id>[] | null {
+export function nudgeTile<T extends Tile>(layout: readonly T[], id: string, dx: -1 | 1): T[] | null {
   const self = layout.find((item) => item.i === id)
   if (!self) return null
   const moved = { ...self, x: self.x + dx }
   if (moved.x < 0 || moved.x + moved.w > DASHBOARD_COLUMNS) return null
   if (layout.some((item) => item.i !== id && overlaps(moved, item))) return null
-  return verticalCompactor
-    .compact(
-      layout.map((item) => (item.i === id ? moved : { ...item })),
-      DASHBOARD_COLUMNS,
-    )
-    .map(({ i, x, y, w, h }) => ({ i: i as Id, x, y, w, h }))
+  return compactTiles(layout.map((item) => (item.i === id ? moved : item)))
 }

@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from 'react'
 
-import { ArrowLeftRight, GripVertical, X } from 'lucide-react'
+import { ArrowLeftRight, GripVertical, Settings2, X } from 'lucide-react'
 import { motion } from 'motion/react'
 
 import { useTileControls, type TileControls } from '@/components/dashboard/tileControls'
@@ -13,10 +13,25 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { Direction } from '@/lib/dashboardLayout'
 import { fadeUpAt } from '@/lib/motion'
 
 const MotionCard = motion.create(Card)
+
+/** What a board shows for one widget type: shared by a page and its setup preview. */
+export interface WidgetContent {
+  body: ReactNode
+  /** Extra header content on the right, hidden while editing. */
+  action?: ReactNode
+  /** False for a body that fits itself to the widget (like a ring) and should never scroll. */
+  scroll?: boolean
+  /**
+   * The settings form for a widget with `WidgetInfo.config`, shown from the ⚙ while editing. It
+   * reads and edits its copy's settings with `useWidgetConfig`.
+   */
+  settings?: ReactNode
+}
 
 /** Grid items with this class drag by it (`dragConfig.handle`). */
 export const DRAG_HANDLE_CLASS = 'widget-drag-handle'
@@ -80,6 +95,24 @@ function SwapMenu({ title, controls }: { title: string; controls: TileControls }
   )
 }
 
+/** The ⚙ while editing: the widget's settings form in a popover. Changes go into the layout draft. */
+function SettingsPopover({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button size="icon-sm" variant="ghost" aria-label={`${title} settings`} title="Settings" {...stopDrag} className="-my-1">
+          <Settings2 />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72">
+        <p className="text-sm font-medium">{title} settings</p>
+        <div className="mt-3">{children}</div>
+        <p className="mt-3 text-xs text-muted-foreground">Saved with the layout when you press Done.</p>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 /**
  * The card every Overview widget sits in. It fills its grid cell; the body scrolls inside it and
  * is a size container, so widgets adapt with `@md:`-style container queries rather than viewport
@@ -95,6 +128,7 @@ export function DashboardWidget({
   action,
   bodyClassName = '',
   scroll = true,
+  settings,
   children,
 }: {
   title: string
@@ -107,6 +141,8 @@ export function DashboardWidget({
   bodyClassName?: string
   /** False for a body that fits itself to the widget (like a ring) and should never scroll. */
   scroll?: boolean
+  /** The widget's settings form (`WidgetContent.settings`), behind a ⚙ while editing. */
+  settings?: ReactNode
   children: ReactNode
 }) {
   const controls = useTileControls()
@@ -128,6 +164,7 @@ export function DashboardWidget({
             <GripVertical className="-ml-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
           ))}
         <CardTitle className="min-w-0 flex-1 truncate">{title}</CardTitle>
+        {editing && settings && <SettingsPopover title={title}>{settings}</SettingsPopover>}
         {editing && controls && <SwapMenu title={title} controls={controls} />}
         {editing ? (
           <Button
