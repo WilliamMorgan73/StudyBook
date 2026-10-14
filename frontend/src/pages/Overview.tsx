@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { BookOpen, Settings } from 'lucide-react'
+import { Settings } from 'lucide-react'
 
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
@@ -10,6 +10,7 @@ import { OVERVIEW_WIDGET_CONTENT } from '@/components/dashboard/overviewWidgetCo
 import { OverviewContext, type OverviewData } from '@/components/dashboard/overviewContext'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel, useOverviewCalendar } from '@/components/dashboard/useOverviewCalendar'
+import { Logo } from '@/components/Logo'
 import { PageHeader } from '@/components/PageHeader'
 import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { Button } from '@/components/ui/button'
@@ -62,7 +63,7 @@ export function Overview() {
       <PageHeader
         left={
           <div className="flex items-center gap-2">
-            <BookOpen className="size-6" />
+            <Logo />
             <span className="text-lg font-semibold">StudyBook</span>
           </div>
         }
