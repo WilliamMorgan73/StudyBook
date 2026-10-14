@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { addTile, isMissing, MAX_TILES, moveTile, normalizeUrl, PINNED_CONFIG, removeTile, tileHref, type PinnedTile } from '@/lib/pinned'
+import { addTile, isMissing, MAX_TILES, moveTile, normalizeUrl, PINNED_CONFIG, removeTile, tileGrid, tileHref, type PinnedTile } from '@/lib/pinned'
 
 const moduleTile: PinnedTile = { kind: 'module', moduleId: 3, title: 'Networks' }
 const topicTile: PinnedTile = { kind: 'topic', moduleId: 3, submoduleId: 12, title: 'Routing' }
@@ -63,5 +63,21 @@ describe('tile editing', () => {
     expect(isMissing(topicTile, { topics: new Set([1]) })).toBe(true)
     expect(isMissing(moduleTile, { modules: new Set([3]) })).toBe(false)
     expect(isMissing(linkTile, { modules: new Set() })).toBe(false)
+  })
+})
+
+describe('tileGrid', () => {
+  it('lets one tile fill the widget', () => {
+    expect(tileGrid(1, 400, 200)).toEqual({ cols: 1, rows: 1, fill: true })
+  })
+
+  it('splits the space as tiles are added, side by side when wide and stacked when tall', () => {
+    expect(tileGrid(2, 800, 150)).toEqual({ cols: 2, rows: 1, fill: true })
+    expect(tileGrid(2, 300, 400)).toEqual({ cols: 1, rows: 2, fill: true })
+    expect(tileGrid(4, 600, 300)).toMatchObject({ cols: 2, rows: 2, fill: true })
+  })
+
+  it('scrolls at the minimum size when the tiles no longer fit', () => {
+    expect(tileGrid(12, 300, 120)).toEqual({ cols: 2, rows: 6, fill: false })
   })
 })

@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from 'react'
 
-import { ArrowLeftRight, GripVertical, Settings2, X } from 'lucide-react'
+import { ArrowLeftRight, GripVertical, Settings, X } from 'lucide-react'
 import { motion } from 'motion/react'
 
 import { useTileControls, type TileControls } from '@/components/dashboard/tileControls'
@@ -102,7 +102,7 @@ function SettingsPopover({ title, children }: { title: string; children: ReactNo
     <Popover>
       <PopoverTrigger asChild>
         <Button size="icon-sm" variant="ghost" aria-label={`${title} settings`} title="Settings" {...stopDrag} className="-my-1">
-          <Settings2 />
+          <Settings />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">

@@ -15,6 +15,7 @@ import {
   Link as LinkIcon,
   Mail,
   Plus,
+  Settings,
   Video,
   X,
 } from 'lucide-react'
@@ -38,6 +39,9 @@ import {
   PIN_ICONS,
   PINNED_CONFIG,
   removeTile,
+  TILE_GAP,
+  TILE_MIN_H,
+  tileGrid,
   tileHref,
   type Existing,
   type PinIcon,
@@ -45,6 +49,7 @@ import {
 } from '@/lib/pinned'
 import { useSampleData } from '@/lib/sampleData'
 import { useAsync } from '@/lib/useAsync'
+import { useElementSize } from '@/lib/useElementSize'
 
 const ICONS: Record<PinIcon, ComponentType<{ className?: string }>> = {
   link: LinkIcon,
@@ -82,67 +87,101 @@ function useExisting(tiles: readonly PinnedTile[]): Existing {
   )
 }
 
-function TileIcon({ tile, color }: { tile: PinnedTile; color: string }) {
+function TileIcon({ tile, color, large }: { tile: PinnedTile; color: string; large: boolean }) {
   if (tile.kind === 'link') {
     const Icon = ICONS[tile.icon]
-    return <Icon className="size-4 shrink-0 text-muted-foreground" />
+    return <Icon className={`${large ? 'size-5' : 'size-4'} shrink-0 text-muted-foreground`} />
   }
-  if (tile.kind === 'assignment') return <EventMarker kind="assignment_due" color={color} className="shrink-0" />
-  return <span className={`size-2.5 shrink-0 ${tile.kind === 'topic' ? 'rounded-sm' : 'rounded-full'}`} style={{ backgroundColor: color }} />
+  if (tile.kind === 'assignment') return <EventMarker kind="assignment_due" color={color} className={`shrink-0 ${large ? 'scale-150' : ''}`} />
+  return (
+    <span
+      className={`${large ? 'size-3.5' : 'size-2.5'} shrink-0 ${tile.kind === 'topic' ? 'rounded-sm' : 'rounded-full'}`}
+      style={{ backgroundColor: color }}
+    />
+  )
 }
 
-/** A grid of quick-launch tiles that reflows with the widget's width. */
+/**
+ * Quick-launch tiles that share the whole widget (`tileGrid`): one tile fills it, more split it,
+ * and only when they no longer fit do they drop to their minimum size and scroll.
+ */
 export function PinnedWidget() {
   const [cfg] = useWidgetConfig(PINNED_CONFIG)
   const { moduleColor, moduleName } = useOverview()
   const existing = useExisting(cfg.tiles)
+  const [sizeRef, size] = useElementSize<HTMLDivElement>()
 
   if (cfg.tiles.length === 0) {
-    return <p className="text-sm text-muted-foreground">Nothing pinned yet. Edit the layout and use ⚙ to pin modules, topics, assignments or links.</p>
+    return (
+      <p className="text-sm text-muted-foreground">
+        Nothing pinned yet. Edit the layout and use <Settings className="inline size-3.5 align-[-2px]" aria-label="settings" /> to pin
+        modules, topics, assignments or links.
+      </p>
+    )
   }
 
+  const grid = tileGrid(cfg.tiles.length, size.width, size.height)
+  const tileW = (size.width - (grid.cols - 1) * TILE_GAP) / grid.cols
+  const tileH = grid.fill ? (size.height - (grid.rows - 1) * TILE_GAP) / grid.rows : TILE_MIN_H
+  // Roomy tiles get a bigger icon and title, centred.
+  const large = tileW >= 200 && tileH >= 96
+
   return (
-    <ul className="grid grid-cols-1 gap-2 @3xs:grid-cols-2 @md:grid-cols-3 @xl:grid-cols-4 @3xl:grid-cols-6">
-      {cfg.tiles.map((tile, index) => {
-        const missing = isMissing(tile, existing)
-        const color = tile.kind === 'link' ? '' : moduleColor(tile.moduleId)
-        const subtitle = missing
-          ? 'Missing'
-          : tile.kind === 'link'
-            ? new URL(tile.url).hostname
-            : tile.kind === 'module'
-              ? KIND_LABEL.module
-              : `${KIND_LABEL[tile.kind]} · ${moduleName(tile.moduleId)}`
-        const body = (
-          <>
-            <span className="flex min-w-0 items-center gap-2">
-              <TileIcon tile={tile} color={color} />
-              <span className="truncate font-medium">{tile.title}</span>
-              {tile.kind === 'link' && <ExternalLink className="ml-auto size-3 shrink-0 text-muted-foreground" aria-hidden />}
-            </span>
-            <span className={`truncate text-xs ${missing ? 'text-destructive' : 'text-muted-foreground'}`}>{subtitle}</span>
-          </>
-        )
-        const className = 'flex h-full min-w-0 flex-col gap-0.5 rounded-lg border px-2.5 py-2 text-sm transition-colors'
-        return (
-          <li key={`${index}-${tileHref(tile)}`}>
-            {missing ? (
-              <div className={`${className} opacity-60`} title="This item has been deleted. Remove it in the widget's settings.">
-                {body}
-              </div>
-            ) : tile.kind === 'link' ? (
-              <a href={tile.url} target="_blank" rel="noreferrer" className={`${className} hover:bg-muted`}>
-                {body}
-              </a>
-            ) : (
-              <Link to={tileHref(tile)} className={`${className} hover:bg-muted`}>
-                {body}
-              </Link>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <div ref={sizeRef} className="flex min-h-0 flex-1 flex-col">
+      {size.width > 0 && (
+        <ul
+          className="grid min-h-0 flex-1 overflow-y-auto"
+          style={{
+            gap: TILE_GAP,
+            gridTemplateColumns: `repeat(${grid.cols}, minmax(0, 1fr))`,
+            gridTemplateRows: grid.fill ? `repeat(${grid.rows}, minmax(0, 1fr))` : undefined,
+            gridAutoRows: grid.fill ? undefined : TILE_MIN_H,
+          }}
+        >
+          {cfg.tiles.map((tile, index) => {
+            const missing = isMissing(tile, existing)
+            const color = tile.kind === 'link' ? '' : moduleColor(tile.moduleId)
+            const subtitle = missing
+              ? 'Missing'
+              : tile.kind === 'link'
+                ? new URL(tile.url).hostname
+                : tile.kind === 'module'
+                  ? KIND_LABEL.module
+                  : `${KIND_LABEL[tile.kind]} · ${moduleName(tile.moduleId)}`
+            const body = (
+              <>
+                <span className={`flex max-w-full min-w-0 items-center ${large ? 'gap-2.5' : 'gap-2'}`}>
+                  <TileIcon tile={tile} color={color} large={large} />
+                  <span className={`truncate font-medium ${large ? 'text-lg' : ''}`}>{tile.title}</span>
+                  {tile.kind === 'link' && <ExternalLink className="size-3 shrink-0 text-muted-foreground" aria-hidden />}
+                </span>
+                <span className={`max-w-full truncate ${large ? 'text-sm' : 'text-xs'} ${missing ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {subtitle}
+                </span>
+              </>
+            )
+            const className = `flex h-full min-w-0 flex-col justify-center gap-0.5 overflow-hidden rounded-lg border px-2.5 py-2 text-sm transition-colors ${large ? 'items-center text-center' : ''}`
+            return (
+              <li key={`${index}-${tileHref(tile)}`} className="min-h-0">
+                {missing ? (
+                  <div className={`${className} opacity-60`} title="This item has been deleted. Remove it in the widget's settings.">
+                    {body}
+                  </div>
+                ) : tile.kind === 'link' ? (
+                  <a href={tile.url} target="_blank" rel="noreferrer" className={`${className} hover:bg-muted`}>
+                    {body}
+                  </a>
+                ) : (
+                  <Link to={tileHref(tile)} className={`${className} hover:bg-muted`}>
+                    {body}
+                  </Link>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }
 

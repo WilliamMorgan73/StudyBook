@@ -126,3 +126,32 @@ export function isMissing(tile: PinnedTile, existing: Existing): boolean {
       return false
   }
 }
+
+/** Smallest a tile gets (px) before the grid scrolls instead, and the gap between tiles. */
+export const TILE_MIN_W = 140
+export const TILE_MIN_H = 52
+export const TILE_GAP = 8
+/** The tile shape the grid aims for: wider than tall, like a button. */
+const IDEAL_ASPECT = 2.5
+
+/**
+ * How `count` tiles share a `width` × `height` widget: the columns and rows whose tiles come
+ * closest to a button's shape with the fewest empty cells, so one tile fills the whole widget and
+ * more split it. `fill` is false when even the most compact grid is too tall, and the tiles take
+ * their minimum height and scroll instead.
+ */
+export function tileGrid(count: number, width: number, height: number): { cols: number; rows: number; fill: boolean } {
+  const n = Math.max(1, count)
+  const maxCols = Math.max(1, Math.min(n, Math.floor((width + TILE_GAP) / (TILE_MIN_W + TILE_GAP))))
+  let best: { cols: number; rows: number; score: number } | null = null
+  for (let cols = 1; cols <= maxCols; cols++) {
+    const rows = Math.ceil(n / cols)
+    const tileH = (height - (rows - 1) * TILE_GAP) / rows
+    if (tileH < TILE_MIN_H) continue
+    const tileW = (width - (cols - 1) * TILE_GAP) / cols
+    const score = Math.abs(Math.log(tileW / tileH / IDEAL_ASPECT)) + 0.5 * (rows * cols - n)
+    if (!best || score < best.score) best = { cols, rows, score }
+  }
+  if (best) return { cols: best.cols, rows: best.rows, fill: true }
+  return { cols: maxCols, rows: Math.ceil(n / maxCols), fill: false }
+}

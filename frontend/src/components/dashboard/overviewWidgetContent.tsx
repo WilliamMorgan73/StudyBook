@@ -39,7 +39,8 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
   timeline: { body: <TimelineWidget />, settings: <TimelineSettings /> },
   gradeTarget: { body: <GradeTargetWidget />, settings: <GradeTargetSettings /> },
-  pinned: { body: <PinnedWidget />, settings: <PinnedSettings /> },
+  // The tiles share the widget's space, scrolling only when there are too many.
+  pinned: { body: <PinnedWidget />, settings: <PinnedSettings />, scroll: false },
   now: { body: <NowWidget /> },
   cardOfTheDay: { body: <CardOfTheDayWidget />, settings: <CardOfTheDaySettings /> },
   weakestTopics: { body: <WeakestTopicsWidget /> },
