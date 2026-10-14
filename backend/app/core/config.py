@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Each of these defaults to its place inside `data_dir` (filled in below) unless set explicitly.
     database_url: str = ""
     upload_dir: str = ""
-    # Where a restore saves its automatic copy of the data it replaces.
+    # Automatic backups, and the copies a restore or schema upgrade saves of the data it replaces.
     backup_dir: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]
     # Fallback Anthropic key (env var ANTHROPIC_API_KEY or .env), used when the key saved in
