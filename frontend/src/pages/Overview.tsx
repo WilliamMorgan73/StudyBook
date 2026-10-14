@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { BookOpen, RotateCcw, Settings, WifiOff } from 'lucide-react'
+import { BookOpen, Settings } from 'lucide-react'
 
 import { AppSettingsDialog } from '@/components/AppSettingsDialog'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
@@ -10,8 +10,8 @@ import { OVERVIEW_WIDGET_CONTENT } from '@/components/dashboard/overviewWidgetCo
 import { OverviewContext, type OverviewData } from '@/components/dashboard/overviewContext'
 import { useLayoutEditor } from '@/components/dashboard/useLayoutEditor'
 import { selectedDayLabel, useOverviewCalendar } from '@/components/dashboard/useOverviewCalendar'
-import { ErrorState } from '@/components/ErrorState'
 import { PageHeader } from '@/components/PageHeader'
+import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getAppSettings, listModules, updateAppSettings } from '@/lib/api'
@@ -84,20 +84,8 @@ export function Overview() {
           <Skeleton className="h-full w-full rounded-xl" />
         ) : appSettings.data === null ? (
           <div className="flex h-full items-center justify-center">
-            <ErrorState
-              icon={WifiOff}
-              iconVariant="warning"
-              badge="Server offline"
-              title="Cannot connect to StudyBook server"
-              description="Couldn't connect to the local StudyBook backend. Make sure the server is running, then try again."
-              codeSnippet="uv run uvicorn app.main:app"
-              primaryAction={{
-                label: 'Retry connection',
-                onClick: async () => {
-                  await Promise.all([appSettings.refetch(), modules.refetch(), calendar.calendar.refetch()])
-                },
-                icon: RotateCcw,
-              }}
+            <ServerOfflineState
+              onRetry={() => Promise.all([appSettings.refetch(), modules.refetch(), calendar.calendar.refetch()])}
             />
           </div>
         ) : (

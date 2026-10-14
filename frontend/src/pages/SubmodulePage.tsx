@@ -9,6 +9,7 @@ import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
 import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
+import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { StudySession } from '@/components/StudySession'
 import { SubmoduleLectures } from '@/components/SubmoduleLectures'
 import { SubmoduleSummary, SummarizeDialog } from '@/components/SubmoduleSummary'
@@ -20,6 +21,7 @@ import {
   getAppSettings,
   getModule,
   getSubmodule,
+  isNotFound,
   resolveWikilink,
   updateSubmodule,
   uploadSubmoduleAttachment,
@@ -33,9 +35,9 @@ import { useAsync } from '@/lib/useAsync'
 export function SubmodulePage() {
   const { moduleId, submoduleId } = useParams()
   const id = Number(submoduleId)
-  const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
-  const { data: submodule, loading, refetch: refetchSubmodule } = useAsync(() => getSubmodule(id), [id])
-  const { data: appSettings } = useAsync(() => getAppSettings(), [])
+  const { data: module, refetch: refetchModule } = useAsync(() => getModule(Number(moduleId)), [moduleId])
+  const { data: submodule, error, loading, refetch: refetchSubmodule } = useAsync(() => getSubmodule(id), [id])
+  const { data: appSettings, refetch: refetchAppSettings } = useAsync(() => getAppSettings(), [])
 
   if (loading) {
     return (
@@ -62,23 +64,27 @@ export function SubmodulePage() {
           }
         />
         <div className="flex flex-1 items-center justify-center p-6">
-          <ErrorState
-            icon={FileText}
-            iconVariant="muted"
-            badge="404"
-            title="Topic not found"
-            description="We couldn't find this topic or note. It may have been deleted or the link is invalid."
-            primaryAction={{
-              label: `Back to ${parentLabel}`,
-              to: parentUrl,
-              icon: ArrowLeft,
-            }}
-            secondaryAction={{
-              label: 'Try again',
-              onClick: refetchSubmodule,
-              icon: RotateCcw,
-            }}
-          />
+          {isNotFound(error) ? (
+            <ErrorState
+              icon={FileText}
+              iconVariant="muted"
+              badge="404"
+              title="Topic not found"
+              description="We couldn't find this topic or note. It may have been deleted or the link is invalid."
+              primaryAction={{
+                label: `Back to ${parentLabel}`,
+                to: parentUrl,
+                icon: ArrowLeft,
+              }}
+              secondaryAction={{
+                label: 'Try again',
+                onClick: refetchSubmodule,
+                icon: RotateCcw,
+              }}
+            />
+          ) : (
+            <ServerOfflineState onRetry={() => Promise.all([refetchSubmodule(), refetchModule(), refetchAppSettings()])} />
+          )}
         </div>
       </div>
     )

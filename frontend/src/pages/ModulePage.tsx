@@ -18,11 +18,13 @@ import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
 import { RefreshLecturesButton } from '@/components/RefreshLecturesButton'
 import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
+import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAppSettings,
   getModule,
+  isNotFound,
   listRevisionSessions,
   updateAppSettings,
   updateModule,
@@ -57,7 +59,7 @@ function ModuleView({ id }: { id: number }) {
   const [checkCodeMatches, setCheckCodeMatches] = useState(false)
   const [bannerOpen, setBannerOpen] = useState(false)
   const [selectedDay, setSelectedDay] = useState(() => new Date())
-  const { data: module, loading, refetch } = useAsync(() => getModule(id), [id])
+  const { data: module, error, loading, refetch } = useAsync(() => getModule(id), [id])
   const weekRange = useMemo(() => weekCalendarRange(new Date()), [])
   const upcomingRange = useMemo(() => upcomingRevisionRange(new Date()), [])
   const weekSessions = useAsync(
@@ -113,23 +115,31 @@ function ModuleView({ id }: { id: number }) {
           }
         />
         <div className="flex flex-1 items-center justify-center p-6">
-          <ErrorState
-            icon={BookX}
-            iconVariant="muted"
-            badge="404"
-            title="Module not found"
-            description="This module couldn't be found. It may have been deleted or the link is invalid."
-            primaryAction={{
-              label: 'Back to Overview',
-              to: '/',
-              icon: ArrowLeft,
-            }}
-            secondaryAction={{
-              label: 'Try again',
-              onClick: refetch,
-              icon: RotateCcw,
-            }}
-          />
+          {isNotFound(error) ? (
+            <ErrorState
+              icon={BookX}
+              iconVariant="muted"
+              badge="404"
+              title="Module not found"
+              description="This module couldn't be found. It may have been deleted or the link is invalid."
+              primaryAction={{
+                label: 'Back to Overview',
+                to: '/',
+                icon: ArrowLeft,
+              }}
+              secondaryAction={{
+                label: 'Try again',
+                onClick: refetch,
+                icon: RotateCcw,
+              }}
+            />
+          ) : (
+            <ServerOfflineState
+              onRetry={() =>
+                Promise.all([refetch(), appSettings.refetch(), weekSessions.refetch(), upcomingSessions.refetch()])
+              }
+            />
+          )}
         </div>
       </div>
     )
