@@ -13,6 +13,7 @@ import { verticalCompactor } from 'react-grid-layout'
 
 import { CLOCK_CONFIG } from '@/lib/clock'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
+import { TIMELINE_CONFIG } from '@/lib/timeline'
 
 export const DASHBOARD_COLUMNS = 12
 export const DASHBOARD_ROWS = 14
@@ -34,6 +35,7 @@ export type WidgetId =
   | 'revisionToday'
   | 'flashcardsDue'
   | 'clock'
+  | 'timeline'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -149,6 +151,16 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 4,
   },
   clock: CLOCK_WIDGET,
+  timeline: {
+    title: 'Deadline timeline',
+    description: 'The next few weeks, with deadlines and exams on their dates',
+    minW: 4,
+    minH: 2,
+    defaultW: 8,
+    defaultH: 3,
+    multiple: true,
+    config: TIMELINE_CONFIG,
+  },
 }
 
 export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]

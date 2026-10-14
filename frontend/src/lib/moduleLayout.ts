@@ -3,6 +3,7 @@
 
 import { CLOCK_WIDGET, normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
+import { TIMELINE_CONFIG } from '@/lib/timeline'
 
 export type ModuleWidgetId =
   | 'schedule'
@@ -20,6 +21,7 @@ export type ModuleWidgetId =
   | 'notepad'
   | 'related'
   | 'clock'
+  | 'timeline'
 
 export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   schedule: {
@@ -94,6 +96,16 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   notepad: { title: 'Notepad', description: 'Scratch space for this module', minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
   related: { title: 'Related modules', description: 'Modules linked to this one', minW: 3, minH: 2, defaultW: 12, defaultH: 2 },
   clock: CLOCK_WIDGET,
+  timeline: {
+    title: 'Deadline timeline',
+    description: "This module's deadlines and exams over the next few weeks",
+    minW: 4,
+    minH: 2,
+    defaultW: 8,
+    defaultH: 3,
+    multiple: true,
+    config: TIMELINE_CONFIG,
+  },
 }
 
 /** The page as it was before it was customisable: Schedule on top of three lists. */

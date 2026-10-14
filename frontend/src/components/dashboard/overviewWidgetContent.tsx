@@ -10,6 +10,7 @@ import {
   UpcomingWidget,
 } from '@/components/dashboard/ListWidgets'
 import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
+import { TimelineSettings, TimelineWidget } from '@/components/dashboard/TimelineWidget'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import type { WidgetId } from '@/lib/dashboardLayout'
 
@@ -30,4 +31,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   flashcardsDue: { body: <FlashcardsDueWidget /> },
   // Sizes itself to the widget, like the ring.
   clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
+  timeline: { body: <TimelineWidget />, settings: <TimelineSettings /> },
 }
