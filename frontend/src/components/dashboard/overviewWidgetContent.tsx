@@ -15,6 +15,7 @@ import { NowWidget } from '@/components/dashboard/NowWidget'
 import { PinnedSettings, PinnedWidget } from '@/components/dashboard/PinnedWidget'
 import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
 import { TimelineSettings, TimelineWidget } from '@/components/dashboard/TimelineWidget'
+import { WeakestTopicsWidget } from '@/components/dashboard/WeakestTopicsWidget'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import type { WidgetId } from '@/lib/dashboardLayout'
 
@@ -40,4 +41,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   pinned: { body: <PinnedWidget />, settings: <PinnedSettings /> },
   now: { body: <NowWidget /> },
   cardOfTheDay: { body: <CardOfTheDayWidget />, settings: <CardOfTheDaySettings /> },
+  weakestTopics: { body: <WeakestTopicsWidget /> },
 }

@@ -291,6 +291,17 @@ export interface SubmoduleIndexEntry {
   module_name: string
 }
 
+/** A topic for the Weakest topics widget, with the revision planner's weakness score. */
+export interface WeakTopic {
+  id: number
+  title: string
+  module_id: number
+  module_name: string
+  /** 0 (never lapses) to 1 (always lapses); 0.5 with no review data. */
+  weakness: number
+  card_count: number
+}
+
 /** `ai` = generated and accepted in the review dialog. */
 export type FlashcardSource = 'manual' | 'ai'
 
@@ -593,6 +604,14 @@ export function listSubmodulesIndex(search?: string) {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   return request<SubmoduleIndexEntry[]>(`/submodules?${params}`)
+}
+
+/** Topics with cards, weakest first (`GET /submodules/weakest`). */
+export function listWeakestTopics(filter: { limit?: number; moduleId?: number } = {}) {
+  const params = new URLSearchParams()
+  if (filter.limit) params.set('limit', String(filter.limit))
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  return request<WeakTopic[]>(`/submodules/weakest?${params}`)
 }
 
 export function resolveWikilink(title: string, moduleId: number) {

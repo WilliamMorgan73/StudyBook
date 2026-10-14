@@ -21,6 +21,7 @@ import {
   SubmodulesWidget,
 } from '@/components/dashboard/ModuleWidgets'
 import { ModuleTimelineWidget, TimelineSettings } from '@/components/dashboard/TimelineWidget'
+import { ModuleWeakestTopicsWidget } from '@/components/dashboard/WeakestTopicsWidget'
 import type { ModuleWidgetId } from '@/lib/moduleLayout'
 
 /**
@@ -46,4 +47,5 @@ export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
   // Sizes itself to the widget, like the ring.
   clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
   timeline: { body: <ModuleTimelineWidget />, settings: <TimelineSettings /> },
+  weakestTopics: { body: <ModuleWeakestTopicsWidget /> },
 }

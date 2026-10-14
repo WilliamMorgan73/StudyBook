@@ -28,6 +28,18 @@ class SubmoduleLinkTarget(BaseModel):
     module_id: int
 
 
+class WeakTopic(BaseModel):
+    """A topic for the Weakest topics widget, with the revision planner's weakness score."""
+
+    id: int
+    title: str
+    module_id: int
+    module_name: str
+    weakness: float
+    """0 (never lapses) to 1 (always lapses); 0.5 with no review data."""
+    card_count: int
+
+
 class SubmoduleIndexEntry(BaseModel):
     """Lightweight listing entry for the cross-module wikilink picker — no content_markdown/attachments."""
 

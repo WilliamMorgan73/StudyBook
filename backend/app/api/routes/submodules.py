@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud.attachments import store_upload
+from app.crud.revision_plans import submodule_weakness
 from app.crud.submodule_links import resolve_wikilink
 from app.models.attachment import Attachment
+from app.models.flashcard import Flashcard
 from app.models.module import Module
 from app.models.submodule import Submodule
 from app.schemas.attachment import AttachmentRead
@@ -15,6 +17,7 @@ from app.schemas.submodule import (
     SubmoduleIndexEntry,
     SubmoduleLinkTarget,
     SubmoduleUpdate,
+    WeakTopic,
 )
 
 router = APIRouter(prefix="/submodules", tags=["submodules"])
@@ -30,6 +33,40 @@ def list_submodules(search: str | None = None, db: Session = Depends(get_db)) ->
     return [
         SubmoduleIndexEntry(id=r.id, title=r.title, module_id=r.module_id, module_name=r.module_name) for r in rows
     ]
+
+
+@router.get("/weakest", response_model=list[WeakTopic])
+def list_weakest_submodules(
+    limit: int = Query(5, ge=1, le=50), module_id: int | None = None, db: Session = Depends(get_db)
+) -> list[WeakTopic]:
+    """Topics with the worst weakness scores (the revision planner's), weakest first. Topics with no
+    Flashcards are left out: there's nothing to score them on."""
+    query = (
+        select(
+            Submodule.id, Submodule.title, Submodule.module_id, Module.name.label("module_name"), func.count(Flashcard.id).label("cards")
+        )
+        .select_from(Submodule)
+        .join(Module, Module.id == Submodule.module_id)
+        .join(Flashcard, Flashcard.submodule_id == Submodule.id)
+        .group_by(Submodule.id, Module.name)
+    )
+    if module_id is not None:
+        query = query.where(Submodule.module_id == module_id)
+    rows = db.execute(query).all()
+    weakness = submodule_weakness(db, [r.id for r in rows])
+    topics = [
+        WeakTopic(
+            id=r.id,
+            title=r.title,
+            module_id=r.module_id,
+            module_name=r.module_name,
+            weakness=weakness[r.id],
+            card_count=r.cards,
+        )
+        for r in rows
+    ]
+    topics.sort(key=lambda t: (-t.weakness, t.title))
+    return topics[:limit]
 
 
 @router.get("/resolve", response_model=SubmoduleLinkTarget)

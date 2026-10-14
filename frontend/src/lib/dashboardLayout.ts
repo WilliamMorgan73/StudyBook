@@ -43,6 +43,7 @@ export type WidgetId =
   | 'pinned'
   | 'now'
   | 'cardOfTheDay'
+  | 'weakestTopics'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -205,6 +206,14 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 6,
     multiple: true,
     config: CARD_OF_THE_DAY_CONFIG,
+  },
+  weakestTopics: {
+    title: 'Weakest topics',
+    description: 'The topics whose flashcards you forget most',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
   },
 }
 

@@ -22,6 +22,7 @@ export type ModuleWidgetId =
   | 'related'
   | 'clock'
   | 'timeline'
+  | 'weakestTopics'
 
 export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   schedule: {
@@ -105,6 +106,14 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
     defaultH: 3,
     multiple: true,
     config: TIMELINE_CONFIG,
+  },
+  weakestTopics: {
+    title: 'Weakest topics',
+    description: "This module's topics whose flashcards you forget most",
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
   },
 }
 
