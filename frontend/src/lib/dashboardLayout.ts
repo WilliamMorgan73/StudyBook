@@ -40,6 +40,7 @@ export type WidgetId =
   | 'timeline'
   | 'gradeTarget'
   | 'pinned'
+  | 'now'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -184,6 +185,14 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 3,
     multiple: true,
     config: PINNED_CONFIG,
+  },
+  now: {
+    title: 'Now',
+    description: 'The lecture you’re in, today’s revision or what’s due next',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 4,
   },
 }
 

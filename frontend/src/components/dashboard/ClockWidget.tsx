@@ -1,31 +1,12 @@
-import { useEffect, useState } from 'react'
-
 import { TimeZonePicker } from '@/components/dashboard/TimeZonePicker'
 import { useWidgetConfig } from '@/components/dashboard/widgetInstance'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CLOCK_CONFIG, CLOCK_LABEL_MAX, clockParts, handAngles, nextTickDelay, type ClockConfig, type ClockStyle } from '@/lib/clock'
+import { CLOCK_CONFIG, CLOCK_LABEL_MAX, clockParts, handAngles, type ClockConfig, type ClockStyle } from '@/lib/clock'
 import { useElementSize } from '@/lib/useElementSize'
-
-/** The current time, updated on each whole second (with seconds shown) or whole minute. */
-function useNow(showSeconds: boolean): Date {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>
-    const schedule = () => {
-      timer = setTimeout(() => {
-        setNow(new Date())
-        schedule()
-      }, nextTickDelay(new Date(), showSeconds))
-    }
-    // Turning seconds on waits at most a second, since the first tick lands on the next whole one.
-    schedule()
-    return () => clearTimeout(timer)
-  }, [showSeconds])
-  return now
-}
+import { useNow } from '@/lib/useNow'
 
 /** Line height of the date and label lines under the time or face (px), at their smallest. */
 const CAPTION_LINE = 20

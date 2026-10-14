@@ -10,6 +10,7 @@ import {
   TodoWidget,
   UpcomingWidget,
 } from '@/components/dashboard/ListWidgets'
+import { NowWidget } from '@/components/dashboard/NowWidget'
 import { PinnedSettings, PinnedWidget } from '@/components/dashboard/PinnedWidget'
 import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
 import { TimelineSettings, TimelineWidget } from '@/components/dashboard/TimelineWidget'
@@ -36,4 +37,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   timeline: { body: <TimelineWidget />, settings: <TimelineSettings /> },
   gradeTarget: { body: <GradeTargetWidget />, settings: <GradeTargetSettings /> },
   pinned: { body: <PinnedWidget />, settings: <PinnedSettings /> },
+  now: { body: <NowWidget /> },
 }
