@@ -13,6 +13,7 @@ import { verticalCompactor } from 'react-grid-layout'
 
 import { CLOCK_CONFIG } from '@/lib/clock'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
+import { GRADE_TARGET_CONFIG } from '@/lib/gradeTarget'
 import { TIMELINE_CONFIG } from '@/lib/timeline'
 
 export const DASHBOARD_COLUMNS = 12
@@ -36,6 +37,7 @@ export type WidgetId =
   | 'flashcardsDue'
   | 'clock'
   | 'timeline'
+  | 'gradeTarget'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -160,6 +162,16 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 3,
     multiple: true,
     config: TIMELINE_CONFIG,
+  },
+  gradeTarget: {
+    title: 'Grade target',
+    description: 'What you need in what’s left to hit a target class',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
+    multiple: true,
+    config: GRADE_TARGET_CONFIG,
   },
 }
 

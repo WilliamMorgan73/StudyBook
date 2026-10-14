@@ -524,6 +524,11 @@ export function deleteModule(id: number) {
   return request<void>(`/modules/${id}`, { method: 'DELETE' })
 }
 
+/** Every assignment in every module. */
+export function listAssignments() {
+  return request<Assignment[]>('/assignments')
+}
+
 export function listUpcomingAssignments(limit = 5) {
   return request<Assignment[]>(`/assignments?upcoming=true&limit=${limit}`)
 }

@@ -1,6 +1,7 @@
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
+import { GradeTargetSettings, GradeTargetWidget } from '@/components/dashboard/GradeTargetWidget'
 import { CalendarSettings } from '@/components/dashboard/DayListSettings'
 import {
   FlashcardsDueWidget,
@@ -32,4 +33,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   // Sizes itself to the widget, like the ring.
   clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
   timeline: { body: <TimelineWidget />, settings: <TimelineSettings /> },
+  gradeTarget: { body: <GradeTargetWidget />, settings: <GradeTargetSettings /> },
 }
