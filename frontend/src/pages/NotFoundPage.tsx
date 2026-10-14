@@ -1,7 +1,8 @@
-import { ArrowLeft, BookOpen, FileQuestion } from 'lucide-react'
+import { ArrowLeft, FileQuestion } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { ErrorState } from '@/components/ErrorState'
+import { Logo } from '@/components/Logo'
 import { PageHeader } from '@/components/PageHeader'
 
 export function NotFoundPage() {
@@ -10,7 +11,7 @@ export function NotFoundPage() {
       <PageHeader
         left={
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <BookOpen className="size-6" />
+            <Logo />
             <span className="text-lg font-semibold">StudyBook</span>
           </Link>
         }
