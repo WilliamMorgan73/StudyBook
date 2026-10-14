@@ -14,6 +14,7 @@ import { verticalCompactor } from 'react-grid-layout'
 import { CLOCK_CONFIG } from '@/lib/clock'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
 import { GRADE_TARGET_CONFIG } from '@/lib/gradeTarget'
+import { PINNED_CONFIG } from '@/lib/pinned'
 import { TIMELINE_CONFIG } from '@/lib/timeline'
 
 export const DASHBOARD_COLUMNS = 12
@@ -38,6 +39,7 @@ export type WidgetId =
   | 'clock'
   | 'timeline'
   | 'gradeTarget'
+  | 'pinned'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -172,6 +174,16 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 5,
     multiple: true,
     config: GRADE_TARGET_CONFIG,
+  },
+  pinned: {
+    title: 'Pinned',
+    description: 'Quick-launch tiles for modules, topics, assignments and links',
+    minW: 2,
+    minH: 2,
+    defaultW: 4,
+    defaultH: 3,
+    multiple: true,
+    config: PINNED_CONFIG,
   },
 }
 
