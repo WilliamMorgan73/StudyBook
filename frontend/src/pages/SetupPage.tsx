@@ -42,6 +42,7 @@ import { MODULE_DEFAULT_LAYOUT, MODULE_LAYOUT_PRESETS, MODULE_WIDGETS, moduleBoa
 import { applyTheme, SKINS } from '@/lib/theme'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
+import { deleteWithUndo } from '@/lib/undoToast'
 
 type StepId = 'appearance' | 'modules' | 'layout' | 'overview' | 'ai' | 'calendars'
 
@@ -347,9 +348,16 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
     }
   }
 
-  async function handleRemove(id: number) {
-    await deleteModule(id)
-    setAddedIds((ids) => ids.filter((x) => x !== id))
+  async function handleRemove(module: { id: number; name: string }) {
+    await deleteWithUndo({
+      label: module.name,
+      del: () => deleteModule(module.id),
+      onUndone: () => {
+        setAddedIds((ids) => [...ids, module.id])
+        void onChanged()
+      },
+    })
+    setAddedIds((ids) => ids.filter((x) => x !== module.id))
     await onChanged()
   }
 
@@ -408,7 +416,7 @@ function ModulesStep({ modules, onChanged }: { modules: ModuleSummary[] | null; 
                   <span className="min-w-0 flex-1 truncate">{m.name}</span>
                   {m.code && <span className="text-sm text-muted-foreground">{m.code}</span>}
                   {addedIds.includes(m.id) ? (
-                    <Button size="icon-sm" variant="ghost" aria-label={`Remove ${m.name}`} onClick={() => handleRemove(m.id)}>
+                    <Button size="icon-sm" variant="ghost" aria-label={`Remove ${m.name}`} onClick={() => handleRemove(m)}>
                       <X />
                     </Button>
                   ) : (

@@ -74,6 +74,7 @@ def main(argv: list[str] | None = None) -> None:
     os.environ["DATABASE_URL"] = f"sqlite:///{data_dir / 'studybook.db'}"
     os.environ["UPLOAD_DIR"] = str(data_dir / "uploads")
     os.environ["BACKUP_DIR"] = str(data_dir / "backups")
+    os.environ["UNDO_DIR"] = str(data_dir / "undo")
 
     if args.exit_with_stdin:
         threading.Thread(target=_exit_when_stdin_closes, daemon=True).start()

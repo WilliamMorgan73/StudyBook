@@ -19,6 +19,8 @@ from app.schemas.submodule import (
     SubmoduleUpdate,
     WeakTopic,
 )
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/submodules", tags=["submodules"])
 
@@ -107,13 +109,12 @@ def update_submodule(submodule_id: int, payload: SubmoduleUpdate, db: Session = 
     return SubmoduleDetail.from_submodule(submodule)
 
 
-@router.delete("/{submodule_id}", status_code=204)
-def delete_submodule(submodule_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{submodule_id}", response_model=DeleteResult)
+def delete_submodule(submodule_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     submodule = db.get(Submodule, submodule_id)
     if submodule is None:
         raise HTTPException(404, "Submodule not found")
-    db.delete(submodule)
-    db.commit()
+    return DeleteResult(undo_token=delete_with_undo(db, submodule))
 
 
 @router.post("/{submodule_id}/attachments", response_model=AttachmentRead, status_code=201)

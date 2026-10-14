@@ -1,9 +1,11 @@
-import { FileText, Paperclip, Trash2 } from 'lucide-react'
+import { FileText, Paperclip } from 'lucide-react'
 import { useRef, useState } from 'react'
 
+import { DeleteIconButton } from '@/components/DeleteIconButton'
 import { ExtractedTextDialog } from '@/components/ExtractedTextDialog'
 import { Button } from '@/components/ui/button'
 import { deleteAttachment, type Attachment } from '@/lib/api'
+import { deleteWithUndo } from '@/lib/undoToast'
 
 export function AttachmentList({
   attachments,
@@ -36,8 +38,8 @@ export function AttachmentList({
     }
   }
 
-  async function handleDelete(id: number) {
-    await deleteAttachment(id)
+  async function handleDelete(a: Attachment) {
+    await deleteWithUndo({ label: a.filename, del: () => deleteAttachment(a.id), onUndone: onChanged })
     onChanged()
   }
 
@@ -91,9 +93,7 @@ export function AttachmentList({
                   <FileText />
                 </Button>
               )}
-              <Button size="icon-sm" variant="ghost" aria-label="Delete file" onClick={() => handleDelete(a.id)}>
-                <Trash2 />
-              </Button>
+              <DeleteIconButton label="Delete file" onClick={() => void handleDelete(a)} />
             </li>
           ))}
         </ul>

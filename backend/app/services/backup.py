@@ -26,7 +26,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from alembic.script import ScriptDirectory
-from sqlalchemy import Date, DateTime, Numeric, Table, Time, inspect, select
+from sqlalchemy import JSON, Date, DateTime, Numeric, Table, Time, inspect, null, select
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Session
 
@@ -78,7 +78,7 @@ def current_revision() -> str:
 # --- encoding --------------------------------------------------------------------------------------------
 
 
-def _encode(value: Any) -> Any:
+def encode_value(value: Any) -> Any:
     if isinstance(value, Enum):
         return value.name  # SQLAlchemy's Enum stores (and accepts) member names
     if isinstance(value, (datetime, date, time)):
@@ -102,7 +102,7 @@ def _decoder(column_type: Any):
     return None
 
 
-def _decode_row(table: Table, row: Any, *, drop_unknown: bool) -> dict[str, Any]:
+def decode_row(table: Table, row: Any, *, drop_unknown: bool) -> dict[str, Any]:
     if not isinstance(row, dict):
         raise BackupError(f"The backup is damaged: a row in {table.name} isn't an object.")
     secrets = SECRET_COLUMNS.get(table.name, ())
@@ -114,7 +114,12 @@ def _decode_row(table: Table, row: Any, *, drop_unknown: bool) -> dict[str, Any]
             if drop_unknown:
                 continue
             raise BackupError(f"The backup is damaged: {table.name} has an unknown column {name!r}.")
-        decode = _decoder(table.columns[name].type)
+        column_type = table.columns[name].type
+        if value is None and isinstance(column_type, JSON):
+            # Plain None would be stored as the JSON text 'null', not SQL NULL.
+            decoded[name] = null()
+            continue
+        decode = _decoder(column_type)
         if value is not None and decode is not None:
             try:
                 value = decode(value)
@@ -146,7 +151,7 @@ def write_backup(db: Session, out_path: Path, *, upload_dir: Path, revision: str
             columns = [column for column in table.columns if column.name in existing and column.name not in secrets]
             rows = []
             for row in db.execute(select(*columns)).mappings():
-                encoded = {key: _encode(value) for key, value in row.items()}
+                encoded = {key: encode_value(value) for key, value in row.items()}
                 if table.name == "attachments":
                     encoded["file_path"] = _relative_upload_path(encoded["file_path"], upload_root)
                 rows.append(encoded)
@@ -235,7 +240,7 @@ def read_backup(zip_path: Path) -> ParsedBackup:
             if not isinstance(raw, list):
                 raise BackupError(f"The backup is damaged: {name} isn't a list of rows.")
             table = tables[table_name]
-            rows[table_name] = [_decode_row(table, row, drop_unknown=older) for row in raw]
+            rows[table_name] = [decode_row(table, row, drop_unknown=older) for row in raw]
 
         for attachment in rows["attachments"]:
             file_path = attachment.get("file_path")

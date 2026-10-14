@@ -551,8 +551,18 @@ export function updateModule(id: number, input: ModuleUpdateInput) {
   return patchJson<ModuleRead>(`/modules/${id}`, input)
 }
 
+/** What a delete returns: the token that undoes it, for a couple of minutes (see `lib/undoToast.ts`). */
+export interface DeleteResult {
+  undo_token: string
+}
+
+/** Puts back everything one delete removed. 404 once it's expired or used; 409 if it no longer fits. */
+export function undoDelete(token: string) {
+  return request<void>(`/undo/${encodeURIComponent(token)}`, { method: 'POST' })
+}
+
 export function deleteModule(id: number) {
-  return request<void>(`/modules/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/modules/${id}`, { method: 'DELETE' })
 }
 
 /** Every assignment in every module. */
@@ -577,7 +587,7 @@ export function updateAssignment(id: number, input: AssignmentUpdateInput) {
 }
 
 export function deleteAssignment(id: number) {
-  return request<void>(`/assignments/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/assignments/${id}`, { method: 'DELETE' })
 }
 
 export function uploadAssignmentAttachment(assignmentId: number, file: File) {
@@ -601,7 +611,7 @@ export function getAttachmentExtractedText(id: number) {
 }
 
 export function deleteAttachment(id: number) {
-  return request<void>(`/attachments/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/attachments/${id}`, { method: 'DELETE' })
 }
 
 export function getSubmodule(id: number) {
@@ -617,7 +627,7 @@ export function updateSubmodule(id: number, input: SubmoduleUpdateInput) {
 }
 
 export function deleteSubmodule(id: number) {
-  return request<void>(`/submodules/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/submodules/${id}`, { method: 'DELETE' })
 }
 
 export function listSubmodulesIndex(search?: string) {
@@ -699,7 +709,7 @@ export function updateFlashcard(id: number, input: { front?: string; back?: stri
 }
 
 export function deleteFlashcard(id: number) {
-  return request<void>(`/flashcards/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/flashcards/${id}`, { method: 'DELETE' })
 }
 
 export function listLectures(moduleId: number) {
@@ -724,7 +734,7 @@ export function setLecturesSubmodules(lectureIds: number[], submoduleIds: number
 }
 
 export function deleteLecture(id: number) {
-  return request<void>(`/lectures/${id}`, { method: 'DELETE' })
+  return request<DeleteResult>(`/lectures/${id}`, { method: 'DELETE' })
 }
 
 /** Flashcard reviews per local day ("YYYY-MM-DD" → count; days with none are left out). */

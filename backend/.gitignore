@@ -4,6 +4,7 @@ __pycache__/
 .env
 uploads/
 backups/
+undo/
 .pytest_cache/
 .ruff_cache/
 studybook.db

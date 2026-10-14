@@ -10,6 +10,8 @@ from app.crud.attachment_text import (
 )
 from app.models.attachment import Attachment
 from app.schemas.attachment import AttachmentExtractedText
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/attachments", tags=["attachments"])
 
@@ -36,10 +38,10 @@ def read_extracted_text(attachment_id: int, db: Session = Depends(get_db)) -> At
     )
 
 
-@router.delete("/{attachment_id}", status_code=204)
-def delete_attachment(attachment_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{attachment_id}", response_model=DeleteResult)
+def delete_attachment(attachment_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     attachment = db.get(Attachment, attachment_id)
     if attachment is None:
         raise HTTPException(404, "Attachment not found")
-    db.delete(attachment)
-    db.commit()  # the file is removed once this commits (see app/models/attachment.py)
+    # The file is removed once this commits (see app/models/attachment.py); the undo keeps a copy.
+    return DeleteResult(undo_token=delete_with_undo(db, attachment))

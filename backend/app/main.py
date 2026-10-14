@@ -26,11 +26,13 @@ from app.api.routes import (
     stats,
     submodule_ai,
     submodules,
+    undo,
 )
 from app.core.config import settings
 from app.core.database import SessionLocal, engine
 from app.core.migrate import ensure_schema
 from app.services import auto_backup
+from app.services import undo as undo_service
 from app.services.ai import AIError
 
 
@@ -38,6 +40,7 @@ from app.services.ai import AIError
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Only when the server starts (tests' plain `TestClient(app)` skips it and uses its own database).
     ensure_schema(engine)
+    undo_service.purge_expired()
     backups = asyncio.create_task(_automatic_backups())
     yield
     backups.cancel()
@@ -89,6 +92,7 @@ app.include_router(quick_todos.router)
 app.include_router(quick_note.router)
 app.include_router(backup.router)
 app.include_router(stats.router)
+app.include_router(undo.router)
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { AIActionButton } from '@/components/AIActionButton'
 import { AttachmentList } from '@/components/AttachmentList'
+import { DangerZone } from '@/components/DangerZone'
 import { ErrorState } from '@/components/ErrorState'
 import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
 import { GenerateFlashcardsDialog } from '@/components/GenerateFlashcardsDialog'
@@ -30,6 +31,7 @@ import {
   type SubmoduleDetail,
 } from '@/lib/api'
 import { DEFAULT_KEYBINDS } from '@/lib/keybinds'
+import { deleteWithUndo } from '@/lib/undoToast'
 import { useAsync } from '@/lib/useAsync'
 
 export function SubmodulePage() {
@@ -177,8 +179,11 @@ function SubmoduleView({
   }
 
   async function handleDeleteSubmodule() {
-    if (!confirm(`Delete "${submodule.title}"? This removes its notes, attachments, and any linked flashcards.`)) return
-    await deleteSubmodule(id)
+    await deleteWithUndo({
+      label: submodule.title,
+      del: () => deleteSubmodule(id),
+      onUndone: () => navigate(`/modules/${moduleId}/submodules/${id}`),
+    })
     navigate(`/modules/${moduleId}`)
   }
 
@@ -330,14 +335,12 @@ function SubmoduleView({
           <DialogHeader>
             <DialogTitle>Submodule settings</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Deleting a submodule removes its notes, attachments, and any linked flashcards.
-            </p>
-            <Button size="sm" variant="ghost" onClick={handleDeleteSubmodule}>
-              Delete submodule
-            </Button>
-          </div>
+          <DangerZone
+            action="Delete submodule"
+            description="Its notes and files go with it; its flashcards stay in the module, unlinked. You can undo for a few seconds."
+            onDelete={handleDeleteSubmodule}
+            className="mt-0"
+          />
         </DialogContent>
       </Dialog>
 

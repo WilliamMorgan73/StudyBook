@@ -21,6 +21,7 @@ import {
 } from '@/lib/api'
 import { cardMaturity, FORGOTTEN_BELOW, isDue, MATURITY_STEPS, maturityColor, nextReviewLabel, ratingColor } from '@/lib/flashcards'
 import { RATINGS } from '@/lib/study'
+import { deleteWithUndo } from '@/lib/undoToast'
 import { useAsync } from '@/lib/useAsync'
 import { cn } from '@/lib/utils'
 
@@ -171,6 +172,13 @@ function Browser({
     await cards.refetch()
   }
 
+  // After Undo on a deleted card: show it again, selected.
+  async function handleRestored(id: number) {
+    onChange()
+    await cards.refetch()
+    setSelection(id)
+  }
+
   const defaultTopic = filter === 'all' || filter === WHOLE_MODULE ? null : Number(filter)
 
   return (
@@ -297,6 +305,7 @@ function Browser({
             color={color}
             onSaved={handleSaved}
             onDeleted={() => handleDeleted(selectedCard.id)}
+            onRestored={handleRestored}
           />
         )}
       </section>
@@ -318,6 +327,7 @@ function CardEditor({
   color,
   onSaved,
   onDeleted,
+  onRestored,
 }: {
   card: Flashcard | null
   moduleId: number
@@ -326,6 +336,7 @@ function CardEditor({
   color: string
   onSaved: (card: Flashcard, created: boolean) => void
   onDeleted: () => void
+  onRestored?: (id: number) => void
 }) {
   const [front, setFront] = useState(card?.front ?? '')
   const [back, setBack] = useState(card?.back ?? '')
@@ -466,11 +477,15 @@ function CardEditor({
           <Button
             size="sm"
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive dark:hover:bg-destructive/20"
             onClick={async () => {
               // Nothing left to save: stop a later blur or unmount save from touching the card.
               deletedRef.current = true
-              await deleteFlashcard(card.id)
+              await deleteWithUndo({
+                label: card.front.length > 40 ? `${card.front.slice(0, 40)}…` : card.front,
+                del: () => deleteFlashcard(card.id),
+                onUndone: () => onRestored?.(card.id),
+              })
               onDeleted()
             }}
           >

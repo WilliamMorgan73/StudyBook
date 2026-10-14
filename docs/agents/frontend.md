@@ -100,6 +100,10 @@ Maturity (`lib/flashcards.ts::cardMaturity`) is new / learning (< 7 days) / know
 
 **Summaries.** `components/SubmoduleSummary.tsx`. `getSubmodule`/`updateSubmodule` return `SubmoduleDetail` (`summary_markdown`, `summary_stale`). With no summary, the SubmodulePage header shows "Summarize" (`AIActionButton`); once one exists, `SubmoduleSummary` renders it above the editor (collapsible, collapsed state in `localStorage`, `MarkdownView` for markdown + KaTeX) with Regenerate and a "Notes changed since this summary" badge when stale. Both open the controlled `SummarizeDialog` (source panel → `POST /submodules/{id}/summary`) after flushing the note; success refetches the Submodule. The stale badge updates on its own because note saves refetch.
 
+## Deletes and undo
+
+Every delete of a module, topic, assignment, flashcard, lecture (series) or attachment goes through `lib/undoToast.ts::deleteWithUndo({ label, del, onUndone })`: the server deletes straight away and returns an undo token (several for a lecture series, undone newest first), and a sonner toast "Deleted “X” · Undo" shows for `UNDO_TOAST_MS` (8 s). `<Toaster>` (`components/ui/sonner.tsx`, which follows the app's `.dark` class rather than `next-themes`) is mounted once in `App.tsx` outside the keyed page, so the toast survives navigation. `onUndone` goes back to the restored page (module, assignment, topic) or refetches (lectures, attachments, flashcards). There's no `confirm()` on these deletes. Settings dialogs put delete in a `DangerZone` (solid red `variant="danger"` button with `Trash2`, apart from Save); list rows use `DeleteIconButton` (quiet trash icon, red on hover/focus). The tinted `variant="destructive"` stays for inline confirm panels like Restore backup. Calendar feeds, personal events and revision plans still confirm and aren't undoable.
+
 ## Theming
 
 `lib/theme.ts`: `SKINS` (`default`/`slate`/`sepia`, CSS variables in `index.css` under `:root[data-skin="…"]` and `.dark`) and `applyTheme(mode, skin)`, which toggles `.dark` and sets `data-skin` (resolving `system` via `prefers-color-scheme`). `App.tsx` calls `useApplyTheme()` once. `index.css` also:

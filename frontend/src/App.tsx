@@ -8,6 +8,7 @@ import { Overview } from '@/pages/Overview'
 import { SetupPage } from '@/pages/SetupPage'
 import { SubmodulePage } from '@/pages/SubmodulePage'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Toaster } from '@/components/ui/sonner'
 import { getAppSettings } from '@/lib/api'
 import { useAsync } from '@/lib/useAsync'
 import { useApplyTheme } from '@/lib/theme'
@@ -46,6 +47,8 @@ function App() {
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </motion.div>
+        {/* Outside the keyed page, so a toast (e.g. a delete's Undo) outlives navigating away. */}
+        <Toaster position="bottom-center" />
       </MotionConfig>
     </ErrorBoundary>
   )

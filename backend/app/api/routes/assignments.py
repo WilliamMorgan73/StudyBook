@@ -12,6 +12,8 @@ from app.models.todo import AssignmentTodo
 from app.schemas.assignment import AssignmentCreate, AssignmentRead, AssignmentUpdate
 from app.schemas.attachment import AttachmentRead
 from app.schemas.todo import TodoCreate, TodoRead, TodoUpdate
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
@@ -102,11 +104,10 @@ def update_assignment(assignment_id: int, payload: AssignmentUpdate, db: Session
     return assignment
 
 
-@router.delete("/{assignment_id}", status_code=204)
-def delete_assignment(assignment_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{assignment_id}", response_model=DeleteResult)
+def delete_assignment(assignment_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     assignment = _get_assignment_or_404(db, assignment_id)
-    db.delete(assignment)
-    db.commit()
+    return DeleteResult(undo_token=delete_with_undo(db, assignment))
 
 
 @router.post("/{assignment_id}/attachments", response_model=AttachmentRead, status_code=201)
