@@ -526,6 +526,26 @@ export function resizeTile<T extends Tile>(
 export type Direction = 'left' | 'right' | 'up' | 'down'
 
 /**
+ * A widget's place with one edge moved a cell: outwards when growing, inwards when shrinking.
+ * Growing `left` moves the left edge left, shrinking `left` moves it right, and so on, so the
+ * keys work on the side they point at. For `resizeTile`, which squeezes whatever is in the way.
+ */
+export function edgeStep(tile: Omit<Tile, 'i'>, dir: Direction, mode: 'grow' | 'shrink'): Omit<Tile, 'i'> {
+  const d = mode === 'grow' ? 1 : -1
+  const { x, y, w, h } = tile
+  switch (dir) {
+    case 'left':
+      return { x: x - d, y, w: w + d, h }
+    case 'right':
+      return { x, y, w: w + d, h }
+    case 'up':
+      return { x, y: y - d, w, h: h + d }
+    case 'down':
+      return { x, y, w, h: h + d }
+  }
+}
+
+/**
  * The closest widget beside `id` in a direction: one sharing some of its rows (left and right) or
  * columns (up and down), nearest first, then topmost or leftmost. Null if there's none that way.
  */

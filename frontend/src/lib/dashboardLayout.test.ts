@@ -5,6 +5,7 @@ import {
   addWidget,
   canAddWidget,
   cellAt,
+  edgeStep,
   configureWidget,
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
@@ -26,6 +27,7 @@ import {
   WIDGET_IDS,
   WIDGETS,
   type Board,
+  type Direction,
   type LayoutItem,
   type Tile,
   type WidgetId,
@@ -531,6 +533,44 @@ describe('resizeTile', () => {
       { i: 'c', x: 6, y: 0, w: 6, h: 5 },
       { i: 'd', x: 0, y: 5, w: 4, h: 7 },
     ])
+  })
+})
+
+describe('edgeStep (keyboard resize)', () => {
+  const tile = { x: 4, y: 4, w: 4, h: 4 }
+
+  it.each<[Direction, Omit<Tile, 'i'>, Omit<Tile, 'i'>]>([
+    ['left', { x: 3, y: 4, w: 5, h: 4 }, { x: 5, y: 4, w: 3, h: 4 }],
+    ['right', { x: 4, y: 4, w: 5, h: 4 }, { x: 4, y: 4, w: 3, h: 4 }],
+    ['up', { x: 4, y: 3, w: 4, h: 5 }, { x: 4, y: 5, w: 4, h: 3 }],
+    ['down', { x: 4, y: 4, w: 4, h: 5 }, { x: 4, y: 4, w: 4, h: 3 }],
+  ])('moves the %s edge out to grow and in to shrink', (dir, grown, shrunk) => {
+    expect(edgeStep(tile, dir, 'grow')).toEqual(grown)
+    expect(edgeStep(tile, dir, 'shrink')).toEqual(shrunk)
+  })
+
+  const widgets: Record<string, WidgetInfo> = {
+    a: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+    b: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+  }
+  const step = (layout: Tile[], dir: Direction) => {
+    const a = layout.find((item) => item.i === 'a')!
+    const out = resizeTile(widgets, layout, 'a', edgeStep(a, dir, 'grow'))
+    return out?.find((item) => item.i === 'a')
+  }
+
+  it('grows left and up into a neighbour, squeezing it, as a pointer resize would', () => {
+    const sideBySide: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 6, h: 14 },
+      { i: 'a', x: 6, y: 0, w: 6, h: 14 },
+    ]
+    expect(step(sideBySide, 'left')).toMatchObject({ x: 5, w: 7 })
+    const stacked: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 12, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 12, h: 7 },
+    ]
+    expect(step(stacked, 'up')).toMatchObject({ y: 6, h: 8 })
+    expect(step(stacked, 'right')).toMatchObject({ x: 0, w: 12 })
   })
 })
 

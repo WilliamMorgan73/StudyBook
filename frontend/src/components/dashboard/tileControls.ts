@@ -17,8 +17,11 @@ export interface SwapOption {
 export interface TileControls {
   /** An arrow key: swap with the neighbour that way, or move one column into free space. */
   move: (dir: Direction) => void
-  /** Shift + an arrow key: move the right edge (left/right) or bottom edge (up/down) one cell. */
-  resize: (dir: Direction) => void
+  /**
+   * Shift + an arrow key grows the widget that way (that edge moves out one cell); Ctrl + Shift +
+   * an arrow key shrinks it from that side (that edge moves in).
+   */
+  resize: (dir: Direction, mode: 'grow' | 'shrink') => void
   swapOptions: () => SwapOption[]
   swapWith: (id: string) => void
 }
