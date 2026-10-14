@@ -11,6 +11,7 @@
 
 import { verticalCompactor } from 'react-grid-layout'
 
+import { CARD_OF_THE_DAY_CONFIG } from '@/lib/cardOfTheDay'
 import { CLOCK_CONFIG } from '@/lib/clock'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
 import { GRADE_TARGET_CONFIG } from '@/lib/gradeTarget'
@@ -41,6 +42,7 @@ export type WidgetId =
   | 'gradeTarget'
   | 'pinned'
   | 'now'
+  | 'cardOfTheDay'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -193,6 +195,16 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     minH: 3,
     defaultW: 4,
     defaultH: 4,
+  },
+  cardOfTheDay: {
+    title: 'Card of the day',
+    description: 'Review due flashcards one at a time, right here',
+    minW: 3,
+    minH: 4,
+    defaultW: 4,
+    defaultH: 6,
+    multiple: true,
+    config: CARD_OF_THE_DAY_CONFIG,
   },
 }
 

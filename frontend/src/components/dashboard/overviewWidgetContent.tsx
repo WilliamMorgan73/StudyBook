@@ -1,4 +1,5 @@
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
+import { CardOfTheDaySettings, CardOfTheDayWidget } from '@/components/dashboard/CardOfTheDayWidget'
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
 import { GradeTargetSettings, GradeTargetWidget } from '@/components/dashboard/GradeTargetWidget'
@@ -38,4 +39,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   gradeTarget: { body: <GradeTargetWidget />, settings: <GradeTargetSettings /> },
   pinned: { body: <PinnedWidget />, settings: <PinnedSettings /> },
   now: { body: <NowWidget /> },
+  cardOfTheDay: { body: <CardOfTheDayWidget />, settings: <CardOfTheDaySettings /> },
 }
