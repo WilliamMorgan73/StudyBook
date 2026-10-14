@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -27,8 +28,9 @@ from app.api.routes import (
     submodules,
 )
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import SessionLocal, engine
 from app.core.migrate import ensure_schema
+from app.services import auto_backup
 from app.services.ai import AIError
 
 
@@ -36,7 +38,21 @@ from app.services.ai import AIError
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Only when the server starts (tests' plain `TestClient(app)` skips it and uses its own database).
     ensure_schema(engine)
+    backups = asyncio.create_task(_automatic_backups())
     yield
+    backups.cancel()
+
+
+async def _automatic_backups() -> None:
+    """Back up now if one is due, then check again every hour while the server runs."""
+    while True:
+        await asyncio.to_thread(_backup_if_due)
+        await asyncio.sleep(auto_backup.CHECK_INTERVAL_SECONDS)
+
+
+def _backup_if_due() -> None:
+    with SessionLocal() as db:
+        auto_backup.backup_if_due(db, backup_dir=Path(settings.backup_dir), upload_dir=Path(settings.upload_dir))
 
 
 app = FastAPI(title="StudyBook API", lifespan=lifespan)

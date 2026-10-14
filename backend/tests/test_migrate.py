@@ -115,9 +115,13 @@ def test_upgrade_makes_attachment_paths_relative_to_the_upload_folder(data_dir):
             )
         connection.execute(text("UPDATE alembic_version SET version_num = '711f992b2d9e'"))
 
-    migrate.ensure_schema(engine)
+    # Only up to that revision: the tables were made at the head, so later migrations' columns already exist.
+    config = migrate._alembic_config()
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "c3d9e5a1b7f2")
 
-    assert version(engine) == current_revision()
+    assert version(engine) == "c3d9e5a1b7f2"
     with engine.connect() as connection:
         paths = connection.execute(text("SELECT file_path FROM attachments ORDER BY id")).scalars().all()
     assert paths == ["submodules/1/a.pdf", "submodules/1/b.pdf"]

@@ -23,6 +23,8 @@ pub fn run() {
         let _ = window.set_focus();
       }
     }))
+    // Settings → Data's "Open folder" for the backups (`opener:allow-open-path` in capabilities/default.json).
+    .plugin(tauri_plugin_opener::init())
     .manage(backend::Backend::default())
     .setup(|app| {
       if cfg!(debug_assertions) {

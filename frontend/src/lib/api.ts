@@ -897,6 +897,10 @@ export interface AppSettings {
   default_module_layout: DashboardLayoutItem[] | null
   /** False until the first-run setup page is finished or skipped. */
   setup_completed: boolean
+  /** Scheduled backups to the backup folder (on by default): every `auto_backup_interval_days`, newest `auto_backup_keep` kept. */
+  auto_backup_enabled: boolean
+  auto_backup_interval_days: number
+  auto_backup_keep: number
   /** Derived from `ai_model`. */
   ai_provider: AIProvider
   /** A key is saved in settings. The keys themselves are write-only and never sent back. */
@@ -988,4 +992,36 @@ export interface RestoreResult {
 /** Replaces everything with the backup's data and files, after the server saves a copy of the current data. */
 export function restoreBackup(file: File) {
   return uploadFile<RestoreResult>('/backup/restore', file)
+}
+
+export type SavedBackupKind = 'automatic' | 'pre-restore' | 'pre-upgrade' | 'other'
+
+/** A backup zip in the backup folder. */
+export interface SavedBackup {
+  name: string
+  kind: SavedBackupKind
+  /** When the file was written (naive UTC). */
+  created_at: string
+  size_bytes: number
+}
+
+export interface SavedBackups {
+  /** Absolute path of the backup folder. */
+  folder: string
+  /** Naive UTC; null when there's no automatic backup yet. */
+  last_automatic_at: string | null
+  /** The last automatic backup failed (cleared by the next success). `at` is naive UTC. */
+  last_error: { at: string; message: string } | null
+  /** Newest first. */
+  backups: SavedBackup[]
+}
+
+/** The backups the server has saved itself (automatic, before a restore, before an update). */
+export function getSavedBackups() {
+  return request<SavedBackups>('/backup/saved')
+}
+
+/** Like `restoreBackup`, from a backup already in the backup folder. */
+export function restoreSavedBackup(name: string) {
+  return request<RestoreResult>(`/backup/saved/${encodeURIComponent(name)}/restore`, { method: 'POST' })
 }

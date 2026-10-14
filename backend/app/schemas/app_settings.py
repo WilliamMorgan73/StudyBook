@@ -40,6 +40,9 @@ class AppSettingsRead(BaseModel):
     # Null: the frontend's built-in module layout.
     default_module_layout: DashboardLayout | None = None
     setup_completed: bool = False
+    auto_backup_enabled: bool = True
+    auto_backup_interval_days: int = 1
+    auto_backup_keep: int = 7
     # Derived from `ai_model`.
     ai_provider: AIProvider = "anthropic"
     # A key for that provider is saved in the settings row.
@@ -79,6 +82,9 @@ class AppSettingsUpdate(BaseModel):
     # Same semantics as `dashboard_layout`, for module pages that haven't been customised.
     default_module_layout: DashboardLayout | None = Field(default=None, max_length=32)
     setup_completed: bool | None = None
+    auto_backup_enabled: bool | None = None
+    auto_backup_interval_days: int | None = Field(default=None, ge=1, le=30)
+    auto_backup_keep: int | None = Field(default=None, ge=1, le=100)
 
     @field_validator("anthropic_api_key", "gemini_api_key")
     @classmethod

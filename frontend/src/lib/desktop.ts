@@ -1,5 +1,6 @@
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { openPath } from '@tauri-apps/plugin-opener'
 
 /** True inside the Tauri desktop shell (`src-tauri/`), false in a browser. */
 export const isDesktop = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
@@ -43,4 +44,12 @@ export const desktopWindow = {
   minimize: () => getCurrentWindow().minimize(),
   toggleMaximize: () => getCurrentWindow().toggleMaximize(),
   close: () => getCurrentWindow().close(),
+}
+
+/**
+ * Opens a folder in the OS file manager (desktop only). The shell only allows the backup folder
+ * (`opener:allow-open-path` in `src-tauri/capabilities/default.json`).
+ */
+export function openFolder(path: string): Promise<void> {
+  return openPath(path)
 }

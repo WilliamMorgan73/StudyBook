@@ -1,5 +1,6 @@
 from sqlalchemy import JSON, String, Text
 from sqlalchemy import false as sa_false
+from sqlalchemy import true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -38,3 +39,8 @@ class AppSettings(Base):
     default_module_layout: Mapped[list | None] = mapped_column(JSON)
     # False until the first-run setup page is finished or skipped; the frontend redirects to it.
     setup_completed: Mapped[bool] = mapped_column(default=False, server_default=sa_false())
+    # Scheduled backups to `settings.backup_dir` (`services/auto_backup.py`): on by default, daily, newest
+    # 7 kept. The server defaults turn them on for existing installs too.
+    auto_backup_enabled: Mapped[bool] = mapped_column(default=True, server_default=sa_true())
+    auto_backup_interval_days: Mapped[int] = mapped_column(default=1, server_default="1")
+    auto_backup_keep: Mapped[int] = mapped_column(default=7, server_default="7")

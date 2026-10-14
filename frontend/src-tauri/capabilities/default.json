@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Window controls and events for the app: the dev server, the startup splash, and (packaged) the bundled server on 127.0.0.1",
+  "description": "Window controls, events and opening the backup folder for the app: the dev server, the startup splash, and (packaged) the bundled server on 127.0.0.1",
   "windows": [
     "main"
   ],
@@ -11,7 +11,15 @@
     "core:window:allow-minimize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
-    "core:window:allow-internal-toggle-maximize"
+    "core:window:allow-internal-toggle-maximize",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$APPDATA/backups"
+        }
+      ]
+    }
   ],
   "remote": {
     "urls": [

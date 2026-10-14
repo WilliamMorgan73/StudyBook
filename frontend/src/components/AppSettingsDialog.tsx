@@ -308,7 +308,7 @@ export function AppSettingsDialog({
 
             {category === 'ai' && <AISettingsPanel settings={aiSettings} onSaved={setAISettings} />}
 
-            {category === 'data' && <BackupSettings />}
+            {category === 'data' && <BackupSettings settings={settings} onChanged={onChanged} />}
           </motion.div>
         </div>
       </DialogContent>
