@@ -12,6 +12,7 @@
 import { verticalCompactor } from 'react-grid-layout'
 
 import { CLOCK_CONFIG } from '@/lib/clock'
+import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
 
 export const DASHBOARD_COLUMNS = 12
 export const DASHBOARD_ROWS = 14
@@ -102,6 +103,7 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     minH: 6,
     defaultW: 6,
     defaultH: 7,
+    config: DAY_LIST_CONFIG,
   },
   agenda: {
     title: 'Day agenda',
@@ -153,7 +155,7 @@ export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]
 
 /** Today's page: Calendar over its day agenda, two columns of two cards, Modules across the bottom. */
 export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
-  { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 7 },
+  { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 6, h: 7 },
   { i: 'agenda', type: 'agenda', x: 0, y: 7, w: 6, h: 3 },
   { i: 'upcoming', type: 'upcoming', x: 6, y: 0, w: 3, h: 5 },
   { i: 'todo', type: 'todo', x: 6, y: 5, w: 3, h: 5 },
@@ -177,7 +179,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Planner',
     description: 'A big calendar, with the day and what’s due beside it.',
     layout: [
-      { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 8, h: 10 },
+      { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 8, h: 10 },
       { i: 'agenda', type: 'agenda', x: 8, y: 0, w: 4, h: 5 },
       { i: 'upcoming', type: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
       { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
@@ -191,7 +193,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
       { i: 'revisionToday', type: 'revisionToday', x: 0, y: 0, w: 4, h: 5 },
       { i: 'flashcardsDue', type: 'flashcardsDue', x: 4, y: 0, w: 4, h: 5 },
       { i: 'progress', type: 'progress', x: 8, y: 0, w: 4, h: 5 },
-      { i: 'calendar', type: 'calendar', x: 0, y: 5, w: 6, h: 9 },
+      { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 5, w: 6, h: 9 },
       { i: 'upcoming', type: 'upcoming', x: 6, y: 5, w: 3, h: 9 },
       { i: 'todo', type: 'todo', x: 9, y: 5, w: 3, h: 9 },
     ],

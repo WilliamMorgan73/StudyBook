@@ -1,5 +1,6 @@
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
+import { ScheduleSettings } from '@/components/dashboard/DayListSettings'
 import {
   AssignmentsAction,
   AssignmentsWidget,
@@ -26,7 +27,7 @@ import type { ModuleWidgetId } from '@/lib/moduleLayout'
  * `WidgetInfo.config`); shared by the page and its preview.
  */
 export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
-  schedule: { body: <ScheduleWidget /> },
+  schedule: { body: <ScheduleWidget />, settings: <ScheduleSettings /> },
   dayAgenda: { body: <DayAgendaWidget /> },
   submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
   assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },

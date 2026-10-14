@@ -1,6 +1,7 @@
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
+import { CalendarSettings } from '@/components/dashboard/DayListSettings'
 import {
   FlashcardsDueWidget,
   ModulesWidget,
@@ -17,7 +18,7 @@ import type { WidgetId } from '@/lib/dashboardLayout'
  * shared by the Overview and its preview.
  */
 export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
-  calendar: { body: <CalendarWidget /> },
+  calendar: { body: <CalendarWidget />, settings: <CalendarSettings /> },
   agenda: { body: <AgendaWidget /> },
   upcoming: { body: <UpcomingWidget /> },
   todo: { body: <TodoWidget /> },

@@ -33,6 +33,7 @@ import {
   type WidgetId,
   type WidgetInfo,
 } from '@/lib/dashboardLayout'
+import { DAY_LIST_DEFAULT } from '@/lib/dayList'
 import { MODULE_BOARD } from '@/lib/moduleLayout'
 
 describe.each<[string, Board<string>]>([
@@ -71,7 +72,7 @@ describe('normalizeLayout', () => {
       null,
     ])
 
-    expect(layout).toEqual([{ i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 9 }])
+    expect(layout).toEqual([{ i: 'calendar', type: 'calendar', config: DAY_LIST_DEFAULT, x: 0, y: 0, w: 6, h: 9 }])
   })
 
   it("drops another board's widgets", () => {
@@ -89,7 +90,7 @@ describe('normalizeLayout', () => {
       { i: 'notepad', x: 11, y: -3, w: 4, h: 6 },
     ])
 
-    expect(small).toEqual({ i: 'calendar', type: 'calendar', x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
+    expect(small).toEqual({ i: 'calendar', type: 'calendar', config: DAY_LIST_DEFAULT, x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
     expect(wide).toEqual({ i: 'modules', type: 'modules', x: 0, y: 8, w: 12, h: 6 })
     expect(offGrid).toEqual({ i: 'notepad', type: 'notepad', x: 8, y: 0, w: 4, h: 6 })
   })
