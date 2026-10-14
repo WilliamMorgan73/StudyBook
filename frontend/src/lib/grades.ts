@@ -44,3 +44,46 @@ export function targetOutlook(assignments: GradedFields[], target: number): Targ
   const needed = ((target - achieved) / remainingWeight) * 100
   return needed > 100 ? { kind: 'unreachable', needed, remainingWeight } : { kind: 'needs', needed, remainingWeight }
 }
+
+/** Where a module stands: points of its 100 earned so far, and the weight still to be graded. */
+export interface ModuleStanding {
+  achieved: number
+  remainingWeight: number
+}
+
+export function moduleStanding(assignments: GradedFields[]): ModuleStanding {
+  let gradedWeight = 0
+  let achieved = 0
+  for (const a of assignments) {
+    const points = assignmentContribution(a)
+    if (points === null) continue
+    gradedWeight += a.weight_percent
+    achieved += points
+  }
+  return { achieved, remainingWeight: Math.max(0, 100 - gradedWeight) }
+}
+
+/**
+ * The same question across modules, weighted by credits (as the Progress ring is: a module with
+ * no credits set counts as 1): what average on everything still to be graded, in every module,
+ * puts the overall mark on `target`%.
+ */
+export function overallOutlook(modules: (ModuleStanding & { credits: number | null })[], target: number): TargetOutlook {
+  let weight = 0
+  let achieved = 0
+  let remaining = 0
+  for (const m of modules) {
+    const w = m.credits ?? 1
+    weight += w
+    achieved += w * m.achieved
+    remaining += w * m.remainingWeight
+  }
+  if (weight === 0) return { kind: 'needs', needed: target, remainingWeight: 100 }
+  const [achievedAvg, remainingAvg] = [achieved / weight, remaining / weight]
+  if (remainingAvg === 0) return { kind: 'final', achieved: achievedAvg }
+  if (achievedAvg >= target) return { kind: 'secured' }
+  const needed = ((target - achievedAvg) / remainingAvg) * 100
+  return needed > 100
+    ? { kind: 'unreachable', needed, remainingWeight: remainingAvg }
+    : { kind: 'needs', needed, remainingWeight: remainingAvg }
+}

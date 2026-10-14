@@ -22,6 +22,7 @@ from app.api.routes import (
     quick_note,
     quick_todos,
     revision,
+    stats,
     submodule_ai,
     submodules,
 )
@@ -71,6 +72,7 @@ app.include_router(revision.router)
 app.include_router(quick_todos.router)
 app.include_router(quick_note.router)
 app.include_router(backup.router)
+app.include_router(stats.router)
 
 Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")

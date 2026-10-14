@@ -27,6 +27,7 @@ import {
   fitRowHeight,
   stackedOrder,
   resizeTile,
+  edgeStep,
   swapTiles,
   tileAt,
   widgetHeight,
@@ -231,19 +232,19 @@ export function DashboardGrid<Id extends string>({
           apply(nudgeTile(layout, id, dir === 'left' ? -1 : 1), `${titleOf(id)} moved ${dir}`, `${titleOf(id)} can’t move ${dir}`)
         else setAnnouncement(`Nothing ${dir === 'up' ? 'above' : 'below'} ${titleOf(id)}`)
       },
-      resize(dir: Direction) {
+      resize(dir: Direction, mode: 'grow' | 'shrink') {
         const item = layout.find((other) => other.i === id)
         if (!item) return
         const { minW, minH } = limits[id]
-        const w = item.w + (dir === 'right' ? 1 : dir === 'left' ? -1 : 0)
-        const h = item.h + (dir === 'down' ? 1 : dir === 'up' ? -1 : 0)
-        if (w < minW || h < minH) {
-          setAnnouncement(`${titleOf(id)} is at its smallest ${w < minW ? 'width' : 'height'}`)
+        const to = edgeStep(item, dir, mode)
+        if (to.w < minW || to.h < minH) {
+          setAnnouncement(`${titleOf(id)} is at its smallest ${to.w < minW ? 'width' : 'height'}`)
           return
         }
-        const next = resizeTile(limits, layout, id, { x: item.x, y: item.y, w, h })
+        const offBoard = to.x < 0 || to.y < 0 || to.x + to.w > DASHBOARD_COLUMNS || to.y + to.h > DASHBOARD_ROWS
+        const next = offBoard ? null : resizeTile(limits, layout, id, to)
         const sized = next?.find((other) => other.i === id)
-        apply(next, sized ? `${titleOf(id)} ${sized.w} wide, ${sized.h} tall` : '', `${titleOf(id)} can’t grow that way`)
+        apply(next, sized ? `${titleOf(id)} ${sized.w} wide, ${sized.h} tall` : '', mode === 'grow' ? `${titleOf(id)} can’t grow ${dir}` : `${titleOf(id)} can’t shrink from the ${dir}`)
       },
       swapOptions: () =>
         layout

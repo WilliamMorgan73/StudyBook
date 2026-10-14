@@ -1,5 +1,10 @@
+import { ActivityWidget } from '@/components/dashboard/ActivityWidget'
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
+import { CardOfTheDaySettings, CardOfTheDayWidget } from '@/components/dashboard/CardOfTheDayWidget'
+import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
+import { GradeTargetSettings, GradeTargetWidget } from '@/components/dashboard/GradeTargetWidget'
+import { CalendarSettings } from '@/components/dashboard/DayListSettings'
 import {
   FlashcardsDueWidget,
   ModulesWidget,
@@ -7,7 +12,11 @@ import {
   TodoWidget,
   UpcomingWidget,
 } from '@/components/dashboard/ListWidgets'
+import { NowWidget } from '@/components/dashboard/NowWidget'
+import { PinnedSettings, PinnedWidget } from '@/components/dashboard/PinnedWidget'
 import { ProgressWidget } from '@/components/dashboard/ProgressWidget'
+import { TimelineSettings, TimelineWidget } from '@/components/dashboard/TimelineWidget'
+import { WeakestTopicsWidget } from '@/components/dashboard/WeakestTopicsWidget'
 import { QuickNotepad } from '@/components/QuickNotepad'
 import type { WidgetId } from '@/lib/dashboardLayout'
 
@@ -16,7 +25,7 @@ import type { WidgetId } from '@/lib/dashboardLayout'
  * shared by the Overview and its preview.
  */
 export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
-  calendar: { body: <CalendarWidget /> },
+  calendar: { body: <CalendarWidget />, settings: <CalendarSettings /> },
   agenda: { body: <AgendaWidget /> },
   upcoming: { body: <UpcomingWidget /> },
   todo: { body: <TodoWidget /> },
@@ -26,4 +35,14 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   modules: { body: <ModulesWidget /> },
   revisionToday: { body: <RevisionTodayWidget /> },
   flashcardsDue: { body: <FlashcardsDueWidget /> },
+  // Sizes itself to the widget, like the ring.
+  clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
+  timeline: { body: <TimelineWidget />, settings: <TimelineSettings /> },
+  gradeTarget: { body: <GradeTargetWidget />, settings: <GradeTargetSettings /> },
+  // The tiles share the widget's space, scrolling only when there are too many.
+  pinned: { body: <PinnedWidget />, settings: <PinnedSettings />, scroll: false },
+  now: { body: <NowWidget /> },
+  cardOfTheDay: { body: <CardOfTheDayWidget />, settings: <CardOfTheDaySettings /> },
+  weakestTopics: { body: <WeakestTopicsWidget /> },
+  activity: { body: <ActivityWidget /> },
 }

@@ -8,6 +8,7 @@ import { AddSubmoduleDialog } from '@/components/AddSubmoduleDialog'
 import { FlashcardBrowser } from '@/components/flashcards/FlashcardBrowser'
 import { MaturityBar, MaturityLegend } from '@/components/flashcards/MaturityBar'
 import { useModuleData } from '@/components/dashboard/moduleContext'
+import { useWidgetConfig } from '@/components/dashboard/widgetInstance'
 import { Countdown } from '@/components/Countdown'
 import { EventMarker } from '@/components/EventMarker'
 import { LoadSwap } from '@/components/LoadSwap'
@@ -23,6 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WidgetError } from '@/components/WidgetError'
 import { ASSIGNMENT_STATUS_LABEL, updateModule, updateTodo, type Assignment, type Flashcard, type Submodule } from '@/lib/api'
+import { DAY_LIST_CONFIG } from '@/lib/dayList'
 import { examEndsAt } from '@/lib/exam'
 import { isDue, maturityCounts } from '@/lib/flashcards'
 import { assignmentContribution, assignmentScore, targetOutlook, type TargetOutlook } from '@/lib/grades'
@@ -51,11 +53,13 @@ function useModuleEvents() {
 
 export function ScheduleWidget() {
   const { selectedDay, setSelectedDay, dayAgendaPlaced } = useModuleData()
+  const [cfg] = useWidgetConfig(DAY_LIST_CONFIG)
   return (
     <ModuleWeekCalendar
       selected={selectedDay}
       onSelect={setSelectedDay}
-      showDay={!dayAgendaPlaced}
+      showDay={!dayAgendaPlaced && cfg.dayList}
+      daySize={cfg.dayListSize}
       {...useModuleEvents()}
     />
   )

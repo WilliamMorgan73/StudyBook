@@ -11,6 +11,13 @@
 
 import { verticalCompactor } from 'react-grid-layout'
 
+import { CARD_OF_THE_DAY_CONFIG } from '@/lib/cardOfTheDay'
+import { CLOCK_CONFIG } from '@/lib/clock'
+import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
+import { GRADE_TARGET_CONFIG } from '@/lib/gradeTarget'
+import { PINNED_CONFIG } from '@/lib/pinned'
+import { TIMELINE_CONFIG } from '@/lib/timeline'
+
 export const DASHBOARD_COLUMNS = 12
 export const DASHBOARD_ROWS = 14
 /** Row height in the single-column layout on narrow screens, which scrolls instead of fitting. */
@@ -30,6 +37,14 @@ export type WidgetId =
   | 'modules'
   | 'revisionToday'
   | 'flashcardsDue'
+  | 'clock'
+  | 'timeline'
+  | 'gradeTarget'
+  | 'pinned'
+  | 'now'
+  | 'cardOfTheDay'
+  | 'weakestTopics'
+  | 'activity'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -79,6 +94,18 @@ export interface Board<Id extends string> {
   defaultLayout: LayoutItem<Id>[]
 }
 
+/** Widgets on both boards, so both registries share one entry. */
+export const CLOCK_WIDGET: WidgetInfo = {
+  title: 'Clock',
+  description: 'The time here or anywhere, digital or analog',
+  minW: 2,
+  minH: 2,
+  defaultW: 3,
+  defaultH: 3,
+  multiple: true,
+  config: CLOCK_CONFIG,
+}
+
 export const WIDGETS: Record<WidgetId, WidgetInfo> = {
   calendar: {
     title: 'Calendar',
@@ -87,6 +114,7 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     minH: 6,
     defaultW: 6,
     defaultH: 7,
+    config: DAY_LIST_CONFIG,
   },
   agenda: {
     title: 'Day agenda',
@@ -131,13 +159,78 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultW: 4,
     defaultH: 4,
   },
+  clock: CLOCK_WIDGET,
+  timeline: {
+    title: 'Deadline timeline',
+    description: 'The next few weeks, with deadlines and exams on their dates',
+    minW: 4,
+    minH: 2,
+    defaultW: 8,
+    defaultH: 3,
+    multiple: true,
+    config: TIMELINE_CONFIG,
+  },
+  gradeTarget: {
+    title: 'Grade target',
+    description: 'What you need in what’s left to hit a target class',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
+    multiple: true,
+    config: GRADE_TARGET_CONFIG,
+  },
+  pinned: {
+    title: 'Pinned',
+    description: 'Quick-launch tiles for modules, topics, assignments and links',
+    minW: 2,
+    minH: 2,
+    defaultW: 4,
+    defaultH: 3,
+    multiple: true,
+    config: PINNED_CONFIG,
+  },
+  now: {
+    title: 'Now',
+    description: 'The lecture you’re in, today’s revision or what’s due next',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 4,
+  },
+  cardOfTheDay: {
+    title: 'Card of the day',
+    description: 'Review due flashcards one at a time, right here',
+    minW: 3,
+    minH: 4,
+    defaultW: 4,
+    defaultH: 6,
+    multiple: true,
+    config: CARD_OF_THE_DAY_CONFIG,
+  },
+  weakestTopics: {
+    title: 'Weakest topics',
+    description: 'The topics whose flashcards you forget most',
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
+  },
+  activity: {
+    title: 'Study activity',
+    description: 'Flashcard reviews per day, and your streak',
+    minW: 3,
+    minH: 3,
+    defaultW: 6,
+    defaultH: 3,
+  },
 }
 
 export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]
 
 /** Today's page: Calendar over its day agenda, two columns of two cards, Modules across the bottom. */
 export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
-  { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 7 },
+  { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 6, h: 7 },
   { i: 'agenda', type: 'agenda', x: 0, y: 7, w: 6, h: 3 },
   { i: 'upcoming', type: 'upcoming', x: 6, y: 0, w: 3, h: 5 },
   { i: 'todo', type: 'todo', x: 6, y: 5, w: 3, h: 5 },
@@ -161,7 +254,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Planner',
     description: 'A big calendar, with the day and what’s due beside it.',
     layout: [
-      { i: 'calendar', type: 'calendar', x: 0, y: 0, w: 8, h: 10 },
+      { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 8, h: 10 },
       { i: 'agenda', type: 'agenda', x: 8, y: 0, w: 4, h: 5 },
       { i: 'upcoming', type: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
       { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
@@ -175,7 +268,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
       { i: 'revisionToday', type: 'revisionToday', x: 0, y: 0, w: 4, h: 5 },
       { i: 'flashcardsDue', type: 'flashcardsDue', x: 4, y: 0, w: 4, h: 5 },
       { i: 'progress', type: 'progress', x: 8, y: 0, w: 4, h: 5 },
-      { i: 'calendar', type: 'calendar', x: 0, y: 5, w: 6, h: 9 },
+      { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 5, w: 6, h: 9 },
       { i: 'upcoming', type: 'upcoming', x: 6, y: 5, w: 3, h: 9 },
       { i: 'todo', type: 'todo', x: 9, y: 5, w: 3, h: 9 },
     ],
@@ -430,6 +523,20 @@ export function tileAt(layout: readonly Tile[], col: number, row: number, exclud
 }
 
 /**
+ * After `self`'s top edge moved down from `oldTop`: each widget resting on that edge grows down
+ * into the space, if nothing else is in the strip it would take. Widgets wider than `self` usually
+ * can't (something else sits under them); with nothing to fill it, the board floats `self` back
+ * up, which is the same as shrinking it from the bottom.
+ */
+function fillAbove<T extends Tile>(others: T[], self: T, oldTop: number): void {
+  const gap = self.y - oldTop
+  for (const item of others.filter((o) => o.y + o.h === oldTop && o.x < self.x + self.w && self.x < o.x + o.w)) {
+    const strip = { x: item.x, y: oldTop, w: item.w, h: gap }
+    if (!others.some((o) => o !== item && overlaps(strip, o))) item.h += gap
+  }
+}
+
+/**
  * The layout with widget `id` resized to `to` from its spot in `layout` (the layout when the resize
  * began). Each edge that moves outwards squeezes what's in its way:
  * - right or left: the widgets beside it get narrower, keeping their far edges;
@@ -438,8 +545,9 @@ export function tileAt(layout: readonly Tile[], col: number, row: number, exclud
  * - up: the widgets above get shorter, keeping their tops (the board packs widgets upwards, so
  *   there's nowhere to push them).
  * An edge stops once a widget it's squeezing reaches its minimum size, so the widgets squeezed all
- * lose the same amount. Edges moving inwards leave the others as they were in `layout`. Null if
- * the result still wouldn't fit the board.
+ * lose the same amount. Edges moving inwards leave the others as they were in `layout`, except the
+ * top: the widgets resting on it grow down into the space, since otherwise the board would just
+ * float the widget back up (`fillAbove`). Null if the result still wouldn't fit the board.
  */
 export function resizeTile<T extends Tile>(
   widgets: Record<string, WidgetInfo>,
@@ -487,6 +595,7 @@ export function resizeTile<T extends Tile>(
   self.y = to.y < oldTop ? top : to.y
   const wantBottom = to.y + to.h
   self.h = wantBottom - self.y
+  if (self.y > oldTop) fillAbove(others, self, oldTop)
 
   const compact = compactTiles<T>
   const fits = (l: T[]) => layoutBottom(l) <= DASHBOARD_ROWS
@@ -508,6 +617,26 @@ export function resizeTile<T extends Tile>(
 }
 
 export type Direction = 'left' | 'right' | 'up' | 'down'
+
+/**
+ * A widget's place with one edge moved a cell: outwards when growing, inwards when shrinking.
+ * Growing `left` moves the left edge left, shrinking `left` moves it right, and so on, so the
+ * keys work on the side they point at. For `resizeTile`, which squeezes whatever is in the way.
+ */
+export function edgeStep(tile: Omit<Tile, 'i'>, dir: Direction, mode: 'grow' | 'shrink'): Omit<Tile, 'i'> {
+  const d = mode === 'grow' ? 1 : -1
+  const { x, y, w, h } = tile
+  switch (dir) {
+    case 'left':
+      return { x: x - d, y, w: w + d, h }
+    case 'right':
+      return { x, y, w: w + d, h }
+    case 'up':
+      return { x, y: y - d, w, h: h + d }
+    case 'down':
+      return { x, y, w, h: h + d }
+  }
+}
 
 /**
  * The closest widget beside `id` in a direction: one sharing some of its rows (left and right) or

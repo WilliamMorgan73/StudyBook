@@ -1,4 +1,7 @@
+import { ModuleActivityWidget } from '@/components/dashboard/ActivityWidget'
+import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
+import { ScheduleSettings } from '@/components/dashboard/DayListSettings'
 import {
   AssignmentsAction,
   AssignmentsWidget,
@@ -18,6 +21,8 @@ import {
   SubmodulesAction,
   SubmodulesWidget,
 } from '@/components/dashboard/ModuleWidgets'
+import { ModuleTimelineWidget, TimelineSettings } from '@/components/dashboard/TimelineWidget'
+import { ModuleWeakestTopicsWidget } from '@/components/dashboard/WeakestTopicsWidget'
 import type { ModuleWidgetId } from '@/lib/moduleLayout'
 
 /**
@@ -25,7 +30,7 @@ import type { ModuleWidgetId } from '@/lib/moduleLayout'
  * `WidgetInfo.config`); shared by the page and its preview.
  */
 export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
-  schedule: { body: <ScheduleWidget /> },
+  schedule: { body: <ScheduleWidget />, settings: <ScheduleSettings /> },
   dayAgenda: { body: <DayAgendaWidget /> },
   submodules: { body: <SubmodulesWidget />, action: <SubmodulesAction /> },
   assignments: { body: <AssignmentsWidget />, action: <AssignmentsAction /> },
@@ -40,4 +45,9 @@ export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
   todo: { body: <ModuleTodoWidget /> },
   notepad: { body: <ModuleNotepadWidget /> },
   related: { body: <RelatedModulesWidget /> },
+  // Sizes itself to the widget, like the ring.
+  clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
+  timeline: { body: <ModuleTimelineWidget />, settings: <TimelineSettings /> },
+  weakestTopics: { body: <ModuleWeakestTopicsWidget /> },
+  activity: { body: <ModuleActivityWidget /> },
 }

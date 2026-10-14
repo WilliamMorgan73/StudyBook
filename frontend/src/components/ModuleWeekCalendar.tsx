@@ -7,6 +7,7 @@ import { EventMarker } from '@/components/EventMarker'
 import { LectureSubmodules } from '@/components/LectureSubmodules'
 import { Checkbox } from '@/components/ui/checkbox'
 import type { Assignment, Lecture, RevisionSession } from '@/lib/api'
+import type { DayListSize } from '@/lib/dayList'
 import { examEndsAt } from '@/lib/exam'
 import { revisionSessionUrl } from '@/lib/revision'
 
@@ -72,6 +73,15 @@ function eventsByDay({ lectures, exams, revisionSessions }: ModuleEvents) {
   return { lecturesByDay, examsByDay, sessionsByDay }
 }
 
+/** The day's share of a wide widget, beside the fortnight, by its size setting. */
+const DAY_COLUMNS: Record<DayListSize, string> = {
+  sm: '@3xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]',
+  md: '@3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]',
+  lg: '@3xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]',
+}
+/** The day list's height under the fortnight (narrow widgets). */
+const DAY_LIST_HEIGHT: Record<DayListSize, string> = { sm: 'max-h-16', md: 'max-h-24', lg: 'max-h-44' }
+
 /**
  * A fixed (non-navigable) two-week grid — this week and next — showing this module's lectures, exams and
  * revision sessions; click a day to select it. With `showDay`, the selected day's events sit beside
@@ -81,12 +91,15 @@ export function ModuleWeekCalendar({
   selected,
   onSelect,
   showDay,
+  daySize = 'md',
   onRevisionDone,
   ...events
 }: ModuleEvents & {
   selected: Date
   onSelect: (day: Date) => void
   showDay: boolean
+  /** How much room the day gets: its share of the width beside the grid, or its height under it. */
+  daySize?: DayListSize
   onRevisionDone: (session: RevisionSession, done: boolean) => void
 }) {
   const today = useState(() => new Date())[0]
@@ -98,7 +111,7 @@ export function ModuleWeekCalendar({
 
   return (
     // On wide widgets the selected day sits beside the fortnight rather than under it.
-    <div className={showDay ? '@3xl:grid @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] @3xl:gap-6' : ''}>
+    <div className={showDay ? `@3xl:grid ${DAY_COLUMNS[daySize]} @3xl:gap-6` : ''}>
       <div>
         <div className="grid grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-border bg-border text-xs text-muted-foreground">
           {WEEKDAYS.map((d) => (
@@ -158,7 +171,7 @@ export function ModuleWeekCalendar({
       {showDay && (
         <div className="mt-3 border-t pt-3 @3xl:mt-0 @3xl:border-t-0 @3xl:border-l @3xl:pt-0 @3xl:pl-6">
           <p className="mb-1.5 text-sm font-medium">{selectedDayLabel(selected)}</p>
-          <ModuleDayList day={selected} onRevisionDone={onRevisionDone} listClassName="max-h-24" {...events} />
+          <ModuleDayList day={selected} onRevisionDone={onRevisionDone} listClassName={DAY_LIST_HEIGHT[daySize]} {...events} />
         </div>
       )}
     </div>

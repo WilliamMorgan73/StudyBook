@@ -291,6 +291,17 @@ export interface SubmoduleIndexEntry {
   module_name: string
 }
 
+/** A topic for the Weakest topics widget, with the revision planner's weakness score. */
+export interface WeakTopic {
+  id: number
+  title: string
+  module_id: number
+  module_name: string
+  /** 0 (never lapses) to 1 (always lapses); 0.5 with no review data. */
+  weakness: number
+  card_count: number
+}
+
 /** `ai` = generated and accepted in the review dialog. */
 export type FlashcardSource = 'manual' | 'ai'
 
@@ -508,6 +519,21 @@ export function listModules() {
   return request<ModuleSummary[]>('/modules')
 }
 
+/** What `refreshModuleLectures` did. */
+export interface ModuleLecturesRefreshed {
+  /** Lectures the module gained. */
+  added: number
+  /** Calendar series newly linked to the module by its course code. */
+  linked: string[]
+  /** Calendars (by name) that couldn't be fetched; they keep their last good copy. */
+  failed: string[]
+}
+
+/** Fetches every calendar now and links series named with the module's code. */
+export function refreshModuleLectures(id: number) {
+  return postJson<ModuleLecturesRefreshed>(`/modules/${id}/refresh-lectures`, {})
+}
+
 export function getModule(id: number) {
   return request<ModuleDetail>(`/modules/${id}`)
 }
@@ -522,6 +548,11 @@ export function updateModule(id: number, input: ModuleUpdateInput) {
 
 export function deleteModule(id: number) {
   return request<void>(`/modules/${id}`, { method: 'DELETE' })
+}
+
+/** Every assignment in every module. */
+export function listAssignments() {
+  return request<Assignment[]>('/assignments')
 }
 
 export function listUpcomingAssignments(limit = 5) {
@@ -588,6 +619,14 @@ export function listSubmodulesIndex(search?: string) {
   const params = new URLSearchParams()
   if (search) params.set('search', search)
   return request<SubmoduleIndexEntry[]>(`/submodules?${params}`)
+}
+
+/** Topics with cards, weakest first (`GET /submodules/weakest`). */
+export function listWeakestTopics(filter: { limit?: number; moduleId?: number } = {}) {
+  const params = new URLSearchParams()
+  if (filter.limit) params.set('limit', String(filter.limit))
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  return request<WeakTopic[]>(`/submodules/weakest?${params}`)
 }
 
 export function resolveWikilink(title: string, moduleId: number) {
@@ -681,6 +720,13 @@ export function setLecturesSubmodules(lectureIds: number[], submoduleIds: number
 
 export function deleteLecture(id: number) {
   return request<void>(`/lectures/${id}`, { method: 'DELETE' })
+}
+
+/** Flashcard reviews per local day ("YYYY-MM-DD" → count; days with none are left out). */
+export function getActivity(filter: { start: string; end: string; moduleId?: number }) {
+  const params = new URLSearchParams({ start: filter.start, end: filter.end, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  return request<Record<string, number>>(`/stats/activity?${params}`)
 }
 
 export function getCalendar(start: Date, end: Date) {

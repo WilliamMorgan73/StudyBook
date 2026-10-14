@@ -1,6 +1,6 @@
 import type { KeyboardEvent, ReactNode, SyntheticEvent } from 'react'
 
-import { ArrowLeftRight, GripVertical, Settings2, X } from 'lucide-react'
+import { ArrowLeftRight, GripVertical, Settings, X } from 'lucide-react'
 import { motion } from 'motion/react'
 
 import { useTileControls, type TileControls } from '@/components/dashboard/tileControls'
@@ -48,14 +48,15 @@ const stopDrag = {
 
 /**
  * The header grip while editing: drag it like the rest of the header, or focus it and use the
- * arrow keys to swap the widget with a neighbour (Shift + arrows to resize it).
+ * arrow keys to swap the widget with a neighbour. Shift + arrows grow it that way, Ctrl + Shift +
+ * arrows shrink it from that side.
  */
 function Grip({ title, controls }: { title: string; controls: TileControls }) {
   function onKeyDown(e: KeyboardEvent) {
     const dir = ARROWS[e.key]
     if (!dir) return
     e.preventDefault()
-    if (e.shiftKey) controls.resize(dir)
+    if (e.shiftKey) controls.resize(dir, e.ctrlKey || e.metaKey ? 'shrink' : 'grow')
     else controls.move(dir)
   }
   return (
@@ -63,8 +64,8 @@ function Grip({ title, controls }: { title: string; controls: TileControls }) {
       type="button"
       {...{ [DRAG_GRIP_ATTRIBUTE]: '' }}
       aria-label={`Move ${title}`}
-      aria-description="Arrow keys swap it with the widget that way; Shift and arrow keys resize it."
-      title="Drag, or focus and use the arrow keys (Shift to resize)"
+      aria-description="Arrow keys swap it with the widget that way. Shift and an arrow key grow it that way; Ctrl, Shift and an arrow key shrink it from that side."
+      title="Drag, or focus and use the arrow keys (Shift to grow, Ctrl+Shift to shrink)"
       onKeyDown={onKeyDown}
       className="-ml-1 shrink-0 cursor-grab rounded-sm text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
     >
@@ -101,7 +102,7 @@ function SettingsPopover({ title, children }: { title: string; children: ReactNo
     <Popover>
       <PopoverTrigger asChild>
         <Button size="icon-sm" variant="ghost" aria-label={`${title} settings`} title="Settings" {...stopDrag} className="-my-1">
-          <Settings2 />
+          <Settings />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72">

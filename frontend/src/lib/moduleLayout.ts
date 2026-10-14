@@ -1,7 +1,9 @@
 // The module page's board: its widget registry and default layout, saved per module as
 // `modules.dashboard_layout` (null = MODULE_DEFAULT_LAYOUT). See `lib/dashboardLayout.ts`.
 
-import { normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
+import { CLOCK_WIDGET, normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
+import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
+import { TIMELINE_CONFIG } from '@/lib/timeline'
 
 export type ModuleWidgetId =
   | 'schedule'
@@ -18,6 +20,10 @@ export type ModuleWidgetId =
   | 'todo'
   | 'notepad'
   | 'related'
+  | 'clock'
+  | 'timeline'
+  | 'weakestTopics'
+  | 'activity'
 
 export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   schedule: {
@@ -27,6 +33,7 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
     minH: 4,
     defaultW: 12,
     defaultH: 5,
+    config: DAY_LIST_CONFIG,
   },
   dayAgenda: {
     title: 'Day agenda',
@@ -90,11 +97,38 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   todo: { title: 'To-do', description: "This module's own checklist", minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
   notepad: { title: 'Notepad', description: 'Scratch space for this module', minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
   related: { title: 'Related modules', description: 'Modules linked to this one', minW: 3, minH: 2, defaultW: 12, defaultH: 2 },
+  clock: CLOCK_WIDGET,
+  timeline: {
+    title: 'Deadline timeline',
+    description: "This module's deadlines and exams over the next few weeks",
+    minW: 4,
+    minH: 2,
+    defaultW: 8,
+    defaultH: 3,
+    multiple: true,
+    config: TIMELINE_CONFIG,
+  },
+  weakestTopics: {
+    title: 'Weakest topics',
+    description: "This module's topics whose flashcards you forget most",
+    minW: 3,
+    minH: 3,
+    defaultW: 4,
+    defaultH: 5,
+  },
+  activity: {
+    title: 'Study activity',
+    description: "Reviews of this module's flashcards per day, and your streak",
+    minW: 3,
+    minH: 3,
+    defaultW: 6,
+    defaultH: 3,
+  },
 }
 
 /** The page as it was before it was customisable: Schedule on top of three lists. */
 export const MODULE_DEFAULT_LAYOUT: LayoutItem<ModuleWidgetId>[] = [
-  { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 12, h: 5 },
+  { i: 'schedule', type: 'schedule', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 12, h: 5 },
   { i: 'submodules', type: 'submodules', x: 0, y: 5, w: 4, h: 9 },
   { i: 'assignments', type: 'assignments', x: 4, y: 5, w: 4, h: 9 },
   { i: 'flashcards', type: 'flashcards', x: 8, y: 5, w: 4, h: 9 },
@@ -124,7 +158,7 @@ export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: st
     label: 'Revision',
     description: 'Flashcards and revision sessions up front, with exam countdowns.',
     layout: [
-      { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 8, h: 5 },
+      { i: 'schedule', type: 'schedule', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 8, h: 5 },
       { i: 'exams', type: 'exams', x: 8, y: 0, w: 4, h: 5 },
       { i: 'flashcards', type: 'flashcards', x: 0, y: 5, w: 4, h: 9 },
       { i: 'revision', type: 'revision', x: 4, y: 5, w: 4, h: 9 },
@@ -136,7 +170,7 @@ export const MODULE_LAYOUT_PRESETS: { id: string; label: string; description: st
     label: 'Deadlines',
     description: 'Assignments, their open to-dos and the grade breakdown.',
     layout: [
-      { i: 'schedule', type: 'schedule', x: 0, y: 0, w: 12, h: 5 },
+      { i: 'schedule', type: 'schedule', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 12, h: 5 },
       { i: 'assignments', type: 'assignments', x: 0, y: 5, w: 4, h: 9 },
       { i: 'openTodos', type: 'openTodos', x: 4, y: 5, w: 4, h: 9 },
       { i: 'grades', type: 'grades', x: 8, y: 5, w: 4, h: 9 },

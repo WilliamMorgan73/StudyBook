@@ -5,6 +5,7 @@ import {
   addWidget,
   canAddWidget,
   cellAt,
+  edgeStep,
   configureWidget,
   DASHBOARD_COLUMNS,
   DASHBOARD_MARGIN,
@@ -26,11 +27,13 @@ import {
   WIDGET_IDS,
   WIDGETS,
   type Board,
+  type Direction,
   type LayoutItem,
   type Tile,
   type WidgetId,
   type WidgetInfo,
 } from '@/lib/dashboardLayout'
+import { DAY_LIST_DEFAULT } from '@/lib/dayList'
 import { MODULE_BOARD } from '@/lib/moduleLayout'
 
 describe.each<[string, Board<string>]>([
@@ -69,7 +72,7 @@ describe('normalizeLayout', () => {
       null,
     ])
 
-    expect(layout).toEqual([{ i: 'calendar', type: 'calendar', x: 0, y: 0, w: 6, h: 9 }])
+    expect(layout).toEqual([{ i: 'calendar', type: 'calendar', config: DAY_LIST_DEFAULT, x: 0, y: 0, w: 6, h: 9 }])
   })
 
   it("drops another board's widgets", () => {
@@ -87,7 +90,7 @@ describe('normalizeLayout', () => {
       { i: 'notepad', x: 11, y: -3, w: 4, h: 6 },
     ])
 
-    expect(small).toEqual({ i: 'calendar', type: 'calendar', x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
+    expect(small).toEqual({ i: 'calendar', type: 'calendar', config: DAY_LIST_DEFAULT, x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
     expect(wide).toEqual({ i: 'modules', type: 'modules', x: 0, y: 8, w: 12, h: 6 })
     expect(offGrid).toEqual({ i: 'notepad', type: 'notepad', x: 8, y: 0, w: 4, h: 6 })
   })
@@ -186,6 +189,21 @@ describe('widget copies and settings', () => {
     expect(changed.map((item) => item.config)).toEqual([{ zone: 'local' }, { zone: 'Asia/Tokyo' }])
     expect(sameLayout(two, changed)).toBe(false)
     expect(sameLayout(changed, normalizeLayout(board, JSON.parse(JSON.stringify(changed))))).toBe(true)
+  })
+
+  it.each<[string, Board<string>]>([
+    ['the Overview', OVERVIEW_BOARD],
+    ['a module page', MODULE_BOARD],
+  ])('keeps two real clocks with different settings on %s', (_name, real) => {
+    const tokyo = { style: 'digital', timeZone: 'Asia/Tokyo', label: 'Home', showDate: true, showSeconds: false, hour12: false }
+    const analog = { style: 'analog', timeZone: null, label: '', showDate: false, showSeconds: true, hour12: true }
+    const layout = [
+      { i: 'clock', type: 'clock', config: tokyo, x: 0, y: 0, w: 3, h: 3 },
+      { i: 'clock-2', type: 'clock', config: analog, x: 3, y: 0, w: 3, h: 3 },
+    ]
+    const saved = normalizeLayout(real, JSON.parse(JSON.stringify(layout)))
+    expect(saved).toEqual(layout)
+    expect(addableWidgets(real, saved)).toContain('clock')
   })
 })
 
@@ -516,6 +534,71 @@ describe('resizeTile', () => {
       { i: 'c', x: 6, y: 0, w: 6, h: 5 },
       { i: 'd', x: 0, y: 5, w: 4, h: 7 },
     ])
+  })
+})
+
+describe('edgeStep (keyboard resize)', () => {
+  const tile = { x: 4, y: 4, w: 4, h: 4 }
+
+  it.each<[Direction, Omit<Tile, 'i'>, Omit<Tile, 'i'>]>([
+    ['left', { x: 3, y: 4, w: 5, h: 4 }, { x: 5, y: 4, w: 3, h: 4 }],
+    ['right', { x: 4, y: 4, w: 5, h: 4 }, { x: 4, y: 4, w: 3, h: 4 }],
+    ['up', { x: 4, y: 3, w: 4, h: 5 }, { x: 4, y: 5, w: 4, h: 3 }],
+    ['down', { x: 4, y: 4, w: 4, h: 5 }, { x: 4, y: 4, w: 4, h: 3 }],
+  ])('moves the %s edge out to grow and in to shrink', (dir, grown, shrunk) => {
+    expect(edgeStep(tile, dir, 'grow')).toEqual(grown)
+    expect(edgeStep(tile, dir, 'shrink')).toEqual(shrunk)
+  })
+
+  const widgets: Record<string, WidgetInfo> = {
+    a: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+    b: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+    c: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+  }
+  const step = (layout: Tile[], dir: Direction) => {
+    const a = layout.find((item) => item.i === 'a')!
+    const out = resizeTile(widgets, layout, 'a', edgeStep(a, dir, 'grow'))
+    return out?.find((item) => item.i === 'a')
+  }
+
+  it('grows left and up into a neighbour, squeezing it, as a pointer resize would', () => {
+    const sideBySide: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 6, h: 14 },
+      { i: 'a', x: 6, y: 0, w: 6, h: 14 },
+    ]
+    expect(step(sideBySide, 'left')).toMatchObject({ x: 5, w: 7 })
+    const stacked: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 12, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 12, h: 7 },
+    ]
+    expect(step(stacked, 'up')).toMatchObject({ y: 6, h: 8 })
+    expect(step(stacked, 'right')).toMatchObject({ x: 0, w: 12 })
+  })
+
+  const shrinkTop = (layout: Tile[]) => {
+    const a = layout.find((item) => item.i === 'a')!
+    return resizeTile(widgets, layout, 'a', edgeStep(a, 'up', 'shrink'))
+  }
+
+  it('shrinks from the top: the widget resting on it grows down into the space', () => {
+    const stacked: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 6, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 6, h: 7 },
+    ]
+    const out = shrinkTop(stacked)!
+    expect(out.find((t) => t.i === 'a')).toMatchObject({ y: 8, h: 6 })
+    expect(out.find((t) => t.i === 'b')).toMatchObject({ y: 0, h: 8 })
+  })
+
+  it("leaves a wider widget above alone when something else sits under it, so it's a bottom shrink", () => {
+    const layout: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 12, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 6, h: 7 },
+      { i: 'c', x: 6, y: 7, w: 6, h: 7 },
+    ]
+    const out = shrinkTop(layout)!
+    expect(out.find((t) => t.i === 'a')).toMatchObject({ y: 7, h: 6 })
+    expect(out.find((t) => t.i === 'b')).toMatchObject({ h: 7 })
   })
 })
 

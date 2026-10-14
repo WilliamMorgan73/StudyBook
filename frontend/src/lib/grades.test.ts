@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { assignmentContribution, targetOutlook, type GradedFields } from '@/lib/grades'
+import { assignmentContribution, moduleStanding, overallOutlook, targetOutlook, type GradedFields } from '@/lib/grades'
 
 const graded = (weight: number, earned: number, max = 100): GradedFields => ({
   status: 'graded',
@@ -46,5 +46,36 @@ describe('targetOutlook', () => {
 
   it('is final when everything is graded', () => {
     expect(targetOutlook([graded(60, 50), graded(40, 100)], 70)).toEqual({ kind: 'final', achieved: 70 })
+  })
+})
+
+describe('overallOutlook', () => {
+  const graded = (weight: number, earned: number) => ({ status: 'graded' as const, weight_percent: weight, grade_earned: earned, grade_max: 100 })
+  const open = (weight: number) => ({ status: 'not_started' as const, weight_percent: weight, grade_earned: null, grade_max: null })
+
+  it('reads a module as points earned plus weight still to grade', () => {
+    expect(moduleStanding([graded(40, 50), open(60)])).toEqual({ achieved: 20, remainingWeight: 60 })
+    // Weight not created yet is still to play for.
+    expect(moduleStanding([graded(20, 100)])).toEqual({ achieved: 20, remainingWeight: 80 })
+  })
+
+  it('weights modules by credits for the average needed on what is left', () => {
+    // A (20 credits): 20 earned, 60 left. B (10 credits): 30 earned, 50 left.
+    // Credit-weighted: earned (400 + 300) / 30 ≈ 23.3, left (1200 + 500) / 30 ≈ 56.7, so 60% needs ≈ 64.7%.
+    const out = overallOutlook(
+      [
+        { credits: 20, achieved: 20, remainingWeight: 60 },
+        { credits: 10, achieved: 30, remainingWeight: 50 },
+      ],
+      60,
+    )
+    expect(out.kind).toBe('needs')
+    expect(out.kind === 'needs' && out.needed).toBeCloseTo(64.71, 1)
+  })
+
+  it('reports secured, unreachable and final', () => {
+    expect(overallOutlook([{ credits: null, achieved: 75, remainingWeight: 25 }], 70)).toEqual({ kind: 'secured' })
+    expect(overallOutlook([{ credits: null, achieved: 10, remainingWeight: 20 }], 70).kind).toBe('unreachable')
+    expect(overallOutlook([{ credits: 10, achieved: 65, remainingWeight: 0 }], 70)).toEqual({ kind: 'final', achieved: 65 })
   })
 })

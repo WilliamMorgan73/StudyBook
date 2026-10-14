@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, contains_eager
 
 from app.core.clock import local_now
-from app.models.calendar_feed import CalendarFeed, CalendarFeedEvent
+from app.models.calendar_feed import CalendarFeed, CalendarFeedEvent, CalendarFeedLink
 from app.models.lecture import Lecture
 from app.models.module import Module
 
@@ -360,3 +360,41 @@ def feed_events_between(
         stmt = stmt.where(CalendarFeedEvent.all_day.is_(False))
     return list(db.scalars(stmt).all())
 
+
+
+@dataclass(frozen=True)
+class ModuleLectureRefresh:
+    added: int
+    linked: list[str]
+    failed: list[str]
+
+
+def refresh_module_lectures(db: Session, module: Module, fetch: Fetch | None = None) -> ModuleLectureRefresh:
+    """Brings `module`'s feed Lectures up to date now: fetches every URL feed (stale or not), then
+    links any unlinked series whose title starts with the module's course code
+    (`suggested_module_id`), the same match the Lectures tab suggests, and re-applies those feeds.
+    Returns how many Lectures the module gained, the series it linked, and the feeds that failed to
+    fetch. The caller commits."""
+    before = {lecture.id for lecture in module.lectures}
+    modules = list(db.scalars(select(Module)).all())
+    feeds = list(db.scalars(select(CalendarFeed)).all())
+    failed: list[str] = []
+    linked: list[str] = []
+    for feed in feeds:
+        if feed.url is not None and not refresh_feed(feed, fetch):
+            failed.append(feed.name)
+        taken = {link.title for link in feed.links}
+        new = [
+            s.title
+            for s in feed_series(feed)
+            if s.title not in taken and suggested_module_id(s.title, modules) == module.id
+        ]
+        if new:
+            feed.links.extend(CalendarFeedLink(title=title, module_id=module.id) for title in new)
+            db.flush()
+            resync_feed(feed)
+            linked.extend(new)
+    db.flush()
+    db.refresh(module)
+    added = len({lecture.id for lecture in module.lectures} - before)
+    return ModuleLectureRefresh(added=added, linked=linked, failed=failed)
