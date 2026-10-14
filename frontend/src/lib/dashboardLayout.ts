@@ -15,6 +15,7 @@ import { CARD_OF_THE_DAY_CONFIG } from '@/lib/cardOfTheDay'
 import { CLOCK_CONFIG } from '@/lib/clock'
 import { DAY_LIST_CONFIG, DAY_LIST_DEFAULT } from '@/lib/dayList'
 import { GRADE_TARGET_CONFIG } from '@/lib/gradeTarget'
+import { MODULES_WIDGET_CONFIG, MODULES_WIDGET_DEFAULT } from '@/lib/moduleCompletion'
 import { PINNED_CONFIG } from '@/lib/pinned'
 import { TIMELINE_CONFIG } from '@/lib/timeline'
 
@@ -142,7 +143,16 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultH: 5,
   },
   notepad: { title: 'Notepad', description: 'Scratch space for quick notes', minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
-  modules: { title: 'Modules', description: 'Every module, with its progress', minW: 3, minH: 3, defaultW: 12, defaultH: 4 },
+  modules: {
+    title: 'Modules',
+    description: 'Your modules, with their progress',
+    minW: 3,
+    minH: 3,
+    defaultW: 12,
+    defaultH: 4,
+    config: MODULES_WIDGET_CONFIG,
+    multiple: true,
+  },
   revisionToday: {
     title: "Today's revision",
     description: 'Revision sessions planned for today',
@@ -236,7 +246,7 @@ export const DEFAULT_LAYOUT: LayoutItem<WidgetId>[] = [
   { i: 'todo', type: 'todo', x: 6, y: 5, w: 3, h: 5 },
   { i: 'progress', type: 'progress', x: 9, y: 0, w: 3, h: 5 },
   { i: 'notepad', type: 'notepad', x: 9, y: 5, w: 3, h: 5 },
-  { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
+  { i: 'modules', type: 'modules', config: { ...MODULES_WIDGET_DEFAULT }, x: 0, y: 10, w: 12, h: 4 },
 ]
 
 export const OVERVIEW_BOARD: Board<WidgetId> = { widgets: WIDGETS, defaultLayout: DEFAULT_LAYOUT }
@@ -257,7 +267,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
       { i: 'calendar', type: 'calendar', config: { ...DAY_LIST_DEFAULT }, x: 0, y: 0, w: 8, h: 10 },
       { i: 'agenda', type: 'agenda', x: 8, y: 0, w: 4, h: 5 },
       { i: 'upcoming', type: 'upcoming', x: 8, y: 5, w: 4, h: 5 },
-      { i: 'modules', type: 'modules', x: 0, y: 10, w: 12, h: 4 },
+      { i: 'modules', type: 'modules', config: { ...MODULES_WIDGET_DEFAULT }, x: 0, y: 10, w: 12, h: 4 },
     ],
   },
   {
@@ -278,7 +288,7 @@ export const OVERVIEW_LAYOUT_PRESETS: { id: string; label: string; description: 
     label: 'Simple',
     description: 'Your modules, what’s due, and a to-do list. Nothing else.',
     layout: [
-      { i: 'modules', type: 'modules', x: 0, y: 0, w: 12, h: 6 },
+      { i: 'modules', type: 'modules', config: { ...MODULES_WIDGET_DEFAULT }, x: 0, y: 0, w: 12, h: 6 },
       { i: 'upcoming', type: 'upcoming', x: 0, y: 6, w: 6, h: 8 },
       { i: 'todo', type: 'todo', x: 6, y: 6, w: 6, h: 8 },
     ],

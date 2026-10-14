@@ -1,9 +1,15 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
+
+import { CircleCheck, RotateCcw } from 'lucide-react'
 
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import type { ModuleSummary } from '@/lib/api'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { type ModuleSummary, toNaiveDateTime, updateModule } from '@/lib/api'
+import { completedLabel } from '@/lib/moduleCompletion'
 
 function formatNextLecture(iso: string | null) {
   if (!iso) return 'No upcoming lectures'
@@ -20,7 +26,54 @@ function creditsLabel(credits: number | null, maxCredits: number | null | undefi
   return `${credits} ${unit}`
 }
 
-export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxCredits?: number | null }) {
+/** Marks the module completed, or reopens it. Inside the card's link, so it keeps the click to itself. */
+function CompletedToggle({ module, onChanged }: { module: ModuleSummary; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const completed = module.completed_at !== null
+  const label = completed ? 'Reopen module' : 'Mark as completed'
+
+  async function toggle(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setBusy(true)
+    try {
+      await updateModule(module.id, { completed_at: completed ? null : toNaiveDateTime(new Date()) })
+      onChanged()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={label}
+          disabled={busy}
+          onClick={toggle}
+          // Shown on hover or focus (the Card is `group/card`), so the card stays quiet otherwise.
+          className="opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100"
+        >
+          {completed ? <RotateCcw /> : <CircleCheck />}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function ModuleCard({
+  module,
+  maxCredits,
+  onCompletedChange,
+}: {
+  module: ModuleSummary
+  maxCredits?: number | null
+  /** Shows the Mark as completed / Reopen button; called once the module is saved. */
+  onCompletedChange?: () => void
+}) {
   const credits = creditsLabel(module.credits, maxCredits)
 
   return (
@@ -46,8 +99,15 @@ export function ModuleCard({ module, maxCredits }: { module: ModuleSummary; maxC
           </div>
         </CardHeader>
         <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>{formatNextLecture(module.next_lecture_at)}</span>
-          {module.current_grade !== null && <Badge variant="secondary">{module.current_grade.toFixed(1)}%</Badge>}
+          {module.completed_at !== null ? (
+            <Badge variant="outline">{completedLabel(module.completed_at)}</Badge>
+          ) : (
+            <span>{formatNextLecture(module.next_lecture_at)}</span>
+          )}
+          <span className="flex items-center gap-1">
+            {onCompletedChange && <CompletedToggle module={module} onChanged={onCompletedChange} />}
+            {module.current_grade !== null && <Badge variant="secondary">{module.current_grade.toFixed(1)}%</Badge>}
+          </span>
         </CardContent>
       </Card>
     </Link>

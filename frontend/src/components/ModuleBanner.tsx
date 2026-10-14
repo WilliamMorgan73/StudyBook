@@ -6,8 +6,10 @@ import { motion } from 'motion/react'
 import { Countdown } from '@/components/Countdown'
 import { ModuleProgressRing } from '@/components/ModuleProgressRing'
 import { AnimatedNumber } from '@/components/RadialProgress'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type { ModuleDetail } from '@/lib/api'
+import { completedLabel } from '@/lib/moduleCompletion'
 import { BANNER_TINTS, type BannerConfig, type BannerStatId } from '@/lib/moduleBanner'
 import { fadeUpAt } from '@/lib/motion'
 
@@ -117,7 +119,14 @@ export function ModuleBanner({
           />
         )}
         <div className="min-w-0 flex-1">
-          <h1 className={`truncate font-semibold ${compact ? 'text-lg' : 'text-2xl'}`}>{module.name}</h1>
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className={`truncate font-semibold ${compact ? 'text-lg' : 'text-2xl'}`}>{module.name}</h1>
+            {module.completed_at && (
+              <Badge variant="outline" className="shrink-0">
+                {completedLabel(module.completed_at)}
+              </Badge>
+            )}
+          </div>
           {details.length > 0 && !compact && <p className="text-sm text-muted-foreground">{details.join(', ')}</p>}
         </div>
         {editing && (

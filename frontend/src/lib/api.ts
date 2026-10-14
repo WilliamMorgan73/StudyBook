@@ -18,6 +18,8 @@ export interface ModuleRead {
   color: string
   term: string | null
   credits: number | null
+  /** When the module was marked completed (local time); null while it's open. */
+  completed_at: string | null
 }
 
 export interface AssignmentProgress {
@@ -39,6 +41,7 @@ export interface ModuleSummary {
   color: string
   term: string | null
   credits: number | null
+  completed_at: string | null
   current_grade: number | null
   next_lecture_at: string | null
   assignment_progress: AssignmentProgress
@@ -366,6 +369,8 @@ export type ModuleUpdateInput = Partial<ModuleCreateInput> & {
   notes?: string | null
   /** A config sets the banner; null resets it to the default. */
   banner?: ModuleBannerConfig | null
+  /** A time marks the module completed; null reopens it. */
+  completed_at?: string | null
 }
 
 export interface AssignmentCreateInput {

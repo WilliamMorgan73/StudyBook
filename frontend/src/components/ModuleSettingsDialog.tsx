@@ -1,4 +1,4 @@
-import { CalendarClock, ChevronRight, SlidersHorizontal } from 'lucide-react'
+import { CalendarClock, ChevronRight, CircleCheck, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -42,6 +42,7 @@ import {
   type LectureGroup,
   type TimeRangeState,
 } from '@/lib/lectureSchedule'
+import { completedLabel } from '@/lib/moduleCompletion'
 import { deleteWithUndo } from '@/lib/undoToast'
 import { useAsync } from '@/lib/useAsync'
 
@@ -669,6 +670,20 @@ export function ModuleSettingsDialog({
     }
   }
 
+  const [savingCompleted, setSavingCompleted] = useState(false)
+  async function toggleCompleted() {
+    setSavingCompleted(true)
+    setIdentityError(null)
+    try {
+      await updateModule(module.id, { completed_at: module.completed_at ? null : toNaiveDateTime(new Date()) })
+      onChanged()
+    } catch (err) {
+      setIdentityError(err instanceof Error ? err.message : 'Could not save changes.')
+    } finally {
+      setSavingCompleted(false)
+    }
+  }
+
   async function handleDeleteModule() {
     await deleteWithUndo({
       label: module.name,
@@ -735,6 +750,21 @@ export function ModuleSettingsDialog({
                 <div className="flex items-center pt-1">
                   <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
                     {savingIdentity ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 border-t pt-4">
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">{module.completed_at ? completedLabel(module.completed_at) : 'Open'}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {module.completed_at
+                        ? 'Reopen it to list it with your open modules again.'
+                        : 'Finished with it? Completing keeps everything, and Modules widgets can hide it.'}
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={toggleCompleted} disabled={savingCompleted} className="shrink-0">
+                    {module.completed_at ? <RotateCcw /> : <CircleCheck />}
+                    {module.completed_at ? 'Reopen module' : 'Mark as completed'}
                   </Button>
                 </div>
 

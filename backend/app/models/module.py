@@ -22,6 +22,8 @@ class Module(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     # The module page banner's stats and look; null means the frontend default.
     banner: Mapped[dict | None] = mapped_column(JSON)
+    # When the module was marked completed (local time); null while it's open.
+    completed_at: Mapped[datetime | None]
 
     lectures: Mapped[list["Lecture"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821
     assignments: Mapped[list["Assignment"]] = relationship(back_populates="module", cascade="all, delete-orphan")  # noqa: F821

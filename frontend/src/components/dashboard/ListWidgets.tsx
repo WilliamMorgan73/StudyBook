@@ -7,14 +7,18 @@ import { AddModuleDialog } from '@/components/AddModuleDialog'
 import { AddModuleTile } from '@/components/AddModuleTile'
 import { AssignmentItem } from '@/components/AssignmentItem'
 import { useOverview } from '@/components/dashboard/overviewContext'
+import { useWidgetConfig } from '@/components/dashboard/widgetInstance'
 import { LoadSwap } from '@/components/LoadSwap'
 import { ModuleCard } from '@/components/ModuleCard'
 import { QuickTodoList } from '@/components/QuickTodoList'
 import { StudySession } from '@/components/StudySession'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { WidgetError } from '@/components/WidgetError'
 import { listDueFlashcards, listRevisionSessions, listUpcomingAssignments, updateRevisionSession } from '@/lib/api'
+import { filterModules, MODULES_SHOWN_LABELS, MODULES_WIDGET_CONFIG, type ModulesShown } from '@/lib/moduleCompletion'
 import { enter, fadeUp, stagger } from '@/lib/motion'
 import { revisionSessionUrl } from '@/lib/revision'
 import { useAsync } from '@/lib/useAsync'
@@ -67,9 +71,14 @@ export function TodoWidget() {
 /** Module cards in as many columns as the widget's width allows, so a narrow widget is a column. */
 export function ModulesWidget() {
   const { modules, appSettings } = useOverview()
+  const [{ show }] = useWidgetConfig(MODULES_WIDGET_CONFIG)
+  const sample = useSampleData()
   const maxCredits = appSettings?.max_credits ?? null
+  // Completed modules still count towards the credit total.
   const usedCredits = (modules.data ?? []).reduce((sum, m) => sum + (m.credits ?? 0), 0)
   const hasCreditRoom = maxCredits === null || usedCredits < maxCredits
+  const shown = filterModules(modules.data ?? [], show)
+  const showAddTile = hasCreditRoom && show !== 'completed'
   const columns = 'grid gap-3 @md:grid-cols-2 @2xl:grid-cols-3 @4xl:grid-cols-4 @6xl:grid-cols-5'
 
   return (
@@ -95,12 +104,17 @@ export function ModulesWidget() {
           // The padding keeps the hover lift (2px up) and focus rings from being clipped by the
           // scrolling body; the top needs room for the lift plus the ring.
           <motion.div className={`${columns} px-0.5 pt-1.5 pb-0.5`} variants={stagger()} {...enter}>
-            {modules.data.map((m) => (
+            {shown.map((m) => (
               <motion.div key={m.id} variants={fadeUp} whileHover={{ y: -2 }}>
-                <ModuleCard module={m} maxCredits={maxCredits} />
+                <ModuleCard module={m} maxCredits={maxCredits} onCompletedChange={sample ? undefined : modules.refetch} />
               </motion.div>
             ))}
-            {hasCreditRoom && (
+            {shown.length === 0 && !showAddTile && (
+              <p className="py-2 text-sm text-muted-foreground">
+                {show === 'completed' ? 'No completed modules yet.' : 'No open modules.'}
+              </p>
+            )}
+            {showAddTile && (
               <motion.div variants={fadeUp} whileHover={{ y: -2 }}>
                 <AddModuleDialog onCreated={modules.refetch} trigger={<AddModuleTile />} />
               </motion.div>
@@ -109,6 +123,27 @@ export function ModulesWidget() {
         )}
       </LoadSwap>
     </>
+  )
+}
+
+export function ModulesSettings() {
+  const [cfg, setCfg] = useWidgetConfig(MODULES_WIDGET_CONFIG)
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="modules-widget-show">Show</Label>
+      <Select value={cfg.show} onValueChange={(v) => setCfg({ show: v as ModulesShown })}>
+        <SelectTrigger id="modules-widget-show" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {(Object.keys(MODULES_SHOWN_LABELS) as ModulesShown[]).map((show) => (
+            <SelectItem key={show} value={show}>
+              {MODULES_SHOWN_LABELS[show]}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   )
 }
 
