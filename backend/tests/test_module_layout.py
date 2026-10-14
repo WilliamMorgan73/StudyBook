@@ -115,3 +115,22 @@ def test_null_resets_banner(client: TestClient, module_id: int) -> None:
 )
 def test_rejects_invalid_banner(client: TestClient, module_id: int, banner: dict) -> None:
     assert client.patch(f"/modules/{module_id}", json={"banner": banner}).status_code == 422
+
+
+def test_completed_at_defaults_to_null(client: TestClient, module_id: int) -> None:
+    assert client.get(f"/modules/{module_id}").json()["completed_at"] is None
+
+
+def test_completed_at_round_trips_and_reopens(client: TestClient, module_id: int) -> None:
+    response = client.patch(f"/modules/{module_id}", json={"completed_at": "2026-06-20T14:30:00"})
+    assert response.json()["completed_at"] == "2026-06-20T14:30:00"
+    assert client.get(f"/modules/{module_id}").json()["completed_at"] == "2026-06-20T14:30:00"
+    assert client.get("/modules").json()[0]["completed_at"] == "2026-06-20T14:30:00"
+    client.patch(f"/modules/{module_id}", json={"completed_at": None})
+    assert client.get(f"/modules/{module_id}").json()["completed_at"] is None
+
+
+def test_other_updates_leave_completed_at_alone(client: TestClient, module_id: int) -> None:
+    client.patch(f"/modules/{module_id}", json={"completed_at": "2026-06-20T14:30:00"})
+    client.patch(f"/modules/{module_id}", json={"name": "Advanced Algorithms"})
+    assert client.get(f"/modules/{module_id}").json()["completed_at"] == "2026-06-20T14:30:00"

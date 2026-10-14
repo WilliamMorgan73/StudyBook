@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -49,12 +50,15 @@ class ModuleUpdate(BaseModel):
     # Like dashboard_layout: a value sets it, null clears it, omit to leave it unchanged.
     notes: str | None = None
     banner: ModuleBanner | None = None
+    # A time marks the module completed; null reopens it.
+    completed_at: datetime | None = None
 
 
 class ModuleRead(ModuleBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    completed_at: datetime | None = None
 
 
 class AssignmentProgress(BaseModel):

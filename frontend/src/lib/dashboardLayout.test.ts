@@ -91,7 +91,7 @@ describe('normalizeLayout', () => {
     ])
 
     expect(small).toEqual({ i: 'calendar', type: 'calendar', config: DAY_LIST_DEFAULT, x: 0, y: 0, w: WIDGETS.calendar.minW, h: WIDGETS.calendar.minH })
-    expect(wide).toEqual({ i: 'modules', type: 'modules', x: 0, y: 8, w: 12, h: 6 })
+    expect(wide).toEqual({ i: 'modules', type: 'modules', config: { show: 'both' }, x: 0, y: 8, w: 12, h: 6 })
     expect(offGrid).toEqual({ i: 'notepad', type: 'notepad', x: 8, y: 0, w: 4, h: 6 })
   })
 
@@ -231,7 +231,7 @@ describe('adding and removing widgets', () => {
 
   it('shrinks a widget towards its minimum size to fit the space left', () => {
     // Four rows free under the calendar, but the modules widget defaults to the full width.
-    expect(addWidget(OVERVIEW_BOARD, layout, 'modules').at(-1)).toEqual({ i: 'modules', type: 'modules', x: 0, y: 10, w: 8, h: 4 })
+    expect(addWidget(OVERVIEW_BOARD, layout, 'modules').at(-1)).toEqual({ i: 'modules', type: 'modules', config: { show: 'both' }, x: 0, y: 10, w: 8, h: 4 })
   })
 
   it('leaves the layout alone when there is no room, even at the minimum size', () => {

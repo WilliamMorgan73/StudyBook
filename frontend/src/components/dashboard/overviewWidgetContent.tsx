@@ -7,6 +7,7 @@ import { GradeTargetSettings, GradeTargetWidget } from '@/components/dashboard/G
 import { CalendarSettings } from '@/components/dashboard/DayListSettings'
 import {
   FlashcardsDueWidget,
+  ModulesSettings,
   ModulesWidget,
   RevisionTodayWidget,
   TodoWidget,
@@ -32,7 +33,7 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   // The ring sizes itself to the widget, dropping its legend and caption when they don't fit.
   progress: { body: <ProgressWidget />, scroll: false },
   notepad: { body: <QuickNotepad /> },
-  modules: { body: <ModulesWidget /> },
+  modules: { body: <ModulesWidget />, settings: <ModulesSettings /> },
   revisionToday: { body: <RevisionTodayWidget /> },
   flashcardsDue: { body: <FlashcardsDueWidget /> },
   // Sizes itself to the widget, like the ring.

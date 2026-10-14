@@ -97,7 +97,7 @@ def seed(db: Session, upload_dir: Path) -> None:
     )
     db.add(QuickNote(id=1, content="Remember the thing"))
     algebra = Module(id=7, name="Algebra", code="MA101", color="#ff0000", created_at=T0, banner={"ring": "grade"})
-    stats = Module(id=9, name="Statistics", created_at=T0)
+    stats = Module(id=9, name="Statistics", created_at=T0, completed_at=T0)
     db.add_all([algebra, stats])
     db.add(ModuleLink(module_id=7, related_module_id=9))
     db.add(ModuleLink(module_id=9, related_module_id=7))

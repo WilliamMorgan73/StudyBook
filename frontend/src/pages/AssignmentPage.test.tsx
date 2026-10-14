@@ -26,7 +26,7 @@ const assignment: Assignment = {
   covered_submodules: [],
 }
 
-const module: ModuleRead = { id: 3, name: 'Algorithms', code: null, color: '#3366ff', term: null, credits: null }
+const module: ModuleRead = { id: 3, name: 'Algorithms', code: null, color: '#3366ff', term: null, credits: null, completed_at: null }
 
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
