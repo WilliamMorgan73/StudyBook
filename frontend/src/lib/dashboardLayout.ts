@@ -11,6 +11,8 @@
 
 import { verticalCompactor } from 'react-grid-layout'
 
+import { CLOCK_CONFIG } from '@/lib/clock'
+
 export const DASHBOARD_COLUMNS = 12
 export const DASHBOARD_ROWS = 14
 /** Row height in the single-column layout on narrow screens, which scrolls instead of fitting. */
@@ -30,6 +32,7 @@ export type WidgetId =
   | 'modules'
   | 'revisionToday'
   | 'flashcardsDue'
+  | 'clock'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -77,6 +80,18 @@ export interface WidgetInfo {
 export interface Board<Id extends string> {
   widgets: Record<Id, WidgetInfo>
   defaultLayout: LayoutItem<Id>[]
+}
+
+/** Widgets on both boards, so both registries share one entry. */
+export const CLOCK_WIDGET: WidgetInfo = {
+  title: 'Clock',
+  description: 'The time here or anywhere, digital or analog',
+  minW: 2,
+  minH: 2,
+  defaultW: 3,
+  defaultH: 3,
+  multiple: true,
+  config: CLOCK_CONFIG,
 }
 
 export const WIDGETS: Record<WidgetId, WidgetInfo> = {
@@ -131,6 +146,7 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     defaultW: 4,
     defaultH: 4,
   },
+  clock: CLOCK_WIDGET,
 }
 
 export const WIDGET_IDS = Object.keys(WIDGETS) as WidgetId[]

@@ -1,7 +1,7 @@
 // The module page's board: its widget registry and default layout, saved per module as
 // `modules.dashboard_layout` (null = MODULE_DEFAULT_LAYOUT). See `lib/dashboardLayout.ts`.
 
-import { normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
+import { CLOCK_WIDGET, normalizeLayout, type Board, type LayoutItem, type WidgetInfo } from '@/lib/dashboardLayout'
 
 export type ModuleWidgetId =
   | 'schedule'
@@ -18,6 +18,7 @@ export type ModuleWidgetId =
   | 'todo'
   | 'notepad'
   | 'related'
+  | 'clock'
 
 export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   schedule: {
@@ -90,6 +91,7 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   todo: { title: 'To-do', description: "This module's own checklist", minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
   notepad: { title: 'Notepad', description: 'Scratch space for this module', minW: 2, minH: 3, defaultW: 3, defaultH: 5 },
   related: { title: 'Related modules', description: 'Modules linked to this one', minW: 3, minH: 2, defaultW: 12, defaultH: 2 },
+  clock: CLOCK_WIDGET,
 }
 
 /** The page as it was before it was customisable: Schedule on top of three lists. */

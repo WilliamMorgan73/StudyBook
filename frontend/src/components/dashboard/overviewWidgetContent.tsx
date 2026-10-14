@@ -1,4 +1,5 @@
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
+import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
 import {
   FlashcardsDueWidget,
@@ -26,4 +27,6 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   modules: { body: <ModulesWidget /> },
   revisionToday: { body: <RevisionTodayWidget /> },
   flashcardsDue: { body: <FlashcardsDueWidget /> },
+  // Sizes itself to the widget, like the ring.
+  clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
 }

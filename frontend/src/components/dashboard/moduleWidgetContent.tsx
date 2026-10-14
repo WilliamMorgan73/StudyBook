@@ -1,3 +1,4 @@
+import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
 import {
   AssignmentsAction,
@@ -40,4 +41,6 @@ export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
   todo: { body: <ModuleTodoWidget /> },
   notepad: { body: <ModuleNotepadWidget /> },
   related: { body: <RelatedModulesWidget /> },
+  // Sizes itself to the widget, like the ring.
+  clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
 }

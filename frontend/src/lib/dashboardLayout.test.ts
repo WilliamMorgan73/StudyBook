@@ -187,6 +187,21 @@ describe('widget copies and settings', () => {
     expect(sameLayout(two, changed)).toBe(false)
     expect(sameLayout(changed, normalizeLayout(board, JSON.parse(JSON.stringify(changed))))).toBe(true)
   })
+
+  it.each<[string, Board<string>]>([
+    ['the Overview', OVERVIEW_BOARD],
+    ['a module page', MODULE_BOARD],
+  ])('keeps two real clocks with different settings on %s', (_name, real) => {
+    const tokyo = { style: 'digital', timeZone: 'Asia/Tokyo', label: 'Home', showDate: true, showSeconds: false, hour12: false }
+    const analog = { style: 'analog', timeZone: null, label: '', showDate: false, showSeconds: true, hour12: true }
+    const layout = [
+      { i: 'clock', type: 'clock', config: tokyo, x: 0, y: 0, w: 3, h: 3 },
+      { i: 'clock-2', type: 'clock', config: analog, x: 3, y: 0, w: 3, h: 3 },
+    ]
+    const saved = normalizeLayout(real, JSON.parse(JSON.stringify(layout)))
+    expect(saved).toEqual(layout)
+    expect(addableWidgets(real, saved)).toContain('clock')
+  })
 })
 
 describe('adding and removing widgets', () => {
