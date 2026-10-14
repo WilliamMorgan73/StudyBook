@@ -553,6 +553,7 @@ describe('edgeStep (keyboard resize)', () => {
   const widgets: Record<string, WidgetInfo> = {
     a: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
     b: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
+    c: { title: '', description: '', minW: 2, minH: 2, defaultW: 2, defaultH: 2 },
   }
   const step = (layout: Tile[], dir: Direction) => {
     const a = layout.find((item) => item.i === 'a')!
@@ -572,6 +573,32 @@ describe('edgeStep (keyboard resize)', () => {
     ]
     expect(step(stacked, 'up')).toMatchObject({ y: 6, h: 8 })
     expect(step(stacked, 'right')).toMatchObject({ x: 0, w: 12 })
+  })
+
+  const shrinkTop = (layout: Tile[]) => {
+    const a = layout.find((item) => item.i === 'a')!
+    return resizeTile(widgets, layout, 'a', edgeStep(a, 'up', 'shrink'))
+  }
+
+  it('shrinks from the top: the widget resting on it grows down into the space', () => {
+    const stacked: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 6, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 6, h: 7 },
+    ]
+    const out = shrinkTop(stacked)!
+    expect(out.find((t) => t.i === 'a')).toMatchObject({ y: 8, h: 6 })
+    expect(out.find((t) => t.i === 'b')).toMatchObject({ y: 0, h: 8 })
+  })
+
+  it("leaves a wider widget above alone when something else sits under it, so it's a bottom shrink", () => {
+    const layout: Tile[] = [
+      { i: 'b', x: 0, y: 0, w: 12, h: 7 },
+      { i: 'a', x: 0, y: 7, w: 6, h: 7 },
+      { i: 'c', x: 6, y: 7, w: 6, h: 7 },
+    ]
+    const out = shrinkTop(layout)!
+    expect(out.find((t) => t.i === 'a')).toMatchObject({ y: 7, h: 6 })
+    expect(out.find((t) => t.i === 'b')).toMatchObject({ h: 7 })
   })
 })
 

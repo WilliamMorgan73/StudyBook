@@ -523,6 +523,20 @@ export function tileAt(layout: readonly Tile[], col: number, row: number, exclud
 }
 
 /**
+ * After `self`'s top edge moved down from `oldTop`: each widget resting on that edge grows down
+ * into the space, if nothing else is in the strip it would take. Widgets wider than `self` usually
+ * can't (something else sits under them); with nothing to fill it, the board floats `self` back
+ * up, which is the same as shrinking it from the bottom.
+ */
+function fillAbove<T extends Tile>(others: T[], self: T, oldTop: number): void {
+  const gap = self.y - oldTop
+  for (const item of others.filter((o) => o.y + o.h === oldTop && o.x < self.x + self.w && self.x < o.x + o.w)) {
+    const strip = { x: item.x, y: oldTop, w: item.w, h: gap }
+    if (!others.some((o) => o !== item && overlaps(strip, o))) item.h += gap
+  }
+}
+
+/**
  * The layout with widget `id` resized to `to` from its spot in `layout` (the layout when the resize
  * began). Each edge that moves outwards squeezes what's in its way:
  * - right or left: the widgets beside it get narrower, keeping their far edges;
@@ -531,8 +545,9 @@ export function tileAt(layout: readonly Tile[], col: number, row: number, exclud
  * - up: the widgets above get shorter, keeping their tops (the board packs widgets upwards, so
  *   there's nowhere to push them).
  * An edge stops once a widget it's squeezing reaches its minimum size, so the widgets squeezed all
- * lose the same amount. Edges moving inwards leave the others as they were in `layout`. Null if
- * the result still wouldn't fit the board.
+ * lose the same amount. Edges moving inwards leave the others as they were in `layout`, except the
+ * top: the widgets resting on it grow down into the space, since otherwise the board would just
+ * float the widget back up (`fillAbove`). Null if the result still wouldn't fit the board.
  */
 export function resizeTile<T extends Tile>(
   widgets: Record<string, WidgetInfo>,
@@ -580,6 +595,7 @@ export function resizeTile<T extends Tile>(
   self.y = to.y < oldTop ? top : to.y
   const wantBottom = to.y + to.h
   self.h = wantBottom - self.y
+  if (self.y > oldTop) fillAbove(others, self, oldTop)
 
   const compact = compactTiles<T>
   const fits = (l: T[]) => layoutBottom(l) <= DASHBOARD_ROWS
