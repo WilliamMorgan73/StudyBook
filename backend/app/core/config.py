@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     upload_dir: str = ""
     # Automatic backups, and the copies a restore or schema upgrade saves of the data it replaces.
     backup_dir: str = ""
+    # What a delete removed, kept for a couple of minutes so it can be undone (app/services/undo.py).
+    undo_dir: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]
     # Fallback Anthropic key (env var ANTHROPIC_API_KEY or .env), used when the key saved in
     # AppSettings is empty. The saved key wins.
@@ -30,6 +32,8 @@ class Settings(BaseSettings):
             self.upload_dir = str(self.data_dir / "uploads")
         if not self.backup_dir:
             self.backup_dir = str(self.data_dir / "backups")
+        if not self.undo_dir:
+            self.undo_dir = str(self.data_dir / "undo")
         return self
 
 

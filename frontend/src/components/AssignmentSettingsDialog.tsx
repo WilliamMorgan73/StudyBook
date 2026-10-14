@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { CoveredSubmodulesPicker } from '@/components/CoveredSubmodulesPicker'
+import { DangerZone } from '@/components/DangerZone'
 import { ExamFields } from '@/components/ExamFields'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteAssignment, toNaiveDateTime, updateAssignment, type Assignment } from '@/lib/api'
 import { coveredAfterExamToggle, examFieldsPayload, type ExamFormState } from '@/lib/exam'
+import { deleteWithUndo } from '@/lib/undoToast'
 
 function examFormState(
   kind: Assignment['kind'],
@@ -119,8 +121,11 @@ export function AssignmentSettingsDialog({
   }
 
   async function handleDelete() {
-    if (!confirm(`Delete "${assignment.title}"? This removes its notes, files, and checklist.`)) return
-    await deleteAssignment(assignment.id)
+    await deleteWithUndo({
+      label: assignment.title,
+      del: () => deleteAssignment(assignment.id),
+      onUndone: () => navigate(`/modules/${moduleId}/assignments/${assignment.id}`),
+    })
     navigate(`/modules/${moduleId}`)
   }
 
@@ -172,14 +177,17 @@ export function AssignmentSettingsDialog({
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center pt-1">
             <Button size="sm" onClick={handleSave} disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={handleDelete}>
-              Delete assignment
-            </Button>
           </div>
+
+          <DangerZone
+            action="Delete assignment"
+            description="Its notes, files, checklist and revision plan go with it. You can undo for a few seconds."
+            onDelete={handleDelete}
+          />
         </div>
       </DialogContent>
     </Dialog>

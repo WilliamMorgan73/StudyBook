@@ -69,7 +69,7 @@ def test_deleting_a_submodule_removes_its_files_and_folder(client, db, upload_di
     mine = [attach(db, upload_dir, submodule_id=1), attach(db, upload_dir, submodule_id=1)]
     other = attach(db, upload_dir, submodule_id=2)
 
-    assert client.delete("/submodules/1").status_code == 204
+    assert client.delete("/submodules/1").status_code == 200
 
     assert not any(path.exists() for path in mine)
     assert not (upload_dir / "submodules" / "1").exists()
@@ -79,7 +79,7 @@ def test_deleting_a_submodule_removes_its_files_and_folder(client, db, upload_di
 def test_deleting_an_assignment_removes_its_files(client, db, upload_dir):
     path = attach(db, upload_dir, assignment_id=1)
 
-    assert client.delete("/assignments/1").status_code == 204
+    assert client.delete("/assignments/1").status_code == 200
 
     assert not path.exists()
 
@@ -89,7 +89,7 @@ def test_deleting_a_module_removes_files_of_its_submodules_and_assignments(clien
                attach(db, upload_dir, assignment_id=1)]
     kept = attach(db, upload_dir, submodule_id=3)  # module 2
 
-    assert client.delete("/modules/1").status_code == 204
+    assert client.delete("/modules/1").status_code == 200
 
     assert not any(path.exists() for path in removed)
     assert kept.exists()
@@ -100,7 +100,7 @@ def test_deleting_an_attachment_removes_its_file(client, db, upload_dir):
     sibling = attach(db, upload_dir, submodule_id=1)
     attachment_id = db.query(Attachment).filter_by(file_path=path.relative_to(upload_dir).as_posix()).one().id
 
-    assert client.delete(f"/attachments/{attachment_id}").status_code == 204
+    assert client.delete(f"/attachments/{attachment_id}").status_code == 200
 
     assert not path.exists()
     assert sibling.exists()  # the folder stays while it still holds files
@@ -123,7 +123,7 @@ def test_a_missing_file_does_not_break_the_delete(client, db, upload_dir):
     path = attach(db, upload_dir, submodule_id=1)
     path.unlink()
 
-    assert client.delete("/submodules/1").status_code == 204
+    assert client.delete("/submodules/1").status_code == 200
 
 
 def test_never_deletes_outside_the_upload_dir(db, upload_dir, tmp_path_factory):

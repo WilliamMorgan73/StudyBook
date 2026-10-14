@@ -16,6 +16,8 @@ from app.schemas.flashcard import (
     FlashcardReviewRead,
     FlashcardUpdate,
 )
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/flashcards", tags=["flashcards"])
 
@@ -112,10 +114,9 @@ def review_flashcard(flashcard_id: int, payload: FlashcardReviewCreate, db: Sess
     return card
 
 
-@router.delete("/{flashcard_id}", status_code=204)
-def delete_flashcard(flashcard_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{flashcard_id}", response_model=DeleteResult)
+def delete_flashcard(flashcard_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     card = db.get(Flashcard, flashcard_id)
     if card is None:
         raise HTTPException(404, "Flashcard not found")
-    db.delete(card)
-    db.commit()
+    return DeleteResult(undo_token=delete_with_undo(db, card))

@@ -14,6 +14,8 @@ from app.schemas.module import (
     ModuleSummary,
     ModuleUpdate,
 )
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
@@ -84,13 +86,12 @@ def update_module(module_id: int, payload: ModuleUpdate, db: Session = Depends(g
     return module
 
 
-@router.delete("/{module_id}", status_code=204)
-def delete_module(module_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{module_id}", response_model=DeleteResult)
+def delete_module(module_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     module = db.get(Module, module_id)
     if module is None:
         raise HTTPException(404, "Module not found")
-    db.delete(module)
-    db.commit()
+    return DeleteResult(undo_token=delete_with_undo(db, module))
 
 
 @router.post("/{module_id}/related/{related_module_id}", status_code=204)

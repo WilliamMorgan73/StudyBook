@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -200,6 +200,8 @@ def test_round_trip_restores_every_row_id_and_file(db, upload_dir, tmp_path):
     restore_backup(db, read_backup(out), upload_dir=upload_dir)
 
     assert snapshot(db) == before
+    # SQL NULL in a JSON column stays NULL (not the JSON text 'null').
+    assert db.execute(text("SELECT dashboard_layout IS NULL FROM modules WHERE id = 9")).scalar() == 1
     assert (upload_dir / "submodules" / "3" / "abc.png").read_bytes() == b"png bytes"
     assert not (upload_dir / "stray.txt").exists()
     assert sorted(p.name for p in tmp_path.iterdir()) == ["backup.zip", "uploads"]  # no staging folders left

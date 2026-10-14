@@ -4,6 +4,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
+import { DangerZone } from '@/components/DangerZone'
+import { DeleteIconButton } from '@/components/DeleteIconButton'
 import { LectureSubmodules } from '@/components/LectureSubmodules'
 import { SettingsNav } from '@/components/SettingsNav'
 import { Button } from '@/components/ui/button'
@@ -40,6 +42,7 @@ import {
   type LectureGroup,
   type TimeRangeState,
 } from '@/lib/lectureSchedule'
+import { deleteWithUndo } from '@/lib/undoToast'
 import { useAsync } from '@/lib/useAsync'
 
 type Category = 'general' | 'lectures'
@@ -480,11 +483,15 @@ function LectureSeriesCard({
 
   async function handleDelete() {
     const lectures = group.type === 'series' ? group.series.lectures : [group.lecture]
-    if (!confirm(`Delete ${lectures.length > 1 ? `this lecture series (${lectures.length} lectures)` : 'this lecture'}?`))
-      return
-    for (const lecture of lectures) {
-      await deleteLecture(lecture.id)
-    }
+    await deleteWithUndo({
+      label: group.type === 'series' ? group.series.title : group.lecture.title,
+      del: async () => {
+        const results = []
+        for (const lecture of lectures) results.push(await deleteLecture(lecture.id))
+        return results
+      },
+      onUndone: onChanged,
+    })
     onChanged()
   }
 
@@ -546,9 +553,10 @@ function LectureSeriesCard({
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
           Edit
         </Button>
-        <Button size="sm" variant="ghost" onClick={handleDelete}>
-          Delete
-        </Button>
+        <DeleteIconButton
+          label={group.type === 'series' ? 'Delete lecture series' : 'Delete lecture'}
+          onClick={() => void handleDelete()}
+        />
       </div>
     </li>
   )
@@ -662,9 +670,11 @@ export function ModuleSettingsDialog({
   }
 
   async function handleDeleteModule() {
-    if (!confirm(`Delete "${module.name}"? This removes all its lectures, assignments, submodules, and flashcards.`))
-      return
-    await deleteModule(module.id)
+    await deleteWithUndo({
+      label: module.name,
+      del: () => deleteModule(module.id),
+      onUndone: () => navigate(`/modules/${module.id}`),
+    })
     navigate('/')
   }
 
@@ -722,14 +732,17 @@ export function ModuleSettingsDialog({
 
                 {identityError && <p className="text-sm text-destructive">{identityError}</p>}
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center pt-1">
                   <Button size="sm" onClick={saveIdentity} disabled={savingIdentity}>
                     {savingIdentity ? 'Saving…' : 'Save'}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={handleDeleteModule}>
-                    Delete module
-                  </Button>
                 </div>
+
+                <DangerZone
+                  action="Delete module"
+                  description="Its lectures, assignments, topics, notes, flashcards and files go with it. You can undo for a few seconds."
+                  onDelete={handleDeleteModule}
+                />
               </div>
             )}
 

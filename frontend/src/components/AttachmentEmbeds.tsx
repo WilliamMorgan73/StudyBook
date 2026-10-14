@@ -7,19 +7,20 @@ import {
   Music,
   Presentation,
   ScanText,
-  Trash2,
   Upload,
   type LucideIcon,
 } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useRef, useState } from 'react'
 
+import { DeleteIconButton } from '@/components/DeleteIconButton'
 import { ExtractedTextDialog } from '@/components/ExtractedTextDialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { deleteAttachment, type Attachment, type AttachmentKind } from '@/lib/api'
 import { listItem } from '@/lib/motion'
 import { formatFileSize } from '@/lib/utils'
+import { deleteWithUndo } from '@/lib/undoToast'
 
 const KIND: Record<AttachmentKind, { icon: LucideIcon; label: string }> = {
   pdf: { icon: FileText, label: 'PDF' },
@@ -140,8 +141,7 @@ export function AttachmentEmbeds({
   }
 
   async function handleDelete(a: Attachment) {
-    if (!confirm(`Delete "${a.filename}"?`)) return
-    await deleteAttachment(a.id)
+    await deleteWithUndo({ label: a.filename, del: () => deleteAttachment(a.id), onUndone: onChanged })
     onChanged()
   }
 
@@ -232,15 +232,7 @@ export function AttachmentEmbeds({
                       <ScanText />
                     </Button>
                   )}
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Delete file"
-                    title="Delete file"
-                    onClick={() => handleDelete(a)}
-                  >
-                    <Trash2 />
-                  </Button>
+                  <DeleteIconButton label="Delete file" onClick={() => void handleDelete(a)} />
                 </motion.li>
               )
             })}

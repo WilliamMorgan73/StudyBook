@@ -11,6 +11,8 @@ from app.schemas.lecture import (
     LecturesSubmodulesUpdate,
     LectureUpdate,
 )
+from app.schemas.undo import DeleteResult
+from app.services.undo import delete_with_undo
 
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
@@ -96,11 +98,10 @@ def update_lecture(lecture_id: int, payload: LectureUpdate, db: Session = Depend
     return lecture
 
 
-@router.delete("/{lecture_id}", status_code=204)
-def delete_lecture(lecture_id: int, db: Session = Depends(get_db)) -> None:
+@router.delete("/{lecture_id}", response_model=DeleteResult)
+def delete_lecture(lecture_id: int, db: Session = Depends(get_db)) -> DeleteResult:
     lecture = db.get(Lecture, lecture_id)
     if lecture is None:
         raise HTTPException(404, "Lecture not found")
     _check_editable(lecture)
-    db.delete(lecture)
-    db.commit()
+    return DeleteResult(undo_token=delete_with_undo(db, lecture))
