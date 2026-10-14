@@ -15,6 +15,7 @@ import { ModuleBanner } from '@/components/ModuleBanner'
 import { ModuleBannerDialog } from '@/components/ModuleBannerDialog'
 import { LinkMatchingSeriesDialog } from '@/components/LinkMatchingSeriesDialog'
 import { ModuleSettingsDialog } from '@/components/ModuleSettingsDialog'
+import { RefreshLecturesButton } from '@/components/RefreshLecturesButton'
 import { weekCalendarRange } from '@/components/ModuleWeekCalendar'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -195,6 +196,7 @@ function ModuleView({ id }: { id: number }) {
               </Button>
             }
           >
+            <RefreshLecturesButton moduleId={module.id} onRefreshed={refetch} />
             <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
               <Settings /> Settings
             </Button>

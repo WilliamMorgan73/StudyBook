@@ -519,6 +519,21 @@ export function listModules() {
   return request<ModuleSummary[]>('/modules')
 }
 
+/** What `refreshModuleLectures` did. */
+export interface ModuleLecturesRefreshed {
+  /** Lectures the module gained. */
+  added: number
+  /** Calendar series newly linked to the module by its course code. */
+  linked: string[]
+  /** Calendars (by name) that couldn't be fetched; they keep their last good copy. */
+  failed: string[]
+}
+
+/** Fetches every calendar now and links series named with the module's code. */
+export function refreshModuleLectures(id: number) {
+  return postJson<ModuleLecturesRefreshed>(`/modules/${id}/refresh-lectures`, {})
+}
+
 export function getModule(id: number) {
   return request<ModuleDetail>(`/modules/${id}`)
 }

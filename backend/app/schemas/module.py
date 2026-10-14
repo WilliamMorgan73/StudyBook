@@ -93,3 +93,12 @@ class ModuleDetail(ModuleSummary):
     notes: str | None = None
     # Null: the frontend's default banner.
     banner: ModuleBanner | None = None
+
+
+class ModuleLecturesRefreshed(BaseModel):
+    """`POST /modules/{id}/refresh-lectures`: lectures the module gained, the calendar series newly
+    linked to it by course code, and the calendars (by name) that couldn't be fetched."""
+
+    added: int
+    linked: list[str]
+    failed: list[str]

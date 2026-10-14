@@ -26,7 +26,14 @@ from app.crud.calendar_feeds import (
     suggested_module_id,
 )
 from app.main import app as fastapi_app
-from app.models import CalendarFeed, CalendarFeedEvent, Lecture, Module, Submodule
+from app.models import (
+    CalendarFeed,
+    CalendarFeedEvent,
+    CalendarFeedLink,
+    Lecture,
+    Module,
+    Submodule,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures" / "ics"
 
@@ -757,3 +764,43 @@ def test_all_series_come_with_their_feed(client, db):
         (timetable_id, "Uni", "COMP3001 Lecture", module.id),
         (work_id, "Work", "Shift", None),
     ]
+
+
+# --- refreshing one module's lectures ----------------------------------------------------------------
+
+
+def test_module_refresh_fetches_now_and_links_series_named_with_its_code(db):
+    module = Module(name="Networks", code="COMP4177")
+    db.add(module)
+    feed = make_feed(db, last_synced_at=utc_now())  # just synced: the hourly refresh would skip it
+    lecture = ("COMP4177 Lecture", at(1, 10), at(1, 11))
+    assert refresh_feed(feed, lambda _url: ics(lecture))
+    feed.links.append(CalendarFeedLink(title="COMP4177 Lecture", module_id=module.id))
+    calendar_feeds.resync_feed(feed)
+    db.commit()
+    assert len(module.lectures) == 1
+
+    # Since then: another lecture in the linked series, a new lab series, and something unrelated.
+    reply = ics(lecture, ("COMP4177 Lecture", at(2, 10), at(2, 11)), ("COMP4177 Lab", at(1, 14), at(1, 16)), ("Gym", at(1, 18), at(1, 19)))
+    result = calendar_feeds.refresh_module_lectures(db, module, lambda _url: reply)
+    db.commit()
+
+    assert result.added == 2
+    assert result.linked == ["COMP4177 Lab"]
+    assert result.failed == []
+    assert sorted(lec.title for lec in module.lectures) == ["COMP4177 Lab", "COMP4177 Lecture", "COMP4177 Lecture"]
+    assert [e.title for e in feed.events] == ["Gym"]
+
+
+def test_module_refresh_endpoint_reports_calendars_it_couldnt_fetch(client, db, monkeypatch):
+    module = Module(name="Networks", code="COMP4177")
+    db.add(module)
+    make_feed(db)
+    db.commit()
+    monkeypatch.setattr(calendar_feeds, "fetch_ics", failing_fetch)
+
+    response = client.post(f"/modules/{module.id}/refresh-lectures")
+
+    assert response.status_code == 200
+    assert response.json() == {"added": 0, "linked": [], "failed": ["Work"]}
+    assert client.post("/modules/9999/refresh-lectures").status_code == 404

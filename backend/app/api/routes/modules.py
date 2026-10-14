@@ -3,11 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.crud.calendar_feeds import refresh_module_lectures
 from app.crud.modules import build_module_summary
 from app.models.module import Module, ModuleLink
 from app.schemas.module import (
     ModuleCreate,
     ModuleDetail,
+    ModuleLecturesRefreshed,
     ModuleRead,
     ModuleSummary,
     ModuleUpdate,
@@ -55,6 +57,19 @@ def get_module(module_id: int, db: Session = Depends(get_db)) -> ModuleDetail:
             "banner": module.banner,
         }
     )
+
+
+@router.post("/{module_id}/refresh-lectures", response_model=ModuleLecturesRefreshed)
+def refresh_lectures(module_id: int, db: Session = Depends(get_db)) -> ModuleLecturesRefreshed:
+    """Fetches every calendar address now and links series named with this module's course code,
+    so lectures added to a calendar after the module was set up come in. Always 200: a calendar
+    that couldn't be fetched is listed in `failed` and keeps its last good copy."""
+    module = db.get(Module, module_id)
+    if module is None:
+        raise HTTPException(404, "Module not found")
+    result = refresh_module_lectures(db, module)
+    db.commit()
+    return ModuleLecturesRefreshed(added=result.added, linked=result.linked, failed=result.failed)
 
 
 @router.patch("/{module_id}", response_model=ModuleRead)
