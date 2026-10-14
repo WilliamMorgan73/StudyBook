@@ -481,6 +481,11 @@ export class ApiError extends Error {
   }
 }
 
+/** True when the backend answered 404. Any other failure (network error, 5xx) means it's down. */
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {

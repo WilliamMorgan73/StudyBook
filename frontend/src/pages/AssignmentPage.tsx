@@ -12,12 +12,14 @@ import { ErrorState } from '@/components/ErrorState'
 import { MarkdownEditor, type MarkdownEditorHandle } from '@/components/MarkdownEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { RevisionPlan } from '@/components/RevisionPlan'
+import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAppSettings,
   getAssignment,
   getModule,
+  isNotFound,
   resolveWikilink,
   updateAssignment,
   uploadAssignmentAttachment,
@@ -50,9 +52,9 @@ function formatExamWhen(startsAt: string, durationMinutes: number | null, locati
 export function AssignmentPage() {
   const { moduleId, assignmentId } = useParams()
   const id = Number(assignmentId)
-  const { data: assignment, loading, refetch } = useAsync(() => getAssignment(id), [id])
-  const { data: module } = useAsync(() => getModule(Number(moduleId)), [moduleId])
-  const { data: appSettings } = useAsync(() => getAppSettings(), [])
+  const { data: assignment, error, loading, refetch } = useAsync(() => getAssignment(id), [id])
+  const { data: module, refetch: refetchModule } = useAsync(() => getModule(Number(moduleId)), [moduleId])
+  const { data: appSettings, refetch: refetchAppSettings } = useAsync(() => getAppSettings(), [])
 
   if (loading && !assignment) {
     return (
@@ -79,23 +81,27 @@ export function AssignmentPage() {
           }
         />
         <div className="flex flex-1 items-center justify-center p-6">
-          <ErrorState
-            icon={FileX}
-            iconVariant="muted"
-            badge="404"
-            title="Assignment not found"
-            description="We couldn't find this assignment or exam. It may have been deleted or the link is invalid."
-            primaryAction={{
-              label: `Back to ${parentLabel}`,
-              to: parentUrl,
-              icon: ArrowLeft,
-            }}
-            secondaryAction={{
-              label: 'Try again',
-              onClick: refetch,
-              icon: RotateCcw,
-            }}
-          />
+          {isNotFound(error) ? (
+            <ErrorState
+              icon={FileX}
+              iconVariant="muted"
+              badge="404"
+              title="Assignment not found"
+              description="We couldn't find this assignment or exam. It may have been deleted or the link is invalid."
+              primaryAction={{
+                label: `Back to ${parentLabel}`,
+                to: parentUrl,
+                icon: ArrowLeft,
+              }}
+              secondaryAction={{
+                label: 'Try again',
+                onClick: refetch,
+                icon: RotateCcw,
+              }}
+            />
+          ) : (
+            <ServerOfflineState onRetry={() => Promise.all([refetch(), refetchModule(), refetchAppSettings()])} />
+          )}
         </div>
       </div>
     )

@@ -1,4 +1,4 @@
-import { Check, Eye, Plus, RotateCcw, WifiOff, X } from 'lucide-react'
+import { Check, Eye, Plus, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -7,7 +7,7 @@ import { AISettingsPanel } from '@/components/AISettingsPanel'
 import { RestoreBackup } from '@/components/BackupSettings'
 import { DesktopTitleBar, WindowControls } from '@/components/WindowControls'
 import { CalendarFeedsSettings } from '@/components/CalendarFeedsSettings'
-import { ErrorState } from '@/components/ErrorState'
+import { ServerOfflineState } from '@/components/ServerOfflineState'
 import { LayoutPreviewDialog } from '@/components/setup/LayoutPreview'
 import { ColorSwatchPicker } from '@/components/ColorSwatchPicker'
 import { Button } from '@/components/ui/button'
@@ -98,18 +98,9 @@ export function SetupPage({ onFinished }: { onFinished: () => Promise<void> }) {
         <div className="flex h-full flex-col">
           <DesktopTitleBar />
           <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-            <ErrorState
-              icon={WifiOff}
-              iconVariant="warning"
-              badge="Server offline"
-              title="Cannot connect to StudyBook server"
+            <ServerOfflineState
               description="Setup requires a running StudyBook backend server. Make sure the server is running, then try again."
-              codeSnippet="uv run uvicorn app.main:app"
-              primaryAction={{
-                label: 'Retry connection',
-                onClick: settings.refetch,
-                icon: RotateCcw,
-              }}
+              onRetry={settings.refetch}
             />
           </div>
         </div>
