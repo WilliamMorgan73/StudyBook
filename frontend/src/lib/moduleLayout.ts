@@ -23,6 +23,7 @@ export type ModuleWidgetId =
   | 'clock'
   | 'timeline'
   | 'weakestTopics'
+  | 'activity'
 
 export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
   schedule: {
@@ -114,6 +115,14 @@ export const MODULE_WIDGETS: Record<ModuleWidgetId, WidgetInfo> = {
     minH: 3,
     defaultW: 4,
     defaultH: 5,
+  },
+  activity: {
+    title: 'Study activity',
+    description: "Reviews of this module's flashcards per day, and your streak",
+    minW: 3,
+    minH: 3,
+    defaultW: 6,
+    defaultH: 3,
   },
 }
 

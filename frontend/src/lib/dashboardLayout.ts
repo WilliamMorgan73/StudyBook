@@ -44,6 +44,7 @@ export type WidgetId =
   | 'now'
   | 'cardOfTheDay'
   | 'weakestTopics'
+  | 'activity'
 
 /** A widget's place on the grid. `i` is the instance id, unique on its board. */
 export interface Tile {
@@ -214,6 +215,14 @@ export const WIDGETS: Record<WidgetId, WidgetInfo> = {
     minH: 3,
     defaultW: 4,
     defaultH: 5,
+  },
+  activity: {
+    title: 'Study activity',
+    description: 'Flashcard reviews per day, and your streak',
+    minW: 3,
+    minH: 3,
+    defaultW: 6,
+    defaultH: 3,
   },
 }
 

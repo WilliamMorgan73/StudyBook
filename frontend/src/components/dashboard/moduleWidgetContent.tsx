@@ -1,3 +1,4 @@
+import { ModuleActivityWidget } from '@/components/dashboard/ActivityWidget'
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
 import type { WidgetContent } from '@/components/dashboard/DashboardWidget'
 import { ScheduleSettings } from '@/components/dashboard/DayListSettings'
@@ -48,4 +49,5 @@ export const MODULE_WIDGET_CONTENT: Record<ModuleWidgetId, WidgetContent> = {
   clock: { body: <ClockWidget />, scroll: false, settings: <ClockSettings /> },
   timeline: { body: <ModuleTimelineWidget />, settings: <TimelineSettings /> },
   weakestTopics: { body: <ModuleWeakestTopicsWidget /> },
+  activity: { body: <ModuleActivityWidget /> },
 }

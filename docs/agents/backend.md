@@ -59,6 +59,7 @@ Text extraction lives in `crud/attachment_text.py`, the one entry point AI featu
 ### Dashboard stats
 
 - `GET /submodules/weakest?limit=&module_id=` (Weakest topics widget): Submodules with at least one Flashcard, scored with `submodule_weakness` and sorted weakest first (`WeakTopic`: weakness, card_count, module_name). Declared before `/submodules/{id}`.
+- `GET /stats/activity?start=&end=&tz=&module_id=` (Study activity widget, `api/routes/stats.py`): FlashcardReviews per local day as `{date: count}`, days with none left out. Reviews are stored naive UTC, so `crud/stats.py::count_by_local_day` converts each to `tz` (an IANA zone, 422 if unknown) before bucketing. At most 400 days.
 
 ## AI service
 

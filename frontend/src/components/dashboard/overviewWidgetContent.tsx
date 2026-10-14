@@ -1,3 +1,4 @@
+import { ActivityWidget } from '@/components/dashboard/ActivityWidget'
 import { AgendaWidget, CalendarWidget } from '@/components/dashboard/CalendarWidget'
 import { CardOfTheDaySettings, CardOfTheDayWidget } from '@/components/dashboard/CardOfTheDayWidget'
 import { ClockSettings, ClockWidget } from '@/components/dashboard/ClockWidget'
@@ -42,4 +43,5 @@ export const OVERVIEW_WIDGET_CONTENT: Record<WidgetId, WidgetContent> = {
   now: { body: <NowWidget /> },
   cardOfTheDay: { body: <CardOfTheDayWidget />, settings: <CardOfTheDaySettings /> },
   weakestTopics: { body: <WeakestTopicsWidget /> },
+  activity: { body: <ActivityWidget /> },
 }

@@ -707,6 +707,13 @@ export function deleteLecture(id: number) {
   return request<void>(`/lectures/${id}`, { method: 'DELETE' })
 }
 
+/** Flashcard reviews per local day ("YYYY-MM-DD" → count; days with none are left out). */
+export function getActivity(filter: { start: string; end: string; moduleId?: number }) {
+  const params = new URLSearchParams({ start: filter.start, end: filter.end, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
+  if (filter.moduleId !== undefined) params.set('module_id', String(filter.moduleId))
+  return request<Record<string, number>>(`/stats/activity?${params}`)
+}
+
 export function getCalendar(start: Date, end: Date) {
   const params = new URLSearchParams({
     start: toNaiveDateTime(start),
